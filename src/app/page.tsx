@@ -1,35 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
-import { ChevronDown } from "lucide-react";
-
-// ─── Style helpers ────────────────────────────────────────────────────────────
-const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
-  fontSize: size,
-  color: "#F5F0E8",
-  lineHeight: 1,
-  fontWeight: 400,
-  ...extra,
-});
-
-const sans = (size: string, color = "#A89F96", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-  fontSize: size,
-  color,
-  ...extra,
-});
-
-const label = (color = "#C8A97E"): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-  fontSize: "11px",
-  letterSpacing: "0.25em",
-  textTransform: "uppercase" as const,
-  color,
-});
+import { motion, AnimatePresence } from "framer-motion";
+import { Menu, X, Plus } from "lucide-react";
 
 // ─── FAQs ─────────────────────────────────────────────────────────────────────
 const FAQS = [
@@ -62,208 +37,1120 @@ const FAQS = [
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 function Nav() {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  const links = [
+    { label: "How it works", href: "/how-it-works" },
+    { label: "Pricing", href: "/pricing" },
+    { label: "FAQ", href: "#faq" },
+  ];
+
   return (
-    <nav
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 50,
-        backgroundColor: scrolled ? "rgba(13,13,13,0.92)" : "transparent",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
-        transition: "background-color 0.4s, backdrop-filter 0.4s",
-        padding: "20px 64px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}
-    >
-      <Link href="/" style={{ textDecoration: "none" }}>
-        <span
-          style={{
-            ...sans("12px", "#F5F0E8"),
-            letterSpacing: "0.2em",
-            textTransform: "uppercase",
-            fontWeight: 500,
-          }}
-        >
-          ClearClaim
-        </span>
-      </Link>
-
-      <div className="hidden md:flex" style={{ gap: "40px" }}>
-        {[
-          { label: "How it works", href: "/how-it-works" },
-          { label: "Pricing", href: "/pricing" },
-          { label: "FAQ", href: "#faq" },
-        ].map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
+    <>
+      <nav
+        className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-5 transition-colors duration-300"
+        style={{
+          backgroundColor: scrolled ? "rgba(245,240,232,0.92)" : "transparent",
+          backdropFilter: scrolled ? "blur(12px)" : "none",
+          borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
+        }}
+      >
+        <Link href="/" className="no-underline">
+          <span
+            className="font-[family-name:var(--font-dm-sans)] uppercase"
             style={{
-              ...sans("11px", "#A89F96"),
-              letterSpacing: "0.15em",
-              textTransform: "uppercase",
-              textDecoration: "none",
-              transition: "color 0.2s",
+              fontSize: "12px",
+              letterSpacing: "0.25em",
+              fontWeight: 500,
+              color: "var(--text-primary)",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#A89F96")}
           >
-            {link.label}
-          </Link>
-        ))}
-      </div>
+            ClearClaim
+          </span>
+        </Link>
 
-      <Link href="/upload" style={{ textDecoration: "none" }}>
-        <span
-          style={{
-            ...sans("11px", "#0D0D0D"),
-            backgroundColor: "#C8A97E",
-            padding: "12px 24px",
-            letterSpacing: "0.2em",
-            textTransform: "uppercase",
-            fontWeight: 500,
-            display: "inline-block",
-          }}
+        <div className="hidden md:flex items-center gap-10">
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
+              style={{
+                fontSize: "11px",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                fontWeight: 400,
+                color: "var(--text-muted)",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+
+        <Link href="/upload" className="hidden md:inline-block no-underline">
+          <span
+            className="inline-block font-[family-name:var(--font-dm-sans)] uppercase"
+            style={{
+              fontSize: "11px",
+              letterSpacing: "0.2em",
+              fontWeight: 500,
+              color: "var(--bg)",
+              backgroundColor: "var(--text-primary)",
+              padding: "12px 24px",
+            }}
+          >
+            Check my bill →
+          </span>
+        </Link>
+
+        <button
+          aria-label="Menu"
+          className="md:hidden"
+          onClick={() => setMobileOpen(true)}
+          style={{ color: "var(--text-primary)", background: "none", border: "none" }}
         >
-          Check my bill →
-        </span>
-      </Link>
-    </nav>
+          <Menu size={22} />
+        </button>
+      </nav>
+
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="md:hidden fixed inset-0 z-[60] flex flex-col px-6 py-5"
+            style={{ backgroundColor: "var(--bg)" }}
+          >
+            <div className="flex items-center justify-between mb-20">
+              <span
+                className="font-[family-name:var(--font-dm-sans)] uppercase"
+                style={{
+                  fontSize: "12px",
+                  letterSpacing: "0.25em",
+                  fontWeight: 500,
+                  color: "var(--text-primary)",
+                }}
+              >
+                ClearClaim
+              </span>
+              <button
+                aria-label="Close menu"
+                onClick={() => setMobileOpen(false)}
+                style={{ color: "var(--text-primary)", background: "none", border: "none" }}
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-8">
+              {links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="font-[family-name:var(--font-cormorant)] no-underline"
+                  style={{
+                    fontSize: "36px",
+                    fontWeight: 300,
+                    color: "var(--text-primary)",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+            <Link
+              href="/upload"
+              onClick={() => setMobileOpen(false)}
+              className="mt-auto no-underline"
+            >
+              <div
+                className="w-full text-center font-[family-name:var(--font-dm-sans)] uppercase"
+                style={{
+                  fontSize: "12px",
+                  letterSpacing: "0.2em",
+                  fontWeight: 500,
+                  color: "var(--bg)",
+                  backgroundColor: "var(--text-primary)",
+                  padding: "18px",
+                }}
+              >
+                Check my bill →
+              </div>
+            </Link>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
-// ─── Footer ───────────────────────────────────────────────────────────────────
-function Footer() {
+// ─── Shared motion ────────────────────────────────────────────────────────────
+const fadeUp = {
+  initial: { opacity: 0, y: 24 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: "-80px" },
+  transition: { duration: 0.7, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] },
+};
+
+// ─── Hero ─────────────────────────────────────────────────────────────────────
+function Hero() {
   return (
-    <footer
+    <section
+      className="relative grid"
       style={{
-        borderTop: "1px solid #242424",
-        padding: "64px",
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr 1fr",
-        gap: "48px",
+        gridTemplateColumns: "48px 1fr",
+        minHeight: "100svh",
+        backgroundColor: "var(--bg)",
       }}
     >
-      <div>
+      {/* Dark sidebar with rotated text */}
+      <aside
+        className="hidden md:flex relative"
+        style={{ backgroundColor: "var(--bg-dark)" }}
+      >
         <div
+          className="absolute font-[family-name:var(--font-dm-sans)] uppercase whitespace-nowrap"
           style={{
-            ...sans("12px", "#F5F0E8"),
-            letterSpacing: "0.2em",
-            textTransform: "uppercase",
-            marginBottom: "8px",
+            fontSize: "10px",
+            letterSpacing: "0.3em",
+            color: "var(--text-faint)",
+            fontWeight: 400,
+            bottom: "40px",
+            left: "50%",
+            transform: "translateX(-50%) rotate(-90deg)",
+            transformOrigin: "center",
           }}
         >
-          ClearClaim
+          Medical Bill Advocacy — Est. 2024
         </div>
-        <div style={{ ...sans("11px", "#6B635C"), marginBottom: "16px" }}>
-          Medical bill advocacy.
-        </div>
-        <div
-          style={{
-            ...sans("11px", "#6B635C"),
-            maxWidth: "260px",
-            lineHeight: 1.6,
-          }}
-        >
-          ClearClaim is an administrative advocacy service. We are not a law
-          firm and do not provide legal advice.
-        </div>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {[
-          { lbl: "How it works", href: "/how-it-works" },
-          { lbl: "Pricing", href: "/pricing" },
-          { lbl: "Dashboard", href: "/dashboard" },
-          { lbl: "FAQ", href: "#faq" },
-        ].map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
+      </aside>
+
+      {/* Right side content: 2-col (text | image) */}
+      <div
+        className="grid grid-cols-1 lg:grid-cols-[1fr_1fr]"
+        style={{ minHeight: "100svh" }}
+      >
+        {/* Left column: text */}
+        <div className="relative flex flex-col justify-center px-6 md:px-12 lg:px-16 py-32 lg:py-0">
+          {/* amber eyebrow line */}
+          <div className="flex items-center gap-4 mb-10 lg:mb-14">
+            <div style={{ width: "40px", height: "1px", backgroundColor: "var(--amber)" }} />
+            <span
+              className="font-[family-name:var(--font-dm-sans)] uppercase"
+              style={{
+                fontSize: "10px",
+                letterSpacing: "0.3em",
+                color: "var(--amber)",
+                fontWeight: 400,
+              }}
+            >
+              Medical Billing Advocacy
+            </span>
+          </div>
+
+          <h1
+            className="font-[family-name:var(--font-cormorant)]"
             style={{
-              ...sans("11px", "#6B635C"),
-              textDecoration: "none",
-              transition: "color 0.2s",
+              fontSize: "clamp(54px, 8vw, 104px)",
+              fontWeight: 300,
+              lineHeight: 0.95,
+              letterSpacing: "-0.02em",
+              color: "var(--text-primary)",
+              marginBottom: "40px",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#A89F96")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#6B635C")}
           >
-            {link.lbl}
-          </Link>
-        ))}
-      </div>
-      <div>
-        <div style={{ ...sans("11px", "#6B635C"), marginBottom: "4px" }}>
-          © 2026 ClearClaim
+            Your bill
+            <br />
+            is probably
+            <br />
+            <em
+              style={{
+                fontStyle: "italic",
+                color: "var(--amber)",
+                fontWeight: 300,
+              }}
+            >
+              wrong.
+            </em>
+          </h1>
+
+          {/* subtext with amber left border */}
+          <div
+            className="mb-10 pl-5"
+            style={{ borderLeft: "1px solid var(--amber)", maxWidth: "420px" }}
+          >
+            <p
+              className="font-[family-name:var(--font-dm-sans)]"
+              style={{
+                fontSize: "15px",
+                lineHeight: 1.7,
+                color: "var(--text-muted)",
+                fontWeight: 300,
+              }}
+            >
+              Start free. See every error on your bill. Then decide if you want
+              us to fight it.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4">
+            <Link href="/upload" className="no-underline">
+              <span
+                className="inline-block font-[family-name:var(--font-dm-sans)] uppercase transition-opacity hover:opacity-90"
+                style={{
+                  fontSize: "11px",
+                  letterSpacing: "0.25em",
+                  fontWeight: 500,
+                  color: "var(--bg)",
+                  backgroundColor: "var(--text-primary)",
+                  padding: "18px 32px",
+                }}
+              >
+                Check my bill — free
+              </span>
+            </Link>
+            <Link href="/how-it-works" className="no-underline">
+              <span
+                className="inline-block font-[family-name:var(--font-dm-sans)] uppercase transition-colors"
+                style={{
+                  fontSize: "11px",
+                  letterSpacing: "0.25em",
+                  fontWeight: 400,
+                  color: "var(--text-primary)",
+                  border: "1px solid var(--border)",
+                  padding: "18px 32px",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--text-primary)")}
+                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+              >
+                See how it works
+              </span>
+            </Link>
+          </div>
         </div>
-        <div style={{ ...sans("11px", "#6B635C") }}>All rights reserved.</div>
+
+        {/* Right column: image with stats bar */}
+        <div className="relative min-h-[420px] lg:min-h-full">
+          <Image
+            src="/images/hero-main.jpg"
+            alt=""
+            fill
+            priority
+            sizes="(max-width: 1024px) 100vw, 50vw"
+            style={{ objectFit: "cover", objectPosition: "center" }}
+          />
+
+          {/* dark stats bar anchored to bottom */}
+          <div
+            className="absolute bottom-0 left-0 right-0 grid grid-cols-3"
+            style={{ backgroundColor: "var(--bg-dark)" }}
+          >
+            {[
+              { value: "$4.2M", label: "Recovered for clients" },
+              { value: "73%", label: "Avg. bill reduction" },
+              { value: "34d", label: "Avg. resolution" },
+            ].map((s, i) => (
+              <div
+                key={s.label}
+                className="flex flex-col items-start justify-center px-4 py-5 md:px-6 md:py-7"
+                style={{
+                  borderLeft: i === 0 ? "none" : "1px solid var(--border-dark)",
+                }}
+              >
+                <div
+                  className="font-[family-name:var(--font-cormorant)]"
+                  style={{
+                    fontSize: "clamp(28px, 3vw, 40px)",
+                    fontWeight: 300,
+                    color: "var(--amber)",
+                    lineHeight: 1,
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  {s.value}
+                </div>
+                <div
+                  className="font-[family-name:var(--font-dm-sans)] uppercase mt-2"
+                  style={{
+                    fontSize: "9px",
+                    letterSpacing: "0.25em",
+                    color: "var(--text-faint)",
+                    fontWeight: 400,
+                  }}
+                >
+                  {s.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-    </footer>
+    </section>
   );
 }
 
-// ─── CountUp ──────────────────────────────────────────────────────────────────
-function useCountUp(target: number, duration = 1800) {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLDivElement>(null);
-  const started = useRef(false);
+// ─── Stats Strip ──────────────────────────────────────────────────────────────
+function StatsStrip() {
+  const stats = [
+    { value: "80", suffix: "%", label: "of bills contain errors" },
+    { value: "$1,300", suffix: "", label: "average overcharge" },
+    { value: "1", suffix: "/3", label: "patients balance billed" },
+    { value: "<3", suffix: "%", label: "ever dispute them" },
+  ];
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          const startTime = performance.now();
-          const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-          const tick = (now: number) => {
-            const elapsed = now - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            setCount(Math.round(easeOutCubic(progress) * target));
-            if (progress < 1) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-        }
-      },
-      { threshold: 0.5 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [target, duration]);
-
-  return { count, ref };
+  return (
+    <motion.section
+      {...fadeUp}
+      className="grid grid-cols-2 md:grid-cols-4"
+      style={{
+        backgroundColor: "var(--bg)",
+        borderTop: "1px solid var(--border)",
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
+      {stats.map((s, i) => (
+        <div
+          key={s.label}
+          className="flex flex-col items-start justify-center px-6 md:px-10 py-12 md:py-16"
+          style={{
+            borderLeft: i === 0 ? "none" : "1px solid var(--border)",
+            borderTop: i >= 2 ? "1px solid var(--border)" : "none",
+          }}
+        >
+          <div
+            className="font-[family-name:var(--font-cormorant)]"
+            style={{
+              fontSize: "clamp(52px, 6vw, 88px)",
+              fontWeight: 300,
+              lineHeight: 1,
+              letterSpacing: "-0.02em",
+              color: "var(--text-primary)",
+            }}
+          >
+            {s.value}
+            {s.suffix && (
+              <em
+                style={{
+                  fontStyle: "italic",
+                  color: "var(--amber)",
+                  fontWeight: 300,
+                }}
+              >
+                {s.suffix}
+              </em>
+            )}
+          </div>
+          <div
+            className="font-[family-name:var(--font-dm-sans)] uppercase mt-4"
+            style={{
+              fontSize: "10px",
+              letterSpacing: "0.25em",
+              color: "var(--text-muted)",
+              fontWeight: 400,
+              maxWidth: "180px",
+            }}
+          >
+            {s.label}
+          </div>
+        </div>
+      ))}
+    </motion.section>
+  );
 }
 
-function StatItem({
-  value,
-  prefix,
-  suffix,
-  statLabel,
-}: {
-  value: number;
-  prefix: string;
-  suffix: string;
-  statLabel: string;
-}) {
-  const { count, ref } = useCountUp(value);
+// ─── Problem Section ──────────────────────────────────────────────────────────
+function ProblemSection() {
+  const items = [
+    { num: "80%", stat: "of all medical bills contain at least one error" },
+    { num: "1 in 3", stat: "patients are balance billed illegally" },
+    { num: "<3%", stat: "of patients ever dispute their bill" },
+  ];
+
   return (
-    <div ref={ref} style={{ textAlign: "center", padding: "0 32px" }}>
-      <div style={{ ...serif("64px"), lineHeight: 1 }}>
-        {prefix}
-        {count.toLocaleString()}
-        {suffix}
+    <section className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr]">
+      {/* Left cream */}
+      <motion.div
+        {...fadeUp}
+        className="px-6 md:px-12 lg:px-16 py-24 lg:py-32"
+        style={{ backgroundColor: "var(--bg)" }}
+      >
+        <div
+          className="font-[family-name:var(--font-dm-sans)] uppercase mb-8"
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.3em",
+            color: "var(--text-muted)",
+            fontWeight: 400,
+          }}
+        >
+          — The Problem
+        </div>
+        <h2
+          className="font-[family-name:var(--font-cormorant)] mb-10"
+          style={{
+            fontSize: "clamp(44px, 5.5vw, 72px)",
+            fontWeight: 300,
+            lineHeight: 1.02,
+            letterSpacing: "-0.02em",
+            color: "var(--text-primary)",
+            maxWidth: "640px",
+          }}
+        >
+          80% of bills
+          <br />
+          contain{" "}
+          <em
+            style={{
+              fontStyle: "italic",
+              color: "var(--amber)",
+              fontWeight: 300,
+            }}
+          >
+            errors.
+          </em>
+        </h2>
+        <p
+          className="font-[family-name:var(--font-dm-sans)]"
+          style={{
+            fontSize: "15px",
+            lineHeight: 1.75,
+            color: "var(--text-muted)",
+            fontWeight: 300,
+            maxWidth: "480px",
+          }}
+        >
+          Providers upcode procedures. Insurers underpay. Duplicate charges
+          slip through. Most patients never know — because the bills are
+          designed to be unreadable. We read them for you, line by line,
+          against your insurer&apos;s contracted rates.
+        </p>
+      </motion.div>
+
+      {/* Right mid */}
+      <motion.div
+        {...fadeUp}
+        className="flex flex-col justify-center px-6 md:px-12 lg:px-16 py-16 lg:py-32"
+        style={{ backgroundColor: "var(--bg-mid)" }}
+      >
+        {items.map((item, i) => (
+          <div
+            key={item.num}
+            className="py-8"
+            style={{
+              borderTop: i === 0 ? "none" : "1px solid var(--border)",
+            }}
+          >
+            <div
+              className="font-[family-name:var(--font-cormorant)]"
+              style={{
+                fontSize: "clamp(64px, 7vw, 96px)",
+                fontWeight: 300,
+                lineHeight: 1,
+                letterSpacing: "-0.02em",
+                color: "var(--rose)",
+              }}
+            >
+              {item.num}
+            </div>
+            <div
+              className="font-[family-name:var(--font-dm-sans)] mt-3"
+              style={{
+                fontSize: "13px",
+                color: "var(--text-muted)",
+                fontWeight: 300,
+                lineHeight: 1.6,
+                maxWidth: "340px",
+              }}
+            >
+              {item.stat}
+            </div>
+          </div>
+        ))}
+      </motion.div>
+    </section>
+  );
+}
+
+// ─── How It Works ─────────────────────────────────────────────────────────────
+function HowItWorks() {
+  const steps = [
+    {
+      num: "01",
+      title: "Upload your bill",
+      body: "Drop your itemized medical bill, EOB, and insurance card. Takes three minutes.",
+      time: "3 min",
+    },
+    {
+      num: "02",
+      title: "We find every error",
+      body: "Our system cross-references every CPT code and charge against your insurer's contracted rates. Every error gets flagged with evidence.",
+      time: "24 hours",
+    },
+    {
+      num: "03",
+      title: "You choose what happens next",
+      body: "See the audit free. Get a prefilled dispute letter. Or let us file and close the dispute entirely.",
+      time: "Your call",
+    },
+  ];
+
+  return (
+    <section
+      id="how-it-works"
+      className="px-6 md:px-12 lg:px-16 py-24 lg:py-32"
+      style={{
+        backgroundColor: "var(--bg)",
+        borderTop: "1px solid var(--border)",
+      }}
+    >
+      {/* Top 2-col split */}
+      <motion.div
+        {...fadeUp}
+        className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-10 lg:gap-20 mb-20 lg:mb-28"
+      >
+        <div>
+          <div
+            className="font-[family-name:var(--font-dm-sans)] uppercase mb-8"
+            style={{
+              fontSize: "10px",
+              letterSpacing: "0.3em",
+              color: "var(--text-muted)",
+              fontWeight: 400,
+            }}
+          >
+            — How it works
+          </div>
+          <h2
+            className="font-[family-name:var(--font-cormorant)]"
+            style={{
+              fontSize: "clamp(40px, 5vw, 68px)",
+              fontWeight: 300,
+              lineHeight: 1.02,
+              letterSpacing: "-0.02em",
+              color: "var(--text-primary)",
+            }}
+          >
+            Three steps.
+            <br />
+            One{" "}
+            <em
+              style={{
+                fontStyle: "italic",
+                color: "var(--amber)",
+                fontWeight: 300,
+              }}
+            >
+              outcome.
+            </em>
+          </h2>
+        </div>
+        <div
+          className="lg:pl-12 flex items-end"
+          style={{ borderLeft: "none" }}
+        >
+          <div
+            className="lg:pl-10"
+            style={{ borderLeft: "none" }}
+          >
+            <div
+              className="hidden lg:block"
+              style={{
+                borderLeft: "1px solid var(--border)",
+                paddingLeft: "40px",
+              }}
+            >
+              <p
+                className="font-[family-name:var(--font-dm-sans)]"
+                style={{
+                  fontSize: "15px",
+                  lineHeight: 1.8,
+                  color: "var(--text-muted)",
+                  fontWeight: 300,
+                }}
+              >
+                Most advocacy services are a black box. We show you the
+                evidence first — you decide how far to take it. Every error we
+                flag comes with a citation, a confidence score, and the
+                dollar amount at stake.
+              </p>
+            </div>
+            <div
+              className="lg:hidden"
+              style={{
+                borderTop: "1px solid var(--border)",
+                paddingTop: "24px",
+              }}
+            >
+              <p
+                className="font-[family-name:var(--font-dm-sans)]"
+                style={{
+                  fontSize: "15px",
+                  lineHeight: 1.8,
+                  color: "var(--text-muted)",
+                  fontWeight: 300,
+                }}
+              >
+                Most advocacy services are a black box. We show you the
+                evidence first — you decide how far to take it. Every error we
+                flag comes with a citation, a confidence score, and the
+                dollar amount at stake.
+              </p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* 3-col steps */}
+      <div
+        className="grid grid-cols-1 md:grid-cols-3"
+        style={{ borderTop: "1px solid var(--border)" }}
+      >
+        {steps.map((step, i) => (
+          <motion.div
+            key={step.num}
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{
+              duration: 0.7,
+              ease: [0.25, 0.1, 0.25, 1],
+              delay: i * 0.1,
+            }}
+            className="relative px-6 md:px-8 py-12"
+            style={{
+              borderLeft: i === 0 ? "none" : "1px solid var(--border)",
+              borderTop: "none",
+            }}
+          >
+            <div
+              className="font-[family-name:var(--font-cormorant)] mb-8"
+              style={{
+                fontSize: "clamp(88px, 10vw, 140px)",
+                fontWeight: 300,
+                lineHeight: 1,
+                color: "#E5DDD5",
+                letterSpacing: "-0.02em",
+              }}
+            >
+              {step.num}
+            </div>
+            <div
+              className="font-[family-name:var(--font-dm-sans)] uppercase mb-4"
+              style={{
+                fontSize: "12px",
+                letterSpacing: "0.25em",
+                color: "var(--text-primary)",
+                fontWeight: 500,
+              }}
+            >
+              {step.title}
+            </div>
+            <p
+              className="font-[family-name:var(--font-dm-sans)] mb-8"
+              style={{
+                fontSize: "14px",
+                lineHeight: 1.75,
+                color: "var(--text-muted)",
+                fontWeight: 300,
+                maxWidth: "320px",
+              }}
+            >
+              {step.body}
+            </p>
+            <div
+              className="inline-block font-[family-name:var(--font-dm-sans)] uppercase"
+              style={{
+                fontSize: "10px",
+                letterSpacing: "0.25em",
+                color: "var(--amber)",
+                fontWeight: 400,
+                fontStyle: "italic",
+                borderTop: "1px solid var(--amber)",
+                paddingTop: "8px",
+              }}
+            >
+              {step.time}
+            </div>
+          </motion.div>
+        ))}
       </div>
-      <div style={{ ...label("#6B635C"), marginTop: "12px" }}>{statLabel}</div>
-    </div>
+    </section>
+  );
+}
+
+// ─── Pricing Preview ──────────────────────────────────────────────────────────
+function PricingPreview() {
+  const tiers = [
+    {
+      name: "Audit",
+      price: "Free",
+      priceSuffix: "always",
+      tag: "see exactly what they got wrong",
+      features: [
+        "Upload your bill",
+        "AI scans every charge",
+        "Error report with confidence scores",
+        "No dispute filed",
+      ],
+      cta: "See what's wrong — free",
+      href: "/upload?tier=audit",
+      accent: false,
+    },
+    {
+      name: "Dispute",
+      price: "$39",
+      priceSuffix: "per letter, or $19/mo",
+      tag: "your weapon. ready to send",
+      features: [
+        "Everything in Audit, plus:",
+        "Insurer-specific dispute letter",
+        "Step-by-step submission guide",
+        "Deadline tracker",
+        "Email reminders",
+      ],
+      cta: "Get my dispute letter",
+      href: "/upload?tier=dispute",
+      accent: false,
+    },
+    {
+      name: "Resolve",
+      price: "25%",
+      priceSuffix: "of savings recovered",
+      tag: "we handle everything. you cash the difference",
+      features: [
+        "Everything in Dispute, plus:",
+        "We file the dispute on your behalf",
+        "All insurer communication",
+        "Second-level appeal if denied",
+        "External review if needed",
+        "$0 upfront — pay only if we recover",
+      ],
+      cta: "Let us handle it",
+      href: "/upload?tier=resolve",
+      accent: true,
+    },
+  ];
+
+  return (
+    <section
+      className="px-6 md:px-12 lg:px-16 py-24 lg:py-32"
+      style={{
+        backgroundColor: "var(--bg)",
+        borderTop: "1px solid var(--border)",
+      }}
+    >
+      <motion.div {...fadeUp} className="mb-16 lg:mb-24 max-w-3xl">
+        <div
+          className="font-[family-name:var(--font-dm-sans)] uppercase mb-8"
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.3em",
+            color: "var(--text-muted)",
+            fontWeight: 400,
+          }}
+        >
+          — Pricing
+        </div>
+        <h2
+          className="font-[family-name:var(--font-cormorant)]"
+          style={{
+            fontSize: "clamp(40px, 5vw, 68px)",
+            fontWeight: 300,
+            lineHeight: 1.02,
+            letterSpacing: "-0.02em",
+            color: "var(--text-primary)",
+          }}
+        >
+          Start free. Pay{" "}
+          <em
+            style={{
+              fontStyle: "italic",
+              color: "var(--amber)",
+              fontWeight: 300,
+            }}
+          >
+            only if it works.
+          </em>
+        </h2>
+      </motion.div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
+        {tiers.map((tier, i) => (
+          <motion.div
+            key={tier.name}
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{
+              duration: 0.7,
+              ease: [0.25, 0.1, 0.25, 1],
+              delay: i * 0.1,
+            }}
+            className="relative flex flex-col p-8 lg:p-10"
+            style={{
+              backgroundColor: "var(--bg)",
+              border: tier.accent
+                ? "1px solid var(--amber)"
+                : "1px solid var(--border)",
+              marginLeft: i > 0 ? "-1px" : 0,
+              marginTop: 0,
+            }}
+          >
+            {tier.accent && (
+              <div
+                className="absolute font-[family-name:var(--font-dm-sans)] uppercase"
+                style={{
+                  top: "-10px",
+                  left: "32px",
+                  fontSize: "9px",
+                  letterSpacing: "0.3em",
+                  color: "var(--bg)",
+                  backgroundColor: "var(--amber)",
+                  padding: "4px 10px",
+                  fontWeight: 500,
+                }}
+              >
+                Full service
+              </div>
+            )}
+
+            <div
+              className="font-[family-name:var(--font-dm-sans)] uppercase mb-6"
+              style={{
+                fontSize: "11px",
+                letterSpacing: "0.3em",
+                color: "var(--text-primary)",
+                fontWeight: 500,
+              }}
+            >
+              {tier.name}
+            </div>
+
+            <div className="mb-8">
+              <div
+                className="font-[family-name:var(--font-cormorant)]"
+                style={{
+                  fontSize: "clamp(56px, 6vw, 80px)",
+                  fontWeight: 300,
+                  lineHeight: 1,
+                  letterSpacing: "-0.02em",
+                  fontStyle: "italic",
+                  color: tier.accent ? "var(--amber)" : "var(--text-primary)",
+                }}
+              >
+                {tier.price}
+              </div>
+              <div
+                className="font-[family-name:var(--font-dm-sans)] mt-3"
+                style={{
+                  fontSize: "12px",
+                  color: "var(--text-muted)",
+                  fontWeight: 300,
+                }}
+              >
+                {tier.priceSuffix}
+              </div>
+            </div>
+
+            <div
+              style={{
+                borderTop: "1px solid var(--border)",
+                paddingTop: "24px",
+                marginBottom: "24px",
+              }}
+            >
+              <p
+                className="font-[family-name:var(--font-cormorant)]"
+                style={{
+                  fontSize: "20px",
+                  fontStyle: "italic",
+                  fontWeight: 300,
+                  color: "var(--text-primary)",
+                  lineHeight: 1.4,
+                }}
+              >
+                {tier.tag}.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 mb-10 flex-1">
+              {tier.features.map((f) => (
+                <div key={f} className="flex gap-3 items-start">
+                  <span
+                    className="font-[family-name:var(--font-dm-sans)]"
+                    style={{
+                      fontSize: "13px",
+                      color: "var(--amber)",
+                      fontWeight: 400,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    —
+                  </span>
+                  <span
+                    className="font-[family-name:var(--font-dm-sans)]"
+                    style={{
+                      fontSize: "13px",
+                      color: "var(--text-muted)",
+                      fontWeight: 300,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {f}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <Link href={tier.href} className="no-underline mt-auto">
+              <div
+                className="w-full text-center font-[family-name:var(--font-dm-sans)] uppercase transition-opacity hover:opacity-90"
+                style={{
+                  fontSize: "11px",
+                  letterSpacing: "0.25em",
+                  fontWeight: 500,
+                  padding: "16px",
+                  color: tier.accent ? "var(--bg)" : "var(--text-primary)",
+                  backgroundColor: tier.accent ? "var(--amber)" : "transparent",
+                  border: tier.accent
+                    ? "1px solid var(--amber)"
+                    : "1px solid var(--text-primary)",
+                }}
+              >
+                {tier.cta}
+              </div>
+            </Link>
+          </motion.div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Trust Section ────────────────────────────────────────────────────────────
+function TrustSection() {
+  const points = [
+    "Disputes filed under your signed patient authorization",
+    "Federally protected under the No Surprises Act",
+    "HIPAA-compliant document handling, AES-256 encryption at rest",
+  ];
+
+  return (
+    <section
+      className="px-6 md:px-12 lg:px-16 py-24 lg:py-32"
+      style={{ backgroundColor: "var(--bg-dark)" }}
+    >
+      <motion.div
+        {...fadeUp}
+        className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 lg:gap-24"
+      >
+        <div>
+          <div
+            className="font-[family-name:var(--font-dm-sans)] uppercase mb-8"
+            style={{
+              fontSize: "10px",
+              letterSpacing: "0.3em",
+              color: "var(--text-faint)",
+              fontWeight: 400,
+            }}
+          >
+            — Trust
+          </div>
+          <h2
+            className="font-[family-name:var(--font-cormorant)] mb-10"
+            style={{
+              fontSize: "clamp(44px, 5vw, 68px)",
+              fontWeight: 300,
+              lineHeight: 1.02,
+              letterSpacing: "-0.02em",
+              color: "var(--bg)",
+            }}
+          >
+            Is this{" "}
+            <em
+              style={{
+                fontStyle: "italic",
+                color: "var(--amber)",
+                fontWeight: 300,
+              }}
+            >
+              legit?
+            </em>
+          </h2>
+          <p
+            className="font-[family-name:var(--font-dm-sans)] mb-6"
+            style={{
+              fontSize: "15px",
+              lineHeight: 1.8,
+              color: "var(--text-faint)",
+              fontWeight: 300,
+              maxWidth: "560px",
+            }}
+          >
+            ClearClaim is an administrative advocacy service — not a law firm.
+            Medical billing advocates are a recognized professional category
+            authorized to review bills, identify errors, and file disputes on
+            patients&apos; behalf with signed authorization.
+          </p>
+          <p
+            className="font-[family-name:var(--font-dm-sans)]"
+            style={{
+              fontSize: "13px",
+              lineHeight: 1.75,
+              color: "var(--text-faint)",
+              fontWeight: 300,
+              maxWidth: "560px",
+              opacity: 0.7,
+            }}
+          >
+            Disputing a medical bill is your federally protected right under
+            the No Surprises Act and applicable state patient protection laws.
+            If your case requires legal action, we refer to appropriate counsel.
+          </p>
+        </div>
+
+        <div className="flex flex-col justify-center gap-8">
+          {points.map((point) => (
+            <div key={point} className="flex gap-5 items-start">
+              <span
+                className="font-[family-name:var(--font-dm-sans)]"
+                style={{
+                  color: "var(--amber)",
+                  fontSize: "15px",
+                  fontWeight: 400,
+                  lineHeight: 1.6,
+                  flexShrink: 0,
+                }}
+              >
+                —
+              </span>
+              <span
+                className="font-[family-name:var(--font-dm-sans)]"
+                style={{
+                  fontSize: "14px",
+                  color: "var(--bg)",
+                  fontWeight: 300,
+                  lineHeight: 1.7,
+                }}
+              >
+                {point}
+              </span>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+    </section>
   );
 }
 
@@ -271,41 +1158,38 @@ function StatItem({
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div style={{ borderTop: "1px solid #242424" }}>
+    <div style={{ borderTop: "1px solid var(--border-dark)" }}>
       <button
         onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between gap-6 text-left"
         style={{
-          width: "100%",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "24px 0",
+          padding: "28px 0",
           background: "none",
           border: "none",
           cursor: "pointer",
-          textAlign: "left",
-          gap: "24px",
         }}
       >
         <span
+          className="font-[family-name:var(--font-cormorant)]"
           style={{
-            fontFamily: "var(--font-cormorant), Georgia, serif",
-            fontSize: "20px",
-            color: "#F5F0E8",
-            fontWeight: 400,
+            fontSize: "clamp(20px, 2.2vw, 26px)",
+            color: "var(--bg)",
+            fontWeight: 300,
+            letterSpacing: "-0.01em",
+            lineHeight: 1.3,
           }}
         >
           {q}
         </span>
-        <ChevronDown
-          size={18}
-          color="#6B635C"
+        <span
+          className="flex-shrink-0 transition-transform"
           style={{
-            flexShrink: 0,
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 0.3s",
+            color: "var(--amber)",
+            transform: open ? "rotate(45deg)" : "rotate(0deg)",
           }}
-        />
+        >
+          <Plus size={20} strokeWidth={1} />
+        </span>
       </button>
       <AnimatePresence initial={false}>
         {open && (
@@ -318,10 +1202,14 @@ function FaqItem({ q, a }: { q: string; a: string }) {
             style={{ overflow: "hidden" }}
           >
             <p
+              className="font-[family-name:var(--font-dm-sans)]"
               style={{
-                ...sans("14px", "#A89F96"),
-                lineHeight: 1.75,
-                paddingBottom: "24px",
+                fontSize: "14px",
+                color: "var(--text-faint)",
+                fontWeight: 300,
+                lineHeight: 1.8,
+                paddingBottom: "28px",
+                maxWidth: "680px",
               }}
             >
               {a}
@@ -333,810 +1221,185 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   );
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-export default function LandingPage() {
-  const { scrollY } = useScroll();
-  const heroY = useTransform(scrollY, [0, 600], ["0%", "18%"]);
-
-  const fadeUp = {
-    initial: { opacity: 0, y: 30 },
-    whileInView: { opacity: 1, y: 0 } as { opacity: number; y: number },
-    viewport: { once: true },
-    transition: { duration: 0.7, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] },
-  };
-
+// ─── FAQ Section ──────────────────────────────────────────────────────────────
+function FaqSection() {
   return (
-    <div style={{ background: "#0D0D0D", minHeight: "100vh" }}>
-      <Nav />
-
-      {/* ── Hero ── */}
-      <section style={{ height: "100svh", position: "relative", overflow: "hidden" }}>
-        <motion.div style={{ position: "absolute", inset: 0, y: heroY }}>
-          <Image
-            src="https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1920&q=80"
-            alt=""
-            fill
-            style={{ objectFit: "cover", objectPosition: "center" }}
-            priority
-          />
-        </motion.div>
-
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(to bottom, rgba(13,13,13,0.25) 0%, rgba(13,13,13,0.55) 40%, rgba(13,13,13,1) 100%)",
-          }}
-        />
-
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            paddingBottom: "80px",
-            padding: "0 64px 80px",
-          }}
-        >
-          <div style={{ ...label(), marginBottom: "32px" }}>
-            Medical billing advocacy
-          </div>
-
-          <h1
-            style={{
-              ...serif("clamp(72px, 8vw, 108px)", {
-                lineHeight: 0.9,
-                maxWidth: "900px",
-              }),
-            }}
-          >
-            Your medical bill
-            <br />
-            is probably wrong.
-            <br />
-            <em style={{ fontStyle: "italic" }}>We&apos;ll prove it.</em>
-          </h1>
-
-          <div
-            style={{
-              borderTop: "1px solid rgba(245,240,232,0.15)",
-              width: "48px",
-              margin: "32px 0",
-            }}
-          />
-
-          <p
-            style={{
-              ...sans("15px", "#A89F96"),
-              maxWidth: "360px",
-              lineHeight: 1.75,
-            }}
-          >
-            Start free. See every error on your bill. Then decide if you want
-            us to fight it.
-          </p>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "16px",
-              alignItems: "center",
-              marginTop: "40px",
-            }}
-          >
-            <Link href="/upload" style={{ textDecoration: "none" }}>
-              <span
-                style={{
-                  ...sans("11px", "#0D0D0D"),
-                  backgroundColor: "#C8A97E",
-                  padding: "16px 32px",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  fontWeight: 500,
-                  display: "inline-block",
-                }}
-              >
-                Check my bill — free
-              </span>
-            </Link>
-            <Link href="/how-it-works" style={{ textDecoration: "none" }}>
-              <span
-                style={{
-                  ...sans("11px", "#F5F0E8"),
-                  border: "1px solid rgba(245,240,232,0.25)",
-                  padding: "16px 32px",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  display: "inline-block",
-                  transition: "border-color 0.2s",
-                }}
-                onMouseEnter={(e) =>
-                  ((e.currentTarget as HTMLSpanElement).style.borderColor =
-                    "rgba(245,240,232,0.5)")
-                }
-                onMouseLeave={(e) =>
-                  ((e.currentTarget as HTMLSpanElement).style.borderColor =
-                    "rgba(245,240,232,0.25)")
-                }
-              >
-                See how it works
-              </span>
-            </Link>
-          </div>
-        </div>
-
-        <div style={{ position: "absolute", bottom: "32px", right: "32px" }}>
-          <span
-            style={{
-              ...sans("10px", "#6B635C"),
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              display: "block",
-              transform: "rotate(90deg)",
-              transformOrigin: "center",
-            }}
-          >
-            scroll
-          </span>
-        </div>
-      </section>
-
-      {/* ── Stats Bar ── */}
-      <motion.section
+    <section
+      id="faq"
+      className="px-6 md:px-12 lg:px-16 py-24 lg:py-32"
+      style={{ backgroundColor: "var(--bg-dark)" }}
+    >
+      <motion.div
         {...fadeUp}
-        style={{
-          borderTop: "1px solid #242424",
-          borderBottom: "1px solid #242424",
-          padding: "56px 64px",
-        }}
+        className="grid grid-cols-1 lg:grid-cols-[1fr_1.3fr] gap-12 lg:gap-20"
       >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1px 1fr 1px 1fr",
-            alignItems: "center",
-          }}
-        >
-          {[
-            { value: 12400, prefix: "", suffix: "+", statLabel: "bills audited" },
-            { value: 1840, prefix: "$", suffix: "", statLabel: "average savings" },
-            { value: 91, prefix: "", suffix: "%", statLabel: "success rate" },
-          ].map((stat, i) => (
-            <React.Fragment key={stat.statLabel}>
-              {i > 0 && (
-                <div
-                  style={{
-                    width: "1px",
-                    height: "80px",
-                    backgroundColor: "#242424",
-                    margin: "0 auto",
-                  }}
-                />
-              )}
-              <StatItem {...stat} />
-            </React.Fragment>
-          ))}
-        </div>
-      </motion.section>
-
-      {/* ── Problem Section ── */}
-      <motion.section
-        {...fadeUp}
-        style={{ padding: "112px 64px" }}
-      >
-        <div style={{ maxWidth: "520px" }}>
-          <div style={{ ...label(), marginBottom: "24px" }}>The problem</div>
-          <h2
-            style={{
-              ...serif("52px", { lineHeight: 1.05, marginBottom: "24px" }),
-            }}
-          >
-            Medical billing is a
-            <br />
-            system designed to
-            <br />
-            confuse you.
-          </h2>
-          <p
-            style={{
-              ...sans("14px", "#A89F96"),
-              lineHeight: 1.75,
-              marginBottom: "32px",
-            }}
-          >
-            Providers upcode procedures. Insurers underpay. Duplicate charges
-            slip through. Most patients never know — because the bills are
-            designed to be unreadable.
-          </p>
+        <div>
           <div
+            className="font-[family-name:var(--font-dm-sans)] uppercase mb-8"
             style={{
-              borderTop: "1px solid #242424",
-              paddingTop: "32px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "24px",
+              fontSize: "10px",
+              letterSpacing: "0.3em",
+              color: "var(--text-faint)",
+              fontWeight: 400,
             }}
           >
-            {[
-              { num: "80%", stat: "of all medical bills contain at least one error" },
-              { num: "$1,300", stat: "average overcharge on a hospital bill" },
-              { num: "1 in 3", stat: "patients are balance billed illegally" },
-            ].map((item) => (
-              <div key={item.num}>
-                <div
-                  style={{
-                    ...serif("48px", {
-                      fontStyle: "italic",
-                      color: "#C8A97E",
-                      lineHeight: 1,
-                    }),
-                  }}
-                >
-                  {item.num}
-                </div>
-                <div style={{ ...sans("12px", "#6B635C"), marginTop: "4px" }}>
-                  {item.stat}
-                </div>
-              </div>
-            ))}
+            — Questions
           </div>
-        </div>
-      </motion.section>
-
-      {/* ── How It Works ── */}
-      <section id="how-it-works" style={{ padding: "112px 64px" }}>
-        <motion.div {...fadeUp}>
-          <div style={{ ...label(), marginBottom: "24px" }}>How it works</div>
           <h2
+            className="font-[family-name:var(--font-cormorant)]"
             style={{
-              ...serif("48px", { lineHeight: 1.05, marginBottom: "64px" }),
+              fontSize: "clamp(40px, 5vw, 64px)",
+              fontWeight: 300,
+              lineHeight: 1.02,
+              letterSpacing: "-0.02em",
+              color: "var(--bg)",
             }}
           >
-            Three steps.
+            Everything
             <br />
-            One outcome.
-          </h2>
-        </motion.div>
-
-        {[
-          {
-            num: "01",
-            title: "Upload your bill.",
-            body: "Drop your itemized medical bill, EOB, and insurance card. Takes three minutes.",
-            time: "3 min",
-          },
-          {
-            num: "02",
-            title: "We find every error.",
-            body: "Our system cross-references every CPT code and charge against your insurer's contracted rates. Every error gets flagged with evidence.",
-            time: "24 hours",
-          },
-          {
-            num: "03",
-            title: "You choose what happens next.",
-            body: "See the audit free. Get a prefilled dispute letter. Or let us file and close the dispute entirely.",
-            time: "Your call",
-          },
-        ].map((step, i) => (
-          <motion.div
-            key={step.num}
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{
-              duration: 0.7,
-              ease: [0.25, 0.1, 0.25, 1],
-              delay: i * 0.1,
-            }}
-            style={{
-              borderTop: "1px solid #242424",
-              padding: "40px 0",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-            }}
-          >
-            <div
-              style={{
-                ...serif("80px", {
-                  fontStyle: "italic",
-                  color: "#1E1E1E",
-                  lineHeight: 1,
-                  width: "120px",
-                  flexShrink: 0,
-                }),
-              }}
-            >
-              {step.num}
-            </div>
-            <div style={{ flex: 1, padding: "0 40px" }}>
-              <div
-                style={{
-                  ...serif("28px", { lineHeight: 1.1, marginBottom: "12px" }),
-                }}
-              >
-                {step.title}
-              </div>
-              <p
-                style={{
-                  ...sans("14px", "#A89F96"),
-                  lineHeight: 1.75,
-                  maxWidth: "420px",
-                }}
-              >
-                {step.body}
-              </p>
-            </div>
-            <div style={{ ...label("#6B635C"), fontSize: "10px" }}>
-              {step.time}
-            </div>
-          </motion.div>
-        ))}
-        <div style={{ borderTop: "1px solid #242424" }} />
-      </section>
-
-      {/* ── Pricing ── */}
-      <section style={{ padding: "112px 64px" }}>
-        <motion.div {...fadeUp}>
-          <div style={{ ...label(), marginBottom: "24px" }}>Pricing</div>
-          <h2
-            style={{
-              ...serif("48px", { lineHeight: 1.05, marginBottom: "16px" }),
-            }}
-          >
-            Start free.
+            you need
             <br />
-            Pay only if it works.
+            to{" "}
+            <em
+              style={{
+                fontStyle: "italic",
+                color: "var(--amber)",
+                fontWeight: 300,
+              }}
+            >
+              know.
+            </em>
           </h2>
-          <p style={{ ...sans("14px", "#6B635C"), marginBottom: "64px" }}>
-            Three tiers. Each one goes further.
-          </p>
-        </motion.div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: "16px",
-          }}
-        >
-          {/* Audit */}
-          <motion.div
-            {...fadeUp}
-            style={{
-              backgroundColor: "#111111",
-              border: "1px solid #242424",
-              padding: "32px",
-            }}
-          >
-            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>
-              Audit
-            </div>
-            <div
-              style={{
-                ...serif("52px", {
-                  fontStyle: "italic",
-                  lineHeight: 1,
-                  marginBottom: "4px",
-                }),
-              }}
-            >
-              Free
-            </div>
-            <div style={{ ...sans("12px", "#6B635C") }}>always</div>
-            <div style={{ borderTop: "1px solid #242424", margin: "24px 0" }} />
-            <div
-              style={{
-                ...serif("18px", {
-                  fontStyle: "italic",
-                  color: "#A89F96",
-                  lineHeight: 1.4,
-                  marginBottom: "24px",
-                }),
-              }}
-            >
-              see exactly what they got wrong.
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                marginBottom: "32px",
-              }}
-            >
-              {[
-                "Upload your bill",
-                "AI scans every charge",
-                "Error report with confidence scores",
-                "No dispute filed",
-              ].map((f) => (
-                <div
-                  key={f}
-                  style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}
-                >
-                  <span style={{ ...sans("13px", "#6B635C") }}>›</span>
-                  <span style={{ ...sans("13px", "#A89F96") }}>{f}</span>
-                </div>
-              ))}
-            </div>
-            <Link href="/upload?tier=audit" style={{ textDecoration: "none" }}>
-              <div
-                style={{
-                  ...sans("11px", "#C8A97E"),
-                  border: "1px solid #C8A97E",
-                  padding: "14px",
-                  textAlign: "center",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  cursor: "pointer",
-                  transition: "background-color 0.2s, color 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  const el = e.currentTarget as HTMLDivElement;
-                  el.style.backgroundColor = "#C8A97E";
-                  el.style.color = "#0D0D0D";
-                }}
-                onMouseLeave={(e) => {
-                  const el = e.currentTarget as HTMLDivElement;
-                  el.style.backgroundColor = "transparent";
-                  el.style.color = "#C8A97E";
-                }}
-              >
-                See what&apos;s wrong — free
-              </div>
-            </Link>
-          </motion.div>
-
-          {/* Dispute */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
-            style={{
-              backgroundColor: "#111111",
-              border: "1px solid rgba(200,169,126,0.4)",
-              padding: "32px",
-              position: "relative",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                top: "16px",
-                right: "16px",
-                ...sans("9px", "#C8A97E"),
-                backgroundColor: "rgba(200,169,126,0.15)",
-                border: "1px solid rgba(200,169,126,0.3)",
-                padding: "4px 8px",
-                letterSpacing: "0.15em",
-                textTransform: "uppercase",
-              }}
-            >
-              Most popular
-            </div>
-            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>
-              Dispute
-            </div>
-            <div
-              style={{
-                ...serif("52px", {
-                  fontStyle: "italic",
-                  lineHeight: 1,
-                  marginBottom: "4px",
-                }),
-              }}
-            >
-              $39
-            </div>
-            <div style={{ ...sans("12px", "#6B635C") }}>
-              per letter, or $19/mo
-            </div>
-            <div style={{ borderTop: "1px solid #242424", margin: "24px 0" }} />
-            <div
-              style={{
-                ...serif("18px", {
-                  fontStyle: "italic",
-                  color: "#A89F96",
-                  lineHeight: 1.4,
-                  marginBottom: "24px",
-                }),
-              }}
-            >
-              your weapon. ready to send.
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                marginBottom: "32px",
-              }}
-            >
-              {[
-                "Everything in Audit, plus:",
-                "Insurer-specific prefilled dispute letter",
-                "Step-by-step submission guide",
-                "Deadline tracker",
-                "Email reminders",
-              ].map((f) => (
-                <div
-                  key={f}
-                  style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}
-                >
-                  <span style={{ ...sans("13px", "#6B635C") }}>›</span>
-                  <span style={{ ...sans("13px", "#A89F96") }}>{f}</span>
-                </div>
-              ))}
-            </div>
-            <Link href="/upload?tier=dispute" style={{ textDecoration: "none" }}>
-              <div
-                style={{
-                  ...sans("11px", "#0D0D0D"),
-                  backgroundColor: "#C8A97E",
-                  padding: "14px",
-                  textAlign: "center",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  cursor: "pointer",
-                }}
-              >
-                Get my dispute letter
-              </div>
-            </Link>
-          </motion.div>
-
-          {/* Resolve */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.2 }}
-            style={{
-              backgroundColor: "#111111",
-              border: "1.5px solid #C8A97E",
-              padding: "32px",
-              position: "relative",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                top: "16px",
-                right: "16px",
-                ...sans("9px", "#0D0D0D"),
-                backgroundColor: "#C8A97E",
-                padding: "4px 8px",
-                letterSpacing: "0.15em",
-                textTransform: "uppercase",
-              }}
-            >
-              Full service
-            </div>
-            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>
-              Resolve
-            </div>
-            <div
-              style={{
-                ...serif("52px", {
-                  fontStyle: "italic",
-                  lineHeight: 1,
-                  marginBottom: "4px",
-                }),
-              }}
-            >
-              25%
-            </div>
-            <div style={{ ...sans("12px", "#6B635C") }}>
-              of savings recovered
-            </div>
-            <div style={{ ...sans("11px", "#7A9E87"), marginTop: "4px" }}>
-              $0 upfront
-            </div>
-            <div style={{ borderTop: "1px solid #242424", margin: "24px 0" }} />
-            <div
-              style={{
-                ...serif("18px", {
-                  fontStyle: "italic",
-                  color: "#A89F96",
-                  lineHeight: 1.4,
-                  marginBottom: "24px",
-                }),
-              }}
-            >
-              we handle everything. you cash the difference.
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                marginBottom: "32px",
-              }}
-            >
-              {[
-                "Everything in Dispute, plus:",
-                "We file the dispute on your behalf",
-                "All insurer communication",
-                "Second-level appeal if denied",
-                "External review if needed",
-                "Pay nothing unless we recover",
-              ].map((f) => (
-                <div
-                  key={f}
-                  style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}
-                >
-                  <span style={{ ...sans("13px", "#6B635C") }}>›</span>
-                  <span style={{ ...sans("13px", "#A89F96") }}>{f}</span>
-                </div>
-              ))}
-            </div>
-            <Link href="/upload?tier=resolve" style={{ textDecoration: "none" }}>
-              <div
-                style={{
-                  ...sans("11px", "#0D0D0D"),
-                  backgroundColor: "#C8A97E",
-                  padding: "14px",
-                  textAlign: "center",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  cursor: "pointer",
-                }}
-              >
-                Let us handle it
-              </div>
-            </Link>
-          </motion.div>
         </div>
-      </section>
-
-      {/* ── Trust & Legal ── */}
-      <section style={{ backgroundColor: "#111111", padding: "96px 64px" }}>
-        <motion.div
-          {...fadeUp}
-          style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: "80px" }}
-        >
-          <div>
-            <div style={{ ...label(), marginBottom: "24px" }}>
-              How we&apos;re authorized to help
-            </div>
-            <h2
-              style={{
-                ...serif("40px", { lineHeight: 1.1, marginBottom: "32px" }),
-              }}
-            >
-              Medical bill advocacy
-              <br />
-              is a recognized profession.
-            </h2>
-            <p
-              style={{
-                ...sans("14px", "#A89F96"),
-                lineHeight: 1.75,
-              }}
-            >
-              ClearClaim is an administrative advocacy service — not a law firm.
-              Medical billing advocates are a recognized professional category
-              authorized to review bills, identify errors, and file disputes on
-              patients&apos; behalf with signed authorization.
-            </p>
-            <p
-              style={{
-                ...sans("14px", "#A89F96"),
-                lineHeight: 1.75,
-                marginTop: "16px",
-              }}
-            >
-              Disputing a medical bill is your federally protected right under
-              the No Surprises Act and applicable state patient protection laws.
-              We handle the administrative process so you don&apos;t have to
-              navigate it alone.
-            </p>
-            <p style={{ ...sans("12px", "#6B635C"), marginTop: "32px" }}>
-              ClearClaim is not a law firm and does not provide legal advice. If
-              your case requires legal action, we refer to appropriate counsel.
-            </p>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "28px",
-              justifyContent: "center",
-            }}
-          >
-            {[
-              {
-                icon: "shield",
-                text: "Disputes filed under your signed patient authorization",
-              },
-              {
-                icon: "filecheck",
-                text: "Federally protected under the No Surprises Act",
-              },
-              { icon: "lock", text: "HIPAA-compliant document handling" },
-            ].map((badge) => (
-              <div
-                key={badge.icon}
-                style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}
-              >
-                <div
-                  style={{
-                    color: "#C8A97E",
-                    flexShrink: 0,
-                    marginTop: "2px",
-                  }}
-                >
-                  {badge.icon === "shield" && (
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    >
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    </svg>
-                  )}
-                  {badge.icon === "filecheck" && (
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    >
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <polyline points="9 15 11 17 15 13" />
-                    </svg>
-                  )}
-                  {badge.icon === "lock" && (
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    >
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                  )}
-                </div>
-                <span style={{ ...sans("13px", "#A89F96") }}>{badge.text}</span>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      </section>
-
-      {/* ── FAQ ── */}
-      <section id="faq" style={{ padding: "112px 64px" }}>
-        <motion.div {...fadeUp}>
-          <div style={{ ...label(), marginBottom: "24px" }}>Questions</div>
-          <h2
-            style={{
-              ...serif("48px", { lineHeight: 1.05, marginBottom: "64px" }),
-            }}
-          >
-            Everything you need to know.
-          </h2>
-        </motion.div>
-        <div style={{ maxWidth: "720px" }}>
+        <div>
           {FAQS.map((faq) => (
             <FaqItem key={faq.q} q={faq.q} a={faq.a} />
           ))}
-          <div style={{ borderTop: "1px solid #242424" }} />
+          <div style={{ borderTop: "1px solid var(--border-dark)" }} />
         </div>
-      </section>
+      </motion.div>
+    </section>
+  );
+}
 
+// ─── Footer ───────────────────────────────────────────────────────────────────
+function Footer() {
+  const links = [
+    { lbl: "How it works", href: "/how-it-works" },
+    { lbl: "Pricing", href: "/pricing" },
+    { lbl: "Dashboard", href: "/dashboard" },
+    { lbl: "FAQ", href: "#faq" },
+  ];
+
+  return (
+    <footer
+      className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr] gap-12 px-6 md:px-12 lg:px-16 py-16 lg:py-20"
+      style={{
+        backgroundColor: "var(--bg-dark)",
+        borderTop: "1px solid var(--border-dark)",
+      }}
+    >
+      <div>
+        <div
+          className="font-[family-name:var(--font-dm-sans)] uppercase mb-3"
+          style={{
+            fontSize: "12px",
+            letterSpacing: "0.25em",
+            color: "var(--bg)",
+            fontWeight: 500,
+          }}
+        >
+          ClearClaim
+        </div>
+        <div
+          className="font-[family-name:var(--font-cormorant)]"
+          style={{
+            fontSize: "18px",
+            fontStyle: "italic",
+            color: "var(--amber)",
+            fontWeight: 300,
+            marginBottom: "16px",
+          }}
+        >
+          Medical bill advocacy.
+        </div>
+        <div
+          className="font-[family-name:var(--font-dm-sans)]"
+          style={{
+            fontSize: "11px",
+            color: "var(--text-faint)",
+            fontWeight: 300,
+            lineHeight: 1.7,
+            maxWidth: "280px",
+            opacity: 0.7,
+          }}
+        >
+          ClearClaim is an administrative advocacy service. We are not a law
+          firm and do not provide legal advice.
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {links.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
+            style={{
+              fontSize: "11px",
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              color: "var(--text-faint)",
+              fontWeight: 400,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--bg)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-faint)")}
+          >
+            {link.lbl}
+          </Link>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-1 md:items-end">
+        <div
+          className="font-[family-name:var(--font-dm-sans)]"
+          style={{
+            fontSize: "11px",
+            color: "var(--text-faint)",
+            fontWeight: 300,
+            opacity: 0.7,
+          }}
+        >
+          © 2026 ClearClaim
+        </div>
+        <div
+          className="font-[family-name:var(--font-dm-sans)]"
+          style={{
+            fontSize: "11px",
+            color: "var(--text-faint)",
+            fontWeight: 300,
+            opacity: 0.7,
+          }}
+        >
+          All rights reserved.
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+export default function LandingPage() {
+  return (
+    <div style={{ backgroundColor: "var(--bg)", minHeight: "100vh" }}>
+      <Nav />
+      <Hero />
+      <StatsStrip />
+      <ProblemSection />
+      <HowItWorks />
+      <PricingPreview />
+      <TrustSection />
+      <FaqSection />
       <Footer />
     </div>
   );
