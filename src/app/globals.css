@@ -1,69 +1,59 @@
 @import "tailwindcss";
 
+:root {
+  --bg: #F5F0E8;
+  --bg-dark: #111111;
+  --bg-mid: #EDE5DC;
+  --border: #DDD8D0;
+  --border-dark: #2A2A2A;
+  --text-primary: #111111;
+  --text-muted: #8A7F75;
+  --text-faint: #B0A090;
+  --amber: #C8A97E;
+  --rose: #C47C6A;
+  --white: #F5F0E8;
+}
+
 @theme inline {
-  /* Core palette */
-  --color-background: #0D0D0D;
-  --color-surface: #111111;
-  --color-surface-raised: #1A1A1A;
-  --color-border: #242424;
-  --color-border-subtle: #1C1C1C;
+  /* Core palette (editorial cream) */
+  --color-background: #F5F0E8;
+  --color-surface: #EDE5DC;
+  --color-surface-raised: #F5F0E8;
+  --color-surface-dark: #111111;
+  --color-border: #DDD8D0;
+  --color-border-dark: #2A2A2A;
 
   /* Typography */
-  --color-headline: #F5F0E8;
-  --color-body: #A89F96;
-  --color-muted: #6B635C;
-  --color-inverted: #0D0D0D;
+  --color-headline: #111111;
+  --color-body: #8A7F75;
+  --color-muted: #B0A090;
+  --color-inverted: #F5F0E8;
 
   /* Accent system */
-  --color-gold: #C8A97E;
-  --color-gold-dim: #9A7D5A;
-  --color-sage: #7A9E87;
+  --color-amber: #C8A97E;
   --color-rose: #C47C6A;
 
   /* shadcn compat */
-  --color-foreground: #F5F0E8;
+  --color-foreground: #111111;
   --color-primary: #C8A97E;
-  --color-primary-foreground: #0D0D0D;
-  --color-secondary: #1A1A1A;
-  --color-secondary-foreground: #F5F0E8;
-  --color-muted-foreground: #6B635C;
+  --color-primary-foreground: #111111;
+  --color-secondary: #EDE5DC;
+  --color-secondary-foreground: #111111;
+  --color-muted-foreground: #8A7F75;
   --color-accent: #C8A97E;
-  --color-accent-foreground: #0D0D0D;
+  --color-accent-foreground: #111111;
   --color-destructive: #C47C6A;
-  --color-card: #111111;
-  --color-card-foreground: #F5F0E8;
-  --color-popover: #111111;
-  --color-popover-foreground: #F5F0E8;
-  --color-input: #242424;
+  --color-card: #F5F0E8;
+  --color-card-foreground: #111111;
+  --color-popover: #F5F0E8;
+  --color-popover-foreground: #111111;
+  --color-input: #DDD8D0;
   --color-ring: #C8A97E;
-  --radius: 0.25rem;
+  --radius: 0;
 
   /* Font families */
   --font-sans: var(--font-dm-sans), system-ui, sans-serif;
   --font-serif: var(--font-cormorant), Georgia, serif;
-}
-
-:root {
-  --background: #0D0D0D;
-  --foreground: #F5F0E8;
-  --border: #242424;
-  --input: #242424;
-  --ring: #C8A97E;
-  --primary: #C8A97E;
-  --primary-foreground: #0D0D0D;
-  --secondary: #1A1A1A;
-  --secondary-foreground: #F5F0E8;
-  --muted: #1A1A1A;
-  --muted-foreground: #6B635C;
-  --accent: #C8A97E;
-  --accent-foreground: #0D0D0D;
-  --destructive: #C47C6A;
-  --destructive-foreground: #F5F0E8;
-  --card: #111111;
-  --card-foreground: #F5F0E8;
-  --popover: #111111;
-  --popover-foreground: #F5F0E8;
-  --radius: 0.25rem;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -71,20 +61,20 @@
 html { scroll-behavior: smooth; }
 
 body {
-  background: #0D0D0D;
-  color: #A89F96;
+  background: var(--bg);
+  color: var(--text-primary);
   font-family: var(--font-dm-sans), system-ui, sans-serif;
+  font-weight: 300;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4 {
-  color: #F5F0E8;
+  color: var(--text-primary);
   font-family: var(--font-cormorant), Georgia, serif;
+  font-weight: 300;
+  line-height: 1;
 }
 
-/* Rule divider utility */
-.rule { border: none; border-top: 1px solid #242424; }
-
 /* Selection */
-::selection { background: #C8A97E22; color: #F5F0E8; }
+::selection { background: rgba(200,169,126,0.3); color: #111111; }

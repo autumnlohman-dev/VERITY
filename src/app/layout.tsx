@@ -3,16 +3,16 @@ import { Cormorant_Garamond, DM_Sans } from "next/font/google";
 import "./globals.css";
 
 const cormorant = Cormorant_Garamond({
-  variable: "--font-cormorant",
   subsets: ["latin"],
-  weight: ["400", "600", "700"],
+  weight: ["300", "400", "600"],
   style: ["normal", "italic"],
+  variable: "--font-cormorant",
 });
 
 const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
+  weight: ["300", "400", "500"],
+  variable: "--font-dm-sans",
 });
 
 export const metadata: Metadata = {
@@ -32,7 +32,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${cormorant.variable} ${dmSans.variable}`}
     >
-      <body className="min-h-full antialiased">{children}</body>
+      <body className={`${cormorant.variable} ${dmSans.variable} min-h-full antialiased`}>
+        {children}
+      </body>
     </html>
   );
 }
