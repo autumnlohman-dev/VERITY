@@ -30,13 +30,27 @@ if (!user) {
       return NextResponse.json({ error: 'Case not found' }, { status: 404 })
     }
 
+    const userNotes: string =
+      (caseData && typeof caseData.userNotes === 'string' && caseData.userNotes) ||
+      (caseRecord.bill_data && typeof caseRecord.bill_data.userNotes === 'string'
+        ? caseRecord.bill_data.userNotes
+        : '')
+
+    const userNotesSection = userNotes.trim()
+      ? `
+
+Additional context provided by the patient: ${userNotes.trim()}
+
+If the patient has described a service that was billed but not rendered, a procedure that was cancelled, or any other situational error not captured in the billing codes, incorporate this into the dispute letter with specific language citing that billing for unrendered services violates 42 C.F.R. § 1001.952 and CMS policy on billing for services not provided.`
+      : ''
+
     // Generate the dispute letter with Claude
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 2000,
-      system: `You are a medical billing advocate generating a formal dispute letter 
-on behalf of a patient. Use precise regulatory language. Cite the specific federal 
-rule violated for each error. Be firm but professional. Never threaten legal action. 
+      system: `You are a medical billing advocate generating a formal dispute letter
+on behalf of a patient. Use precise regulatory language. Cite the specific federal
+rule violated for each error. Be firm but professional. Never threaten legal action.
 Never suggest involving an attorney unless the situation clearly warrants it.
 Format the letter professionally with proper sections and spacing.
 Always include specific CPT codes, dollar amounts, and regulatory citations.`,
@@ -53,7 +67,7 @@ Patient: [PATIENT NAME]
 Member ID: [MEMBER ID]
 
 Errors Found:
-${JSON.stringify(errors, null, 2)}
+${JSON.stringify(errors, null, 2)}${userNotesSection}
 
 The letter should:
 1. Be addressed to the insurance company claims review department

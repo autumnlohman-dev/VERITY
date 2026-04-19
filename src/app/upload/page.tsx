@@ -374,6 +374,7 @@ function UploadPageInner() {
   const [careType, setCareType] = useState<string | null>(null);
   const [insuranceType, setInsuranceType] = useState<string | null>(null);
   const [gfe, setGfe] = useState<string | null>(null);
+  const [userNotes, setUserNotes] = useState<string>("");
   const [submitted, setSubmitted] = useState(false);
 const [loading, setLoading] = useState(false);
 const [error, setError] = useState<string | null>(null);
@@ -668,6 +669,50 @@ const [error, setError] = useState<string | null>(null);
                       </p>
                     </div>
                   )}
+                </div>
+
+                {/* Question 4 */}
+                <div style={{ marginBottom: "32px" }}>
+                  <div style={{ ...label("#6B635C"), marginBottom: "8px" }}>
+                    Anything else we should know?
+                  </div>
+                  <div
+                    style={{
+                      ...sans("12px", "#6B635C"),
+                      marginBottom: "12px",
+                      lineHeight: 1.65,
+                    }}
+                  >
+                    For example: a test that wasn&apos;t completed, a procedure
+                    that was cancelled, a provider you never saw, or a charge
+                    that looks wrong to you.
+                  </div>
+                  <textarea
+                    value={userNotes}
+                    onChange={(e) => setUserNotes(e.target.value)}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = "#C8A97E";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = "#2A2A2A";
+                    }}
+                    placeholder="e.g. They charged for a lab test but never completed it because the sample was insufficient..."
+                    style={{
+                      width: "100%",
+                      minHeight: "120px",
+                      backgroundColor: "#0D0D0D",
+                      border: "1px solid #2A2A2A",
+                      color: "#F5F0E8",
+                      padding: "16px",
+                      fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                      fontSize: "14px",
+                      lineHeight: 1.6,
+                      resize: "vertical",
+                      outline: "none",
+                      boxSizing: "border-box",
+                      transition: "border-color 0.2s",
+                    }}
+                  />
                 </div>
               </div>
 
@@ -987,6 +1032,7 @@ const [error, setError] = useState<string | null>(null);
           insuranceType,
           gfe,
           tier,
+          userNotes,
           amountBilled: 0
         })
       })
