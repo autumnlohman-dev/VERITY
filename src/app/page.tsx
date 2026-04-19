@@ -54,72 +54,148 @@ function Nav() {
   return (
     <>
       <nav
-        className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-5 transition-colors duration-300"
+        className="fixed top-0 left-0 right-0 z-50 transition-colors duration-300"
         style={{
           backgroundColor: scrolled ? "rgba(245,240,232,0.92)" : "transparent",
           backdropFilter: scrolled ? "blur(12px)" : "none",
           borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
         }}
       >
-        <Link href="/" className="no-underline">
-          <span
-            className="font-[family-name:var(--font-dm-sans)] uppercase"
-            style={{
-              fontSize: "12px",
-              letterSpacing: "0.25em",
-              fontWeight: 500,
-              color: "var(--text-primary)",
-            }}
+        {/* Mobile: logo + hamburger */}
+        <div className="md:hidden flex items-center justify-between px-6 py-5">
+          <Link href="/" className="no-underline">
+            <span
+              className="font-[family-name:var(--font-dm-sans)] uppercase"
+              style={{
+                fontSize: "12px",
+                letterSpacing: "0.25em",
+                fontWeight: 500,
+                color: "var(--text-primary)",
+              }}
+            >
+              ClearClaim
+            </span>
+          </Link>
+          <button
+            aria-label="Menu"
+            onClick={() => setMobileOpen(true)}
+            style={{ color: "var(--text-primary)", background: "none", border: "none" }}
           >
-            ClearClaim
-          </span>
-        </Link>
+            <Menu size={22} />
+          </button>
+        </div>
 
-        <div className="hidden md:flex items-center gap-10">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
+        {/* Tablet (md only): hero is stacked, single-row layout is readable */}
+        <div className="hidden md:flex lg:hidden items-center justify-between px-12 py-5">
+          <Link href="/" className="no-underline">
+            <span
+              className="font-[family-name:var(--font-dm-sans)] uppercase"
+              style={{
+                fontSize: "12px",
+                letterSpacing: "0.25em",
+                fontWeight: 500,
+                color: "var(--text-primary)",
+              }}
+            >
+              ClearClaim
+            </span>
+          </Link>
+          <div className="flex items-center gap-10">
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
+                style={{
+                  fontSize: "11px",
+                  letterSpacing: "0.2em",
+                  textTransform: "uppercase",
+                  fontWeight: 400,
+                  color: "var(--text-muted)",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+          <Link href="/upload" className="no-underline">
+            <span
+              className="inline-block font-[family-name:var(--font-dm-sans)] uppercase"
               style={{
                 fontSize: "11px",
                 letterSpacing: "0.2em",
-                textTransform: "uppercase",
-                fontWeight: 400,
-                color: "var(--text-muted)",
+                fontWeight: 500,
+                color: "var(--bg)",
+                backgroundColor: "var(--text-primary)",
+                padding: "12px 24px",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
             >
-              {link.label}
-            </Link>
-          ))}
+              Check my bill →
+            </span>
+          </Link>
         </div>
 
-        <Link href="/upload" className="hidden md:inline-block no-underline">
-          <span
-            className="inline-block font-[family-name:var(--font-dm-sans)] uppercase"
-            style={{
-              fontSize: "11px",
-              letterSpacing: "0.2em",
-              fontWeight: 500,
-              color: "var(--bg)",
-              backgroundColor: "var(--text-primary)",
-              padding: "12px 24px",
-            }}
-          >
-            Check my bill →
-          </span>
-        </Link>
-
-        <button
-          aria-label="Menu"
-          className="md:hidden"
-          onClick={() => setMobileOpen(true)}
-          style={{ color: "var(--text-primary)", background: "none", border: "none" }}
+        {/* Desktop (lg+): 3-col grid mirroring the hero split — logo + links live in the cream column, CTA floats over the image */}
+        <div
+          className="hidden lg:grid items-center py-5"
+          style={{ gridTemplateColumns: "48px 1fr 1fr" }}
         >
-          <Menu size={22} />
-        </button>
+          <div />
+          <div className="flex items-center justify-between pl-16">
+            <Link href="/" className="no-underline">
+              <span
+                className="font-[family-name:var(--font-dm-sans)] uppercase"
+                style={{
+                  fontSize: "12px",
+                  letterSpacing: "0.25em",
+                  fontWeight: 500,
+                  color: "var(--text-primary)",
+                }}
+              >
+                ClearClaim
+              </span>
+            </Link>
+            <div className="flex items-center gap-10">
+              {links.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
+                  style={{
+                    fontSize: "11px",
+                    letterSpacing: "0.2em",
+                    textTransform: "uppercase",
+                    fontWeight: 400,
+                    color: "var(--text-muted)",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center justify-end px-16">
+            <Link href="/upload" className="no-underline">
+              <span
+                className="inline-block font-[family-name:var(--font-dm-sans)] uppercase"
+                style={{
+                  fontSize: "11px",
+                  letterSpacing: "0.2em",
+                  fontWeight: 500,
+                  color: "var(--bg)",
+                  backgroundColor: "var(--text-primary)",
+                  padding: "12px 24px",
+                }}
+              >
+                Check my bill →
+              </span>
+            </Link>
+          </div>
+        </div>
       </nav>
 
       <AnimatePresence>
