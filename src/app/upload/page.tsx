@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, CheckCircle, Camera } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -373,7 +374,10 @@ function UploadPageInner() {
   const [careType, setCareType] = useState<string | null>(null);
   const [insuranceType, setInsuranceType] = useState<string | null>(null);
   const [gfe, setGfe] = useState<string | null>(null);
+  const [userNotes, setUserNotes] = useState<string>("");
   const [submitted, setSubmitted] = useState(false);
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState<string | null>(null);
 
   React.useEffect(() => {
     const param = searchParams.get("tier");
@@ -666,6 +670,50 @@ function UploadPageInner() {
                     </div>
                   )}
                 </div>
+
+                {/* Question 4 */}
+                <div style={{ marginBottom: "32px" }}>
+                  <div style={{ ...label("#6B635C"), marginBottom: "8px" }}>
+                    Anything else we should know?
+                  </div>
+                  <div
+                    style={{
+                      ...sans("12px", "#6B635C"),
+                      marginBottom: "12px",
+                      lineHeight: 1.65,
+                    }}
+                  >
+                    For example: a test that wasn&apos;t completed, a procedure
+                    that was cancelled, a provider you never saw, or a charge
+                    that looks wrong to you.
+                  </div>
+                  <textarea
+                    value={userNotes}
+                    onChange={(e) => setUserNotes(e.target.value)}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = "#C8A97E";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = "#2A2A2A";
+                    }}
+                    placeholder="e.g. They charged for a lab test but never completed it because the sample was insufficient..."
+                    style={{
+                      width: "100%",
+                      minHeight: "120px",
+                      backgroundColor: "#0D0D0D",
+                      border: "1px solid #2A2A2A",
+                      color: "#F5F0E8",
+                      padding: "16px",
+                      fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                      fontSize: "14px",
+                      lineHeight: 1.6,
+                      resize: "vertical",
+                      outline: "none",
+                      boxSizing: "border-box",
+                      transition: "border-color 0.2s",
+                    }}
+                  />
+                </div>
               </div>
 
               <button
@@ -937,25 +985,92 @@ function UploadPageInner() {
               </p>
 
               {/* Submit button */}
-              <button
-                onClick={() => tier && setSubmitted(true)}
-                disabled={!tier}
-                style={{
-                  marginTop: "24px",
-                  width: "100%",
-                  backgroundColor: tier ? "#C8A97E" : "#1A1A1A",
-                  color: tier ? "#0D0D0D" : "#6B635C",
-                  border: "none",
-                  padding: "16px",
-                  cursor: tier ? "pointer" : "not-allowed",
-                  ...sans("11px", tier ? "#0D0D0D" : "#6B635C"),
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  transition: "background-color 0.2s",
-                }}
-              >
-                Submit for audit →
-              </button>
+             {error && (
+  <p style={{ ...sans("13px", "#C47C6A"), marginTop: "16px" }}>
+    {error}
+  </p>
+)}
+<button
+  onClick={async () => {
+    if (!tier || !billFile) return
+    setLoading(true)
+    setError(null)
+
+    try {
+      const supabase = createClient()
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError("You need to be logged in to submit.")
+        setLoading(false)
+        return
+      }
+
+      // Upload bill file to Supabase Storage
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+      const file = fileInput?.files?.[0]
+
+      if (file) {
+        const filePath = `${user.id}/${Date.now()}-${file.name}`
+        const { error: uploadError } = await supabase.storage
+          .from('bills')
+          .upload(filePath, file)
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError)
+          // Continue anyway — file upload failure shouldn't block case creation
+        }
+      }
+
+      // Create the case in the database
+      const response = await fetch('/api/cases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          careType,
+          insuranceType,
+          gfe,
+          tier,
+          userNotes,
+          amountBilled: 0
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || "Something went wrong. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      setSubmitted(true)
+
+    } catch (err) {
+      console.error(err)
+      setError("Something went wrong. Please try again.")
+    }
+
+    setLoading(false)
+  }}
+  disabled={!tier || loading}
+  style={{
+    marginTop: "24px",
+    width: "100%",
+    backgroundColor: tier && !loading ? "#C8A97E" : "#1A1A1A",
+    color: tier && !loading ? "#0D0D0D" : "#6B635C",
+    border: "none",
+    padding: "16px",
+    cursor: tier && !loading ? "pointer" : "not-allowed",
+    ...sans("11px", tier && !loading ? "#0D0D0D" : "#6B635C"),
+    letterSpacing: "0.2em",
+    textTransform: "uppercase",
+    transition: "background-color 0.2s",
+  }}
+>
+  {loading ? "Submitting..." : "Submit for audit →"}
+</button>
             </motion.div>
           )}
         </AnimatePresence>
