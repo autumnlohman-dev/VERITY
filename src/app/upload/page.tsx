@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, CheckCircle, Camera } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -374,6 +375,8 @@ function UploadPageInner() {
   const [insuranceType, setInsuranceType] = useState<string | null>(null);
   const [gfe, setGfe] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState<string | null>(null);
 
   React.useEffect(() => {
     const param = searchParams.get("tier");
@@ -937,25 +940,91 @@ function UploadPageInner() {
               </p>
 
               {/* Submit button */}
-              <button
-                onClick={() => tier && setSubmitted(true)}
-                disabled={!tier}
-                style={{
-                  marginTop: "24px",
-                  width: "100%",
-                  backgroundColor: tier ? "#C8A97E" : "#1A1A1A",
-                  color: tier ? "#0D0D0D" : "#6B635C",
-                  border: "none",
-                  padding: "16px",
-                  cursor: tier ? "pointer" : "not-allowed",
-                  ...sans("11px", tier ? "#0D0D0D" : "#6B635C"),
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  transition: "background-color 0.2s",
-                }}
-              >
-                Submit for audit →
-              </button>
+             {error && (
+  <p style={{ ...sans("13px", "#C47C6A"), marginTop: "16px" }}>
+    {error}
+  </p>
+)}
+<button
+  onClick={async () => {
+    if (!tier || !billFile) return
+    setLoading(true)
+    setError(null)
+
+    try {
+      const supabase = createClient()
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError("You need to be logged in to submit.")
+        setLoading(false)
+        return
+      }
+
+      // Upload bill file to Supabase Storage
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+      const file = fileInput?.files?.[0]
+
+      if (file) {
+        const filePath = `${user.id}/${Date.now()}-${file.name}`
+        const { error: uploadError } = await supabase.storage
+          .from('bills')
+          .upload(filePath, file)
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError)
+          // Continue anyway — file upload failure shouldn't block case creation
+        }
+      }
+
+      // Create the case in the database
+      const response = await fetch('/api/cases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          careType,
+          insuranceType,
+          gfe,
+          tier,
+          amountBilled: 0
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || "Something went wrong. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      setSubmitted(true)
+
+    } catch (err) {
+      console.error(err)
+      setError("Something went wrong. Please try again.")
+    }
+
+    setLoading(false)
+  }}
+  disabled={!tier || loading}
+  style={{
+    marginTop: "24px",
+    width: "100%",
+    backgroundColor: tier && !loading ? "#C8A97E" : "#1A1A1A",
+    color: tier && !loading ? "#0D0D0D" : "#6B635C",
+    border: "none",
+    padding: "16px",
+    cursor: tier && !loading ? "pointer" : "not-allowed",
+    ...sans("11px", tier && !loading ? "#0D0D0D" : "#6B635C"),
+    letterSpacing: "0.2em",
+    textTransform: "uppercase",
+    transition: "background-color 0.2s",
+  }}
+>
+  {loading ? "Submitting..." : "Submit for audit →"}
+</button>
             </motion.div>
           )}
         </AnimatePresence>
