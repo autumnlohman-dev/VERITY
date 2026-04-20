@@ -1,5 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
+import {
+  batchFeeSchedule,
+  batchMueEdits,
+  batchPtpEdits,
+  effectiveAllowedAmount,
+  ptpAllowsModifier,
+  type FeeScheduleRow,
+  type MueEditRow,
+  type PtpEditRow
+} from '@/lib/mockFeeSchedule'
 
 export interface LineItem {
   cpt_code: string
@@ -10,7 +20,13 @@ export interface LineItem {
   modifiers?: string[]
 }
 
-export type ErrorType = 'overcharge' | 'unbundling' | 'duplicate' | 'mue' | 'coverage'
+export type ErrorType =
+  | 'overcharge'
+  | 'unbundling'
+  | 'duplicate'
+  | 'mue'
+  | 'coverage'
+  | 'patient_disputed'
 export type Confidence = 'HIGH' | 'MEDIUM' | 'LOW'
 
 export interface BillingError {
@@ -31,23 +47,6 @@ export type InsuranceType =
   | 'self-pay'
   | 'tricare'
   | 'other'
-
-interface FeeScheduleRow {
-  cpt_code: string
-  allowed_amount: number
-  locality: string | null
-}
-
-interface PtpEditRow {
-  code_1: string
-  code_2: string
-  edit_type: string
-}
-
-interface MueEditRow {
-  cpt_code: string
-  max_units: number
-}
 
 const OVERCHARGE_THRESHOLD = 1.2
 const UNBUNDLING_OVERRIDE_MODIFIERS = new Set(['59', 'XE', 'XS', 'XP', 'XU'])
@@ -74,59 +73,6 @@ function pairKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`
 }
 
-async function loadFeeSchedule(
-  supabase: SupabaseClient,
-  codes: string[]
-): Promise<Map<string, FeeScheduleRow>> {
-  const map = new Map<string, FeeScheduleRow>()
-  if (codes.length === 0) return map
-
-  const { data, error } = await supabase
-    .from('pfs_fee_schedule')
-    .select('cpt_code, allowed_amount, locality')
-    .in('cpt_code', codes)
-
-  if (error) throw new Error(`Fee schedule lookup failed: ${error.message}`)
-  for (const row of (data ?? []) as FeeScheduleRow[]) {
-    map.set(normalizeCode(row.cpt_code), row)
-  }
-  return map
-}
-
-async function loadPtpEdits(
-  supabase: SupabaseClient,
-  codes: string[]
-): Promise<PtpEditRow[]> {
-  if (codes.length === 0) return []
-
-  const { data, error } = await supabase
-    .from('ncci_ptp_edits')
-    .select('code_1, code_2, edit_type')
-    .or(`code_1.in.(${codes.join(',')}),code_2.in.(${codes.join(',')})`)
-
-  if (error) throw new Error(`PTP edits lookup failed: ${error.message}`)
-  return (data ?? []) as PtpEditRow[]
-}
-
-async function loadMueEdits(
-  supabase: SupabaseClient,
-  codes: string[]
-): Promise<Map<string, MueEditRow>> {
-  const map = new Map<string, MueEditRow>()
-  if (codes.length === 0) return map
-
-  const { data, error } = await supabase
-    .from('ncci_mue_edits')
-    .select('cpt_code, max_units')
-    .in('cpt_code', codes)
-
-  if (error) throw new Error(`MUE edits lookup failed: ${error.message}`)
-  for (const row of (data ?? []) as MueEditRow[]) {
-    map.set(normalizeCode(row.cpt_code), row)
-  }
-  return map
-}
-
 function checkOvercharge(
   items: LineItem[],
   feeSchedule: Map<string, FeeScheduleRow>
@@ -137,7 +83,8 @@ function checkOvercharge(
     const row = feeSchedule.get(code)
     if (!row) continue
 
-    const expectedTotal = Number(row.allowed_amount) * Math.max(1, item.units)
+    const unitAllowed = effectiveAllowedAmount(row)
+    const expectedTotal = unitAllowed * Math.max(1, item.units)
     const billed = Number(item.billed_amount)
     if (expectedTotal <= 0) continue
 
@@ -150,7 +97,7 @@ function checkOvercharge(
 
     errors.push({
       cpt_code: code,
-      description: item.description ?? '',
+      description: item.description ?? row.description ?? '',
       error_type: 'overcharge',
       billed_amount: billed,
       expected_amount: expectedTotal,
@@ -197,14 +144,19 @@ function checkUnbundling(
       if (seenPairs.has(key)) continue
       seenPairs.add(key)
 
+      const modifierOverridable = ptpAllowsModifier(edit.edit_type)
       const hasOverride =
         hasAnyModifier(item1, UNBUNDLING_OVERRIDE_MODIFIERS) ||
         hasAnyModifier(item2, UNBUNDLING_OVERRIDE_MODIFIERS)
-      if (hasOverride) continue
+      if (modifierOverridable && hasOverride) continue
 
       const bundledItem = item2
-      const expected = feeSchedule.get(col1)?.allowed_amount ?? 0
+      const expected = effectiveAllowedAmount(feeSchedule.get(col1))
       const billedPair = Number(item1.billed_amount) + Number(item2.billed_amount)
+
+      const overrideNote = modifierOverridable
+        ? 'A modifier (59, XE, XS, XP, or XU) can justify separate reporting, but none was applied.'
+        : 'This edit has modifier indicator 0 — no modifier may override it; the codes cannot be billed separately.'
 
       errors.push({
         cpt_code: col2,
@@ -213,7 +165,7 @@ function checkUnbundling(
         billed_amount: Number(bundledItem.billed_amount),
         expected_amount: Number(expected),
         confidence: 'HIGH',
-        explanation: `CPT ${col2} was billed separately on ${date} alongside CPT ${col1}. NCCI ${edit.edit_type} edits bundle these codes: the column 2 code is a component of the column 1 code and is not separately reportable. Combined charges of $${billedPair.toFixed(2)} should collapse to the single primary procedure.`,
+        explanation: `CPT ${col2} was billed separately on ${date} alongside CPT ${col1}. NCCI PTP edits bundle these codes: the column 2 code is a component of the column 1 code and is not separately reportable. ${overrideNote} Combined charges of $${billedPair.toFixed(2)} should collapse to the single primary procedure.`,
         rule_violated:
           'NCCI Procedure-to-Procedure (PTP) edits — CMS National Correct Coding Initiative Policy Manual, Chapter I.'
       })
@@ -276,7 +228,7 @@ function checkMue(
     if (!mue) continue
     if (item.units <= mue.max_units) continue
 
-    const unitPrice = Number(feeSchedule.get(code)?.allowed_amount ?? 0)
+    const unitPrice = effectiveAllowedAmount(feeSchedule.get(code))
     const expected = unitPrice * mue.max_units
     const excessUnits = item.units - mue.max_units
 
@@ -373,9 +325,9 @@ export async function runAudit(
   )
 
   const [feeSchedule, ptpEdits, mueMap] = await Promise.all([
-    loadFeeSchedule(supabase, uniqueCodes),
-    loadPtpEdits(supabase, uniqueCodes),
-    loadMueEdits(supabase, uniqueCodes)
+    batchFeeSchedule(supabase, uniqueCodes),
+    batchPtpEdits(supabase, uniqueCodes),
+    batchMueEdits(supabase, uniqueCodes)
   ])
 
   const normalized: LineItem[] = lineItems.map((li) => ({

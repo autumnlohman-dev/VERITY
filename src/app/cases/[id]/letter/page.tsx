@@ -1,8 +1,9 @@
 "use client";
 
-import React, { use } from "react";
+import React, { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { createClient } from "@/lib/supabase/client";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -21,7 +22,6 @@ const sans = (size: string, color = "#A89F96", extra?: React.CSSProperties): Rea
   ...extra,
 });
 
-// suppress TS warning — label is part of the design system but not used inline here
 const label = (color = "#C8A97E"): React.CSSProperties => ({
   fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
   fontSize: "11px",
@@ -30,31 +30,575 @@ const label = (color = "#C8A97E"): React.CSSProperties => ({
   color,
 });
 
-// ─── Letter line items ────────────────────────────────────────────────────────
-const LETTER_ITEMS = [
-  { desc: "Chest X-Ray, 2 views", code: "71046", billed: "$420", contracted: "$95", discrepancy: "$325 excess" },
-  { desc: "ECG Interpretation", code: "93005", billed: "$380", contracted: "$0", discrepancy: "Bundled — improperly billed" },
-  { desc: "Office Visit", code: "99213", billed: "$400", contracted: "$250", discrepancy: "$150 excess" },
-];
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface PatientInfo {
+  name?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  member_id?: string;
+}
 
-// ─── Submission options ───────────────────────────────────────────────────────
+interface CaseRow {
+  id: string;
+  status: string;
+  provider_name: string | null;
+  insurance_type: string | null;
+  amount_billed: number | null;
+  created_at: string;
+  patient_info: PatientInfo | null;
+}
+
+interface LetterRow {
+  id: string;
+  case_id: string;
+  letter_content: string;
+  generated_at: string | null;
+  sent_at: string | null;
+}
+
+// ─── Placeholder substitution ────────────────────────────────────────────────
+function substitutePlaceholders(content: string, info: PatientInfo): string {
+  const name = info.name?.trim() || "";
+  const address = info.address?.trim() || "";
+  const phone = info.phone?.trim() || "";
+  const email = info.email?.trim() || "";
+  const memberId = info.member_id?.trim() || "";
+
+  const map: Record<string, string> = {
+    "patient name": name,
+    "your name": name,
+    "name": name,
+    "full name": name,
+    "address": address,
+    "address line 1": address,
+    "street address": address,
+    "mailing address": address,
+    "patient address": address,
+    "your address": address,
+    "phone": phone,
+    "phone number": phone,
+    "telephone": phone,
+    "contact phone": phone,
+    "email": email,
+    "email address": email,
+    "e-mail": email,
+    "member id": memberId,
+    "member number": memberId,
+    "id number": memberId,
+    "insurance id": memberId,
+    "subscriber id": memberId,
+  };
+
+  return content.replace(/\[([^\[\]\n]{2,40})\]/g, (match, key: string) => {
+    const normalized = key.trim().toLowerCase();
+    const replacement = map[normalized];
+    if (replacement === undefined) return match;
+    return replacement || match;
+  });
+}
+
+// ─── Markdown renderer (minimal subset: headings, paragraphs, lists, bold, italic) ─
+function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|_[^_]+_)/g;
+  let lastIdx = 0;
+  let key = 0;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > lastIdx) parts.push(text.slice(lastIdx, m.index));
+    const token = m[0];
+    if (token.startsWith("**") || token.startsWith("__")) {
+      parts.push(
+        <strong key={`${keyPrefix}-b-${key++}`} style={{ color: "#1A1A1A", fontWeight: 600 }}>
+          {token.slice(2, -2)}
+        </strong>
+      );
+    } else {
+      parts.push(
+        <em key={`${keyPrefix}-i-${key++}`}>{token.slice(1, -1)}</em>
+      );
+    }
+    lastIdx = m.index + token.length;
+  }
+  if (lastIdx < text.length) parts.push(text.slice(lastIdx));
+  return parts;
+}
+
+type Block =
+  | { kind: "h1" | "h2" | "h3"; text: string }
+  | { kind: "p"; text: string }
+  | { kind: "ul" | "ol"; items: string[] }
+  | { kind: "hr" };
+
+function parseMarkdown(src: string): Block[] {
+  const lines = src.replace(/\r\n/g, "\n").split("\n");
+  const blocks: Block[] = [];
+
+  const isBullet = (l: string) => /^[-*+]\s+/.test(l);
+  const isNumbered = (l: string) => /^\d+\.\s+/.test(l);
+  const isHr = (l: string) => /^(-{3,}|_{3,}|\*{3,})$/.test(l);
+
+  let i = 0;
+  while (i < lines.length) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+
+    if (!trimmed) {
+      i++;
+      continue;
+    }
+
+    if (isHr(trimmed)) {
+      blocks.push({ kind: "hr" });
+      i++;
+      continue;
+    }
+
+    if (trimmed.startsWith("### ")) {
+      blocks.push({ kind: "h3", text: trimmed.slice(4) });
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith("## ")) {
+      blocks.push({ kind: "h2", text: trimmed.slice(3) });
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith("# ")) {
+      blocks.push({ kind: "h1", text: trimmed.slice(2) });
+      i++;
+      continue;
+    }
+
+    if (isBullet(trimmed)) {
+      const items: string[] = [];
+      while (i < lines.length && isBullet(lines[i].trim())) {
+        items.push(lines[i].trim().replace(/^[-*+]\s+/, ""));
+        i++;
+      }
+      blocks.push({ kind: "ul", items });
+      continue;
+    }
+
+    if (isNumbered(trimmed)) {
+      const items: string[] = [];
+      while (i < lines.length && isNumbered(lines[i].trim())) {
+        items.push(lines[i].trim().replace(/^\d+\.\s+/, ""));
+        i++;
+      }
+      blocks.push({ kind: "ol", items });
+      continue;
+    }
+
+    const paraLines: string[] = [];
+    while (i < lines.length) {
+      const t = lines[i].trim();
+      if (!t) break;
+      if (
+        t.startsWith("# ") ||
+        t.startsWith("## ") ||
+        t.startsWith("### ") ||
+        isBullet(t) ||
+        isNumbered(t) ||
+        isHr(t)
+      )
+        break;
+      paraLines.push(lines[i]);
+      i++;
+    }
+    if (paraLines.length > 0) {
+      blocks.push({ kind: "p", text: paraLines.join("\n") });
+    }
+  }
+
+  return blocks;
+}
+
+function MarkdownLetter({ content }: { content: string }) {
+  const blocks = parseMarkdown(content);
+
+  const paraText = (text: string, idx: number): React.ReactNode => {
+    const segments = text.split("\n");
+    return segments.map((seg, j) => (
+      <React.Fragment key={`p-${idx}-l-${j}`}>
+        {renderInline(seg, `p-${idx}-l-${j}`)}
+        {j < segments.length - 1 && <br />}
+      </React.Fragment>
+    ));
+  };
+
+  return (
+    <div
+      style={{
+        fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+        fontSize: "14px",
+        color: "#2A2520",
+        lineHeight: 1.8,
+      }}
+    >
+      {blocks.map((b, idx) => {
+        switch (b.kind) {
+          case "h1":
+            return (
+              <h1
+                key={idx}
+                style={{
+                  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                  fontSize: "20px",
+                  color: "#1A1A1A",
+                  fontWeight: 600,
+                  margin: "24px 0 12px",
+                  lineHeight: 1.3,
+                }}
+              >
+                {renderInline(b.text, `h1-${idx}`)}
+              </h1>
+            );
+          case "h2":
+            return (
+              <h2
+                key={idx}
+                style={{
+                  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                  fontSize: "17px",
+                  color: "#1A1A1A",
+                  fontWeight: 600,
+                  margin: "20px 0 10px",
+                  lineHeight: 1.3,
+                }}
+              >
+                {renderInline(b.text, `h2-${idx}`)}
+              </h2>
+            );
+          case "h3":
+            return (
+              <h3
+                key={idx}
+                style={{
+                  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                  fontSize: "14px",
+                  color: "#1A1A1A",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  margin: "18px 0 8px",
+                  lineHeight: 1.3,
+                }}
+              >
+                {renderInline(b.text, `h3-${idx}`)}
+              </h3>
+            );
+          case "p":
+            return (
+              <p key={idx} style={{ marginBottom: "16px" }}>
+                {paraText(b.text, idx)}
+              </p>
+            );
+          case "ul":
+            return (
+              <ul
+                key={idx}
+                style={{
+                  margin: "0 0 16px",
+                  paddingLeft: "22px",
+                  listStyle: "disc",
+                }}
+              >
+                {b.items.map((it, j) => (
+                  <li key={j} style={{ marginBottom: "6px" }}>
+                    {renderInline(it, `ul-${idx}-${j}`)}
+                  </li>
+                ))}
+              </ul>
+            );
+          case "ol":
+            return (
+              <ol
+                key={idx}
+                style={{
+                  margin: "0 0 16px",
+                  paddingLeft: "22px",
+                  listStyle: "decimal",
+                }}
+              >
+                {b.items.map((it, j) => (
+                  <li key={j} style={{ marginBottom: "6px" }}>
+                    {renderInline(it, `ol-${idx}-${j}`)}
+                  </li>
+                ))}
+              </ol>
+            );
+          case "hr":
+            return (
+              <hr
+                key={idx}
+                style={{
+                  border: "none",
+                  borderTop: "1px solid #E5E0DA",
+                  margin: "24px 0",
+                }}
+              />
+            );
+        }
+      })}
+    </div>
+  );
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function formatLongDate(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function deadlineFrom(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + 30);
+  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
 const SUBMISSION_OPTIONS = [
   {
     method: "Submit online",
     color: "#4A90D9",
-    detail: "Log in to your Aetna member portal at aetna.com/member → Claims → Dispute a Charge. Upload this letter and all enclosures as a single PDF.",
+    detail:
+      "Log in to your insurer's member portal, navigate to Claims → Dispute a Charge, and upload this letter with all enclosures as a single PDF. Save the confirmation number.",
   },
   {
     method: "Send by fax",
     color: "#C8A97E",
-    detail: "Fax to Aetna Claims Review: 1-860-975-3777. Include a cover sheet referencing Claim #WR-2024-8821. Keep your fax confirmation as proof.",
+    detail:
+      "Fax this letter to your insurer's claims review line (printed on your insurance card). Include a cover sheet referencing your member ID and claim number. Keep the fax confirmation as proof of delivery.",
   },
   {
     method: "Send by mail",
     color: "#7A9E87",
-    detail: "Aetna Insurance, Attn: Claims Review, P.O. Box 14079, Lexington, KY 40512. Use certified mail with return receipt so you have a dated proof of delivery.",
+    detail:
+      "Mail to the claims review address on the back of your insurance card. Use certified mail with return receipt so you have dated proof of delivery.",
   },
 ];
+
+// ─── Patient info panel ──────────────────────────────────────────────────────
+function PatientInfoPanel({
+  caseId,
+  initial,
+  defaultOpen,
+  onSaved,
+}: {
+  caseId: string;
+  initial: PatientInfo;
+  defaultOpen: boolean;
+  onSaved: (next: PatientInfo) => void;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [form, setForm] = useState<PatientInfo>(initial);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const fields: Array<{
+    key: keyof PatientInfo;
+    label: string;
+    placeholder: string;
+    multiline?: boolean;
+    type?: string;
+  }> = [
+    { key: "name", label: "Full name", placeholder: "Jane Smith" },
+    {
+      key: "address",
+      label: "Mailing address",
+      placeholder: "123 Main St\nApt 4B\nCity, ST 12345",
+      multiline: true,
+    },
+    { key: "phone", label: "Phone", placeholder: "(555) 123-4567", type: "tel" },
+    {
+      key: "email",
+      label: "Email",
+      placeholder: "jane@example.com",
+      type: "email",
+    },
+    {
+      key: "member_id",
+      label: "Insurance member ID",
+      placeholder: "XYZ123456789",
+    },
+  ];
+
+  async function save() {
+    setSaving(true);
+    setSaveError(null);
+    const supabase = createClient();
+    const payload: PatientInfo = {
+      name: form.name?.trim() || undefined,
+      address: form.address?.trim() || undefined,
+      phone: form.phone?.trim() || undefined,
+      email: form.email?.trim() || undefined,
+      member_id: form.member_id?.trim() || undefined,
+    };
+    const { error } = await supabase
+      .from("cases")
+      .update({ patient_info: payload })
+      .eq("id", caseId);
+    setSaving(false);
+    if (error) {
+      setSaveError(error.message);
+      return;
+    }
+    onSaved(payload);
+    setOpen(false);
+  }
+
+  const summary = initial.name?.trim()
+    ? `${initial.name.trim()}${initial.member_id ? ` · Member #${initial.member_id}` : ""}`
+    : "Not yet provided";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      style={{
+        maxWidth: "720px",
+        margin: "32px auto 0",
+        backgroundColor: "#111111",
+        border: `1px solid ${defaultOpen ? "rgba(196,124,106,0.4)" : "#242424"}`,
+        borderLeft: `4px solid ${defaultOpen ? "#C47C6A" : "#C8A97E"}`,
+        padding: "24px 32px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ ...label(defaultOpen ? "#C47C6A" : "#6B635C") }}>
+            Your information
+          </div>
+          <div style={{ ...sans("13px", "#A89F96"), marginTop: "6px" }}>
+            {open ? "Fill in to replace the placeholders in the letter." : summary}
+          </div>
+        </div>
+        {!open && (
+          <button
+            onClick={() => setOpen(true)}
+            style={{
+              ...sans("11px", "#C8A97E"),
+              letterSpacing: "0.15em",
+              textTransform: "uppercase",
+              background: "transparent",
+              border: "1px solid #C8A97E",
+              padding: "8px 16px",
+              cursor: "pointer",
+            }}
+          >
+            Edit
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div style={{ marginTop: "20px", display: "flex", flexDirection: "column", gap: "14px" }}>
+          {fields.map((f) => (
+            <div key={f.key}>
+              <div style={{ ...label("#6B635C"), marginBottom: "6px" }}>{f.label}</div>
+              {f.multiline ? (
+                <textarea
+                  value={form[f.key] ?? ""}
+                  onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder}
+                  rows={3}
+                  style={{
+                    width: "100%",
+                    backgroundColor: "#0D0D0D",
+                    border: "1px solid #2A2A2A",
+                    color: "#F5F0E8",
+                    padding: "10px 12px",
+                    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                    fontSize: "13px",
+                    lineHeight: 1.5,
+                    resize: "vertical",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              ) : (
+                <input
+                  type={f.type ?? "text"}
+                  value={form[f.key] ?? ""}
+                  onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder}
+                  style={{
+                    width: "100%",
+                    backgroundColor: "#0D0D0D",
+                    border: "1px solid #2A2A2A",
+                    color: "#F5F0E8",
+                    padding: "10px 12px",
+                    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                    fontSize: "13px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              )}
+            </div>
+          ))}
+
+          {saveError && (
+            <p style={{ ...sans("12px", "#C47C6A") }}>{saveError}</p>
+          )}
+
+          <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
+            <button
+              onClick={save}
+              disabled={saving}
+              style={{
+                ...sans("11px", "#0D0D0D"),
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                backgroundColor: "#C8A97E",
+                border: "none",
+                padding: "10px 20px",
+                cursor: saving ? "wait" : "pointer",
+                opacity: saving ? 0.6 : 1,
+                fontWeight: 500,
+              }}
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+            {!defaultOpen && (
+              <button
+                onClick={() => {
+                  setForm(initial);
+                  setOpen(false);
+                  setSaveError(null);
+                }}
+                disabled={saving}
+                style={{
+                  ...sans("11px", "#A89F96"),
+                  letterSpacing: "0.2em",
+                  textTransform: "uppercase",
+                  background: "transparent",
+                  border: "1px solid #242424",
+                  padding: "10px 20px",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function LetterPage({
@@ -63,6 +607,196 @@ export default function LetterPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+
+  const [loading, setLoading] = useState(true);
+  const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
+  const [letter, setLetter] = useState<LetterRow | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setFetchError(null);
+
+    const supabase = createClient();
+
+    const { data: caseData, error: caseErr } = await supabase
+      .from("cases")
+      .select("id, status, provider_name, insurance_type, amount_billed, created_at, patient_info")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (caseErr) {
+      setFetchError(caseErr.message);
+      setLoading(false);
+      return;
+    }
+    if (!caseData) {
+      setFetchError("This case does not exist or you don't have access to it.");
+      setLoading(false);
+      return;
+    }
+    setCaseRow(caseData as CaseRow);
+
+    const { data: letterData, error: letterErr } = await supabase
+      .from("dispute_letters")
+      .select("*")
+      .eq("case_id", id)
+      .order("generated_at", { ascending: false })
+      .limit(1);
+
+    if (letterErr) {
+      setFetchError(letterErr.message);
+      setLoading(false);
+      return;
+    }
+
+    setLetter(letterData && letterData.length > 0 ? (letterData[0] as LetterRow) : null);
+    setLoading(false);
+  }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // ─── Loading state ─────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div
+        style={{
+          background: "#0D0D0D",
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <style>{`
+          @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+          .dot-pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
+        `}</style>
+        <div
+          className="dot-pulse"
+          style={{
+            width: "10px",
+            height: "10px",
+            borderRadius: "50%",
+            backgroundColor: "#C8A97E",
+            marginBottom: "24px",
+          }}
+        />
+        <div style={{ ...serif("32px", { fontStyle: "italic", color: "#A89F96" }) }}>
+          Loading your letter.
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Error / not found ─────────────────────────────────────────────────────
+  if (fetchError || !caseRow) {
+    return (
+      <div
+        style={{
+          background: "#0D0D0D",
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          paddingTop: "200px",
+          textAlign: "center",
+        }}
+      >
+        <div style={{ ...serif("40px", { lineHeight: 1.1 }) }}>Letter unavailable.</div>
+        <p style={{ ...sans("14px", "#A89F96"), marginTop: "16px", maxWidth: "360px" }}>
+          {fetchError ?? "We couldn't find this case."}
+        </p>
+        <Link
+          href={`/cases/${id}`}
+          style={{ ...sans("12px", "#C8A97E"), textDecoration: "none", marginTop: "32px", letterSpacing: "0.1em" }}
+        >
+          ← Back to case
+        </Link>
+      </div>
+    );
+  }
+
+  // ─── Letter still generating ───────────────────────────────────────────────
+  if (!letter) {
+    return (
+      <div
+        style={{
+          background: "#0D0D0D",
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          paddingTop: "200px",
+          textAlign: "center",
+        }}
+      >
+        <style>{`
+          @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+          .dot-pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
+        `}</style>
+        <div
+          className="dot-pulse"
+          style={{
+            width: "10px",
+            height: "10px",
+            borderRadius: "50%",
+            backgroundColor: "#C8A97E",
+            marginBottom: "24px",
+          }}
+        />
+        <div style={{ ...serif("40px", { lineHeight: 1.1 }), maxWidth: "460px" }}>
+          Your letter is being generated.
+        </div>
+        <p style={{ ...sans("14px", "#A89F96"), marginTop: "16px", maxWidth: "360px", lineHeight: 1.65 }}>
+          Check back in a moment.
+        </p>
+        <div style={{ display: "flex", gap: "12px", marginTop: "32px" }}>
+          <button
+            onClick={load}
+            style={{
+              ...sans("11px", "#0D0D0D"),
+              backgroundColor: "#C8A97E",
+              padding: "12px 24px",
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              fontWeight: 500,
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            Refresh
+          </button>
+          <Link href={`/cases/${id}`} style={{ textDecoration: "none" }}>
+            <span
+              style={{
+                ...sans("11px", "#C8A97E"),
+                border: "1px solid #C8A97E",
+                padding: "12px 24px",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                display: "inline-block",
+              }}
+            >
+              Back to case
+            </span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Letter ready ──────────────────────────────────────────────────────────
+  const caseShortId = caseRow.id.slice(0, 8).toUpperCase();
+  const providerLabel = caseRow.provider_name ?? "Provider on file";
+  const generatedDate = formatLongDate(letter.generated_at);
+  const deadline = deadlineFrom(letter.generated_at ?? caseRow.created_at);
+  const patientInfo = caseRow.patient_info ?? {};
+  const patientInfoFilled = Boolean(patientInfo.name?.trim());
+  const displayContent = substitutePlaceholders(letter.letter_content, patientInfo);
 
   return (
     <div style={{ background: "#0D0D0D", minHeight: "100vh" }}>
@@ -89,13 +823,13 @@ export default function LetterPage({
           onMouseEnter={(e) => (e.currentTarget.style.color = "#A89F96")}
           onMouseLeave={(e) => (e.currentTarget.style.color = "#6B635C")}
         >
-          ← Case #WR-2024-8821
+          ← Case #{caseShortId}
         </Link>
         <span
           className="hidden md:block"
           style={{ ...sans("11px", "#A89F96"), letterSpacing: "0.1em", textTransform: "uppercase" }}
         >
-          Dispute Letter · Westside Radiology
+          Dispute Letter · {providerLabel}
         </span>
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <button
@@ -122,7 +856,15 @@ export default function LetterPage({
             Print
           </button>
           <button
-            onClick={() => console.log("download PDF")}
+            onClick={() => {
+              const blob = new Blob([displayContent], { type: "text/plain;charset=utf-8" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `dispute-letter-${caseShortId}.txt`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
             style={{
               ...sans("11px", "#0D0D0D"),
               letterSpacing: "0.15em",
@@ -134,26 +876,38 @@ export default function LetterPage({
               fontWeight: 500,
             }}
           >
-            Download PDF
+            Download
           </button>
         </div>
       </div>
 
       {/* Deadline banner */}
-      <div
-        style={{
-          backgroundColor: "#1A1A1A",
-          border: "1px solid rgba(200,169,126,0.3)",
-          padding: "16px 32px",
-          textAlign: "center",
-        }}
-      >
-        <span style={{ ...sans("13px", "#A89F96") }}>
-          Submission deadline:{" "}
-          <span style={{ color: "#C8A97E", fontWeight: 600 }}>May 18, 2026</span>
-          {" · "}30 days from bill date. File before this date to preserve your dispute rights.
-        </span>
-      </div>
+      {deadline && (
+        <div
+          style={{
+            backgroundColor: "#1A1A1A",
+            border: "1px solid rgba(200,169,126,0.3)",
+            padding: "16px 32px",
+            textAlign: "center",
+          }}
+        >
+          <span style={{ ...sans("13px", "#A89F96") }}>
+            Submission deadline:{" "}
+            <span style={{ color: "#C8A97E", fontWeight: 600 }}>{deadline}</span>
+            {" · "}30 days from letter date. File before this date to preserve your dispute rights.
+          </span>
+        </div>
+      )}
+
+      {/* Patient info form */}
+      <PatientInfoPanel
+        caseId={caseRow.id}
+        initial={patientInfo}
+        defaultOpen={!patientInfoFilled}
+        onSaved={(next) =>
+          setCaseRow((prev) => (prev ? { ...prev, patient_info: next } : prev))
+        }
+      />
 
       {/* Document container */}
       <motion.div
@@ -171,212 +925,20 @@ export default function LetterPage({
           boxShadow: "0 32px 80px rgba(0,0,0,0.7)",
         }}
       >
-        {/* Sender */}
         <div
           style={{
             fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-            fontSize: "13px",
-            color: "#4A4540",
-            lineHeight: 1.7,
-            marginBottom: "32px",
-          }}
-        >
-          <div>[Your Full Name]</div>
-          <div>[Street Address]</div>
-          <div>[City, State ZIP]</div>
-          <div>[Email Address]</div>
-          <div style={{ marginTop: "16px" }}>April 18, 2026</div>
-        </div>
-
-        {/* Recipient */}
-        <div
-          style={{
-            fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-            fontSize: "13px",
-            color: "#4A4540",
-            lineHeight: 1.7,
+            fontSize: "11px",
+            letterSpacing: "0.2em",
+            textTransform: "uppercase",
+            color: "#8A8077",
             marginBottom: "24px",
           }}
         >
-          <div>Aetna Insurance</div>
-          <div>Attn: Claims Review Department</div>
-          <div>P.O. Box 14079</div>
-          <div>Lexington, KY 40512</div>
+          Generated {generatedDate} · Case #{caseShortId}
         </div>
 
-        <div style={{ borderTop: "1px solid #E5E0DA" }} />
-
-        {/* Re: */}
-        <div style={{ marginTop: "24px", marginBottom: "8px" }}>
-          <span
-            style={{
-              fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-              fontSize: "14px",
-              color: "#1A1A1A",
-              fontWeight: 600,
-            }}
-          >
-            Re: Formal Billing Dispute — Member ID: [Your ID] | Claim #: WR-2024-8821
-          </span>
-        </div>
-        <div
-          style={{
-            fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-            fontSize: "13px",
-            color: "#4A4540",
-            marginBottom: "8px",
-          }}
-        >
-          Provider: Westside Radiology | Bill Date: March 28, 2026 | Total Billed: $1,200.00
-        </div>
-
-        <div style={{ borderTop: "1px solid #E5E0DA", margin: "24px 0" }} />
-
-        {/* Body */}
-        <div
-          style={{
-            fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-            fontSize: "14px",
-            color: "#2A2520",
-            lineHeight: 1.8,
-          }}
-        >
-          <p style={{ marginBottom: "20px" }}>Dear Claims Review Department,</p>
-
-          <p style={{ marginBottom: "20px" }}>
-            I am writing to formally dispute the charges on the bill and claim referenced above. Upon careful review of
-            my Explanation of Benefits and the terms of my insurance contract with Aetna, I have identified the
-            following billing discrepancies:
-          </p>
-
-          {/* Table */}
-          <table
-            style={{
-              border: "1px solid #E0DAD4",
-              width: "100%",
-              borderCollapse: "collapse",
-              margin: "24px 0",
-              fontSize: "13px",
-            }}
-          >
-            <thead>
-              <tr style={{ backgroundColor: "#F7F4F0" }}>
-                {["Description", "CPT Code", "Billed", "Contracted Rate", "Discrepancy"].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-                      fontSize: "11px",
-                      letterSpacing: "0.1em",
-                      textTransform: "uppercase",
-                      color: "#6B635C",
-                      padding: "10px 14px",
-                      textAlign: "left",
-                      borderBottom: "1px solid #E0DAD4",
-                      fontWeight: 500,
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {LETTER_ITEMS.map((item, i) => (
-                <tr
-                  key={item.code}
-                  style={{ borderBottom: i < LETTER_ITEMS.length - 1 ? "1px solid #E0DAD4" : "none" }}
-                >
-                  {[item.desc, item.code, item.billed, item.contracted, item.discrepancy].map((cell, j) => (
-                    <td
-                      key={j}
-                      style={{
-                        fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-                        fontSize: "13px",
-                        color: "#2A2520",
-                        padding: "10px 14px",
-                      }}
-                    >
-                      {cell}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-              {/* Footer row */}
-              <tr style={{ backgroundColor: "#F7F4F0" }}>
-                <td
-                  colSpan={2}
-                  style={{
-                    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-                    fontSize: "13px",
-                    color: "#2A2520",
-                    padding: "10px 14px",
-                    fontWeight: 600,
-                  }}
-                >
-                  Total disputed
-                </td>
-                <td style={{ fontFamily: "var(--font-dm-sans), system-ui, sans-serif", fontSize: "13px", color: "#2A2520", padding: "10px 14px", fontWeight: 600 }}>$1,200</td>
-                <td style={{ fontFamily: "var(--font-dm-sans), system-ui, sans-serif", fontSize: "13px", color: "#2A2520", padding: "10px 14px", fontWeight: 600 }}>$345</td>
-                <td style={{ fontFamily: "var(--font-dm-sans), system-ui, sans-serif", fontSize: "13px", color: "#2A2520", padding: "10px 14px", fontWeight: 600 }}>$855 in overcharges</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <p style={{ marginBottom: "20px" }}>
-            Under my insurance contract and applicable state regulations, charges that exceed the negotiated contracted
-            rate are the provider&apos;s responsibility and cannot be transferred to the patient. Furthermore, the ECG
-            Interpretation (CPT 93005) is a bundled service included within the primary office visit (CPT 99213) under
-            your standard bundling rules and cannot be separately itemized.
-          </p>
-
-          <p style={{ marginBottom: "20px" }}>
-            I request that Aetna investigate these charges and require Westside Radiology to issue a corrected
-            Explanation of Benefits reflecting the accurate contracted rates. I request written confirmation of receipt
-            of this dispute within 10 business days and a resolution within 30 days, as required by applicable state
-            insurance regulations.
-          </p>
-
-          <p style={{ marginBottom: "48px" }}>
-            If I do not receive a satisfactory response within 30 days of this letter, I will escalate this dispute to
-            the [State] Department of Insurance and request an independent external review under the No Surprises Act.
-          </p>
-
-          <p style={{ marginBottom: "48px" }}>Sincerely,</p>
-
-          <div>
-            <div
-              style={{
-                borderBottom: "1px solid #1A1A1A",
-                width: "120px",
-                marginBottom: "8px",
-              }}
-            />
-            <span
-              style={{
-                fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-                fontSize: "13px",
-                color: "#1A1A1A",
-              }}
-            >
-              [Your Name]
-            </span>
-          </div>
-        </div>
-
-        <div style={{ borderTop: "1px solid #E5E0DA", margin: "32px 0 0" }} />
-        <p
-          style={{
-            fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-            fontSize: "12px",
-            color: "#6B635C",
-            fontStyle: "italic",
-            marginTop: "20px",
-          }}
-        >
-          Enclosures: Itemized Medical Bill (Westside Radiology, March 28, 2026), Explanation of Benefits (Aetna),
-          Insurance Card
-        </p>
+        <MarkdownLetter content={displayContent} />
       </motion.div>
 
       {/* Submission instructions */}
@@ -386,7 +948,7 @@ export default function LetterPage({
         transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.15 }}
         style={{
           maxWidth: "720px",
-          margin: "0 auto",
+          margin: "32px auto 0",
           backgroundColor: "#111111",
           border: "1px solid #242424",
           padding: "32px",
