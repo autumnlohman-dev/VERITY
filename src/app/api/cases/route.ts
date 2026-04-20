@@ -10,7 +10,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { careType, insuranceType, gfe, tier, amountBilled, userNotes } = await request.json()
+    const {
+      careType,
+      insuranceType,
+      gfe,
+      tier,
+      amountBilled,
+      userNotes,
+      providerName
+    } = await request.json()
+
+    const normalizedProvider =
+      typeof providerName === 'string' && providerName.trim()
+        ? providerName.trim()
+        : null
 
     const { data: newCase, error } = await supabase
       .from('cases')
@@ -18,6 +31,7 @@ export async function POST(request: Request) {
         user_id: user.id,
         status: 'auditing',
         insurance_type: insuranceType,
+        provider_name: normalizedProvider,
         amount_billed: amountBilled || 0,
         bill_data: { careType, insuranceType, gfe, tier, userNotes: userNotes || '' }
       })

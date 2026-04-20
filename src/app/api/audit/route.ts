@@ -1,15 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
-import { runAudit, type LineItem, type InsuranceType } from '@/lib/errorDetection'
+import { runAudit, type LineItem } from '@/lib/errorDetection'
+import { analyzeDisputedProcedures } from '@/lib/patientDisputes'
+import { normalizeInsuranceType } from '@/lib/insuranceMapping'
 import { NextResponse } from 'next/server'
-
-const VALID_INSURANCE_TYPES: InsuranceType[] = [
-  'commercial',
-  'medicare',
-  'medicaid',
-  'self-pay',
-  'tricare',
-  'other'
-]
 
 function isLineItem(value: unknown): value is LineItem {
   if (!value || typeof value !== 'object') return false
@@ -34,7 +27,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { caseId, lineItems, insuranceType } = body ?? {}
+    const { caseId, lineItems, insuranceType, userNotes } = body ?? {}
 
     if (!caseId || typeof caseId !== 'string') {
       return NextResponse.json({ error: 'Missing caseId' }, { status: 400 })
@@ -42,21 +35,17 @@ export async function POST(request: Request) {
 
     if (!Array.isArray(lineItems) || !lineItems.every(isLineItem)) {
       return NextResponse.json(
-        { error: 'lineItems must be an array of line items with cpt_code, date_of_service, units, billed_amount' },
-        { status: 400 }
-      )
-    }
-
-    if (!VALID_INSURANCE_TYPES.includes(insuranceType)) {
-      return NextResponse.json(
-        { error: `insuranceType must be one of: ${VALID_INSURANCE_TYPES.join(', ')}` },
+        {
+          error:
+            'lineItems must be an array of line items with cpt_code, date_of_service, units, billed_amount'
+        },
         { status: 400 }
       )
     }
 
     const { data: caseRecord, error: caseError } = await supabase
       .from('cases')
-      .select('id, user_id')
+      .select('id, user_id, insurance_type, bill_data')
       .eq('id', caseId)
       .eq('user_id', user.id)
       .single()
@@ -64,6 +53,20 @@ export async function POST(request: Request) {
     if (caseError || !caseRecord) {
       return NextResponse.json({ error: 'Case not found' }, { status: 404 })
     }
+
+    const resolvedInsurance = normalizeInsuranceType(
+      insuranceType ?? caseRecord.insurance_type
+    )
+
+    const caseNotes =
+      caseRecord.bill_data &&
+      typeof (caseRecord.bill_data as Record<string, unknown>).userNotes ===
+        'string'
+        ? ((caseRecord.bill_data as Record<string, unknown>).userNotes as string)
+        : ''
+    const resolvedNotes =
+      (typeof userNotes === 'string' && userNotes.trim() && userNotes) ||
+      caseNotes
 
     const normalizedItems: LineItem[] = lineItems.map((li) => ({
       cpt_code: String(li.cpt_code),
@@ -76,9 +79,11 @@ export async function POST(request: Request) {
         : undefined
     }))
 
-    const errors = await runAudit(normalizedItems, insuranceType as InsuranceType, {
-      supabase
-    })
+    const [ruleErrors, disputeErrors] = await Promise.all([
+      runAudit(normalizedItems, resolvedInsurance, { supabase }),
+      analyzeDisputedProcedures(normalizedItems, resolvedNotes)
+    ])
+    const errors = [...ruleErrors, ...disputeErrors]
 
     const totalExpected = errors.reduce(
       (sum, err) => sum + Number(err.expected_amount || 0),
@@ -117,7 +122,8 @@ export async function POST(request: Request) {
       status: nextStatus,
       errors,
       errorCount: errors.length,
-      potentialSavings
+      potentialSavings,
+      insuranceType: resolvedInsurance
     })
   } catch (error) {
     console.error('Audit error:', error)

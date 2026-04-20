@@ -5,7 +5,7 @@ import type { DragEvent, ChangeEvent } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, CheckCircle, Camera } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
@@ -114,10 +114,7 @@ function Nav() {
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface FileState {
-  name: string;
-  size: number;
-}
+type FileState = File;
 
 // ─── Step Indicator ───────────────────────────────────────────────────────────
 function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
@@ -217,8 +214,7 @@ function DropZone({
 
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const f = files[0];
-    setFile({ name: f.name, size: f.size });
+    setFile(files[0]);
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -365,6 +361,7 @@ function RadioCard({
 // ─── Inner component (uses useSearchParams) ───────────────────────────────────
 function UploadPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [tier, setTier] = useState<"audit" | "dispute" | "resolve" | null>(null);
@@ -377,6 +374,7 @@ function UploadPageInner() {
   const [userNotes, setUserNotes] = useState<string>("");
   const [submitted, setSubmitted] = useState(false);
 const [loading, setLoading] = useState(false);
+const [loadingMessage, setLoadingMessage] = useState<string>("Submit for audit →");
 const [error, setError] = useState<string | null>(null);
 
   React.useEffect(() => {
@@ -992,14 +990,14 @@ const [error, setError] = useState<string | null>(null);
 )}
 <button
   onClick={async () => {
-    if (!tier || !billFile) return
+    if (!tier || !billFile || !insuranceType) return
     setLoading(true)
     setError(null)
+    setLoadingMessage("Creating your case...")
 
     try {
       const supabase = createClient()
 
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         setError("You need to be logged in to submit.")
@@ -1007,24 +1005,80 @@ const [error, setError] = useState<string | null>(null);
         return
       }
 
-      // Upload bill file to Supabase Storage
-      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
-      const file = fileInput?.files?.[0]
+      const uploadTargets: { file: File; category: string }[] = [
+        billFile ? { file: billFile, category: 'bill' } : null,
+        eobFile ? { file: eobFile, category: 'eob' } : null,
+        cardFile ? { file: cardFile, category: 'card' } : null,
+      ].filter((x): x is { file: File; category: string } => x !== null)
 
-      if (file) {
-        const filePath = `${user.id}/${Date.now()}-${file.name}`
-        const { error: uploadError } = await supabase.storage
-          .from('bills')
-          .upload(filePath, file)
+      const uploadStamp = Date.now()
+      await Promise.all(
+        uploadTargets.map(async ({ file, category }) => {
+          const filePath = `${user.id}/${uploadStamp}-${category}-${file.name}`
+          const { error: uploadError } = await supabase.storage
+            .from('bills')
+            .upload(filePath, file)
+          if (uploadError) {
+            console.error(`Upload error (${category}):`, uploadError)
+          }
+        })
+      )
 
-        if (uploadError) {
-          console.error('Upload error:', uploadError)
-          // Continue anyway — file upload failure shouldn't block case creation
+      setLoadingMessage("Reading your bill...")
+
+      const extractForm = new FormData()
+      extractForm.append('file', billFile)
+      const extractRes = await fetch('/api/extract-line-items', {
+        method: 'POST',
+        body: extractForm
+      })
+      const extractJson = await extractRes.json()
+      if (!extractRes.ok) {
+        setError(extractJson.error || "We couldn't read your bill. Please try a clearer scan.")
+        setLoading(false)
+        return
+      }
+      const lineItems = (extractJson.lineItems ?? []) as Array<{
+        cpt_code: string
+        description: string
+        date_of_service: string
+        units: number
+        billed_amount: number
+        modifiers: string[]
+      }>
+      const billMetadata = (extractJson.billMetadata ?? {}) as {
+        provider_name?: string
+        provider_npi?: string
+        provider_address?: string
+        bill_date?: string
+        patient_name?: string
+        account_number?: string
+      }
+      const extractWarnings = (extractJson.warnings ?? []) as Array<{
+        code: string
+        reason: string
+      }>
+      if (extractWarnings.length > 0) {
+        console.warn('Extraction warnings:', extractWarnings)
+      }
+      if (lineItems.length === 0) {
+        if (extractWarnings.length > 0) {
+          setError(
+            `We found ${extractWarnings.length} charge line${extractWarnings.length === 1 ? '' : 's'} but the CPT codes look misread (e.g., "${extractWarnings[0].code}"). Please upload a clearer scan.`
+          )
+        } else {
+          setError("We couldn't find itemized charges on this bill. Please upload an itemized version (not a summary).")
         }
+        setLoading(false)
+        return
       }
 
-      // Create the case in the database
-      const response = await fetch('/api/cases', {
+      const providerName =
+        typeof billMetadata.provider_name === 'string' && billMetadata.provider_name.trim()
+          ? billMetadata.provider_name.trim()
+          : null
+
+      const caseRes = await fetch('/api/cases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1033,26 +1087,83 @@ const [error, setError] = useState<string | null>(null);
           gfe,
           tier,
           userNotes,
-          amountBilled: 0
+          providerName,
+          amountBilled: lineItems.reduce((s, li) => s + li.billed_amount, 0)
         })
       })
+      const caseJson = await caseRes.json()
+      if (!caseRes.ok || !caseJson.caseId) {
+        setError(caseJson.error || "Something went wrong. Please try again.")
+        setLoading(false)
+        return
+      }
+      const caseId: string = caseJson.caseId
 
-      const data = await response.json()
+      setLoadingMessage("Running audit...")
 
-      if (!response.ok) {
-        setError(data.error || "Something went wrong. Please try again.")
+      const insuranceMap: Record<string, string> = {
+        "Commercial (PPO/HMO)": "commercial",
+        "Medicare Advantage": "medicare",
+        "Original Medicare": "medicare",
+        "Medicaid": "medicaid",
+        "Self-pay / uninsured": "self-pay"
+      }
+      const apiInsurance = insuranceMap[insuranceType] ?? "other"
+
+      const auditRes = await fetch('/api/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          caseId,
+          insuranceType: apiInsurance,
+          lineItems
+        })
+      })
+      const auditJson = await auditRes.json()
+      if (!auditRes.ok) {
+        setError(auditJson.error || "Audit failed. Please try again.")
         setLoading(false)
         return
       }
 
-      setSubmitted(true)
+      if (auditJson.errorCount > 0) {
+        setLoadingMessage("Generating your dispute letter...")
+
+        const totalBilled = lineItems.reduce((s, li) => s + li.billed_amount, 0)
+        const firstDate = lineItems[0]?.date_of_service ?? new Date().toISOString().split('T')[0]
+        const totalExpected = (auditJson.errors as Array<{ expected_amount: number }>)
+          .reduce((s, e) => s + Number(e.expected_amount || 0), 0)
+
+        const letterRes = await fetch('/api/generate-letter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            caseId,
+            errors: auditJson.errors,
+            caseData: {
+              provider_name: providerName ?? 'Provider on file',
+              insurance_type: insuranceType,
+              amount_billed: totalBilled,
+              amount_expected: totalExpected,
+              date_of_service: firstDate,
+              userNotes
+            }
+          })
+        })
+        if (!letterRes.ok) {
+          const letterJson = await letterRes.json().catch(() => ({}))
+          console.error('Letter generation failed:', letterJson)
+        }
+      }
+
+      router.push(`/cases/${caseId}`)
+      return
 
     } catch (err) {
       console.error(err)
       setError("Something went wrong. Please try again.")
+      setLoading(false)
     }
-
-    setLoading(false)
   }}
   disabled={!tier || loading}
   style={{
@@ -1069,7 +1180,7 @@ const [error, setError] = useState<string | null>(null);
     transition: "background-color 0.2s",
   }}
 >
-  {loading ? "Submitting..." : "Submit for audit →"}
+  {loading ? loadingMessage : "Submit for audit →"}
 </button>
             </motion.div>
           )}
