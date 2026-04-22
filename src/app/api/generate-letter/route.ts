@@ -64,6 +64,7 @@ Total Billed: $${caseData.amount_billed}
 Expected Amount: $${caseData.amount_expected}
 Date of Service: ${caseData.date_of_service || 'See attached bill'}
 Patient: [PATIENT NAME]
+Account Number: [ACCOUNT NUMBER]
 Member ID: [MEMBER ID]
 
 Errors Found:
