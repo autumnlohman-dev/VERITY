@@ -2169,16 +2169,20 @@ function FaqSection() {
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
 function Footer() {
-  const links = [
+  const productLinks = [
     { lbl: "How it works", href: "/how-it-works" },
     { lbl: "Pricing", href: "/pricing" },
     { lbl: "Dashboard", href: "/dashboard" },
     { lbl: "FAQ", href: "#faq" },
   ];
+  const legalLinks = [
+    { lbl: "Privacy policy", href: "/privacy" },
+    { lbl: "Terms of service", href: "/terms" },
+  ];
 
   return (
     <footer
-      className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr] gap-12 px-6 md:px-12 lg:px-16 py-16 lg:py-20"
+      className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_1fr_1fr] gap-12 px-6 md:px-12 lg:px-16 py-16 lg:py-20"
       style={{
         backgroundColor: "var(--bg-dark)",
         borderTop: "1px solid var(--border-dark)",
@@ -2215,8 +2219,8 @@ function Footer() {
             color: "var(--text-faint)",
             fontWeight: 300,
             lineHeight: 1.7,
-            maxWidth: "280px",
-            opacity: 0.7,
+            maxWidth: "300px",
+            opacity: 0.8,
           }}
         >
           ClearClaim is an administrative advocacy service. We are not a law
@@ -2225,7 +2229,19 @@ function Footer() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {links.map((link) => (
+        <div
+          className="font-[family-name:var(--font-dm-sans)] uppercase mb-1"
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.25em",
+            color: "var(--bg)",
+            fontWeight: 500,
+            opacity: 0.85,
+          }}
+        >
+          Product
+        </div>
+        {productLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}
@@ -2245,9 +2261,78 @@ function Footer() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-1 md:items-end">
+      <div className="flex flex-col gap-3">
+        <div
+          className="font-[family-name:var(--font-dm-sans)] uppercase mb-1"
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.25em",
+            color: "var(--bg)",
+            fontWeight: 500,
+            opacity: 0.85,
+          }}
+        >
+          Support
+        </div>
+        <a
+          href="mailto:support@clearclaim.co"
+          className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
+          style={{
+            fontSize: "13px",
+            color: "var(--amber)",
+            fontWeight: 300,
+          }}
+        >
+          support@clearclaim.co
+        </a>
         <div
           className="font-[family-name:var(--font-dm-sans)]"
+          style={{
+            fontSize: "11px",
+            color: "var(--text-faint)",
+            fontWeight: 300,
+            lineHeight: 1.6,
+            fontStyle: "italic",
+            opacity: 0.85,
+          }}
+        >
+          Support responses within 1 business day.
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 md:items-end">
+        <div
+          className="font-[family-name:var(--font-dm-sans)] uppercase mb-1"
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.25em",
+            color: "var(--bg)",
+            fontWeight: 500,
+            opacity: 0.85,
+          }}
+        >
+          Legal
+        </div>
+        {legalLinks.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
+            style={{
+              fontSize: "11px",
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              color: "var(--text-faint)",
+              fontWeight: 400,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--bg)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-faint)")}
+          >
+            {link.lbl}
+          </Link>
+        ))}
+        <div
+          className="font-[family-name:var(--font-dm-sans)] md:text-right mt-4"
           style={{
             fontSize: "11px",
             color: "var(--text-faint)",
@@ -2256,17 +2341,6 @@ function Footer() {
           }}
         >
           © 2026 ClearClaim
-        </div>
-        <div
-          className="font-[family-name:var(--font-dm-sans)]"
-          style={{
-            fontSize: "11px",
-            color: "var(--text-faint)",
-            fontWeight: 300,
-            opacity: 0.7,
-          }}
-        >
-          All rights reserved.
         </div>
       </div>
     </footer>
