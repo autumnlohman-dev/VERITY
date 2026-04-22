@@ -7,6 +7,9 @@ import {
   MAX_FILE_BYTES
 } from '@/lib/billExtractor'
 
+// Anthropic generation runs longer than Vercel's 10s Hobby / 15s Pro default.
+export const maxDuration = 60
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()

@@ -5,6 +5,9 @@ import { analyzeDisputedProcedures } from '@/lib/patientDisputes'
 import { normalizeInsuranceType } from '@/lib/insuranceMapping'
 import { NextResponse } from 'next/server'
 
+// Anthropic generation runs longer than Vercel's 10s Hobby / 15s Pro default.
+export const maxDuration = 60
+
 function isLineItem(value: unknown): value is LineItem {
   if (!value || typeof value !== 'object') return false
   const v = value as Record<string, unknown>
