@@ -107,6 +107,9 @@ Identify which line items (by index) the patient is disputing — for example, a
     }
     return errors
   } catch (err) {
+    if (err instanceof Anthropic.APIError) {
+      throw err
+    }
     console.error('Patient dispute analysis failed:', err)
     return []
   }

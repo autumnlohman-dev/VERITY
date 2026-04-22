@@ -1,3 +1,4 @@
+import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { runAudit, type LineItem } from '@/lib/errorDetection'
 import { analyzeDisputedProcedures } from '@/lib/patientDisputes'
@@ -126,6 +127,13 @@ export async function POST(request: Request) {
       insuranceType: resolvedInsurance
     })
   } catch (error) {
+    if (error instanceof Anthropic.APIError) {
+      console.error('Audit (Anthropic) error:', error.status, error.message)
+      return NextResponse.json(
+        { error: 'The dispute analysis is temporarily unavailable. Your bill data has been saved.' },
+        { status: 503 }
+      )
+    }
     console.error('Audit error:', error)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }

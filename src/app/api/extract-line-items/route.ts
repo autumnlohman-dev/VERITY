@@ -1,3 +1,4 @@
+import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import {
@@ -43,6 +44,13 @@ export async function POST(request: Request) {
     const { lineItems, billMetadata, warnings } = await extractBillContent(file)
     return NextResponse.json({ lineItems, billMetadata, warnings })
   } catch (error) {
+    if (error instanceof Anthropic.APIError) {
+      console.error('Extract line items (Anthropic) error:', error.status, error.message)
+      return NextResponse.json(
+        { error: "We couldn't read your bill right now. Please try again in a moment." },
+        { status: 503 }
+      )
+    }
     console.error('Extract line items error:', error)
     return NextResponse.json(
       { error: 'Failed to extract line items' },
