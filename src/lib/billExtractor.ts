@@ -2,6 +2,12 @@ import Anthropic from '@anthropic-ai/sdk'
 
 export interface ExtractedLineItem {
   cpt_code: string
+  /**
+   * Code as it appeared on the bill, before description-based CPT mapping.
+   * Differs from cpt_code when a proprietary facility/revenue code was
+   * resolved to a standard CPT via DESCRIPTION_TO_CPT.
+   */
+  raw_code: string
   description: string
   date_of_service: string
   units: number
@@ -34,6 +40,35 @@ export interface ExtractionResult {
 }
 
 export const CPT_CODE_PATTERN = /^(?:\d{5}|\d{4}[A-Z]|[A-Z]\d{4})$/
+
+/**
+ * Facility bills often list proprietary internal charge codes (e.g.
+ * "401000018") alongside a human-readable service description. The internal
+ * code doesn't match any PFS/CLFS entry, so the audit can't price it. When
+ * we see a non-CPT code whose description matches a well-known service, swap
+ * in the canonical CPT so the audit has something to work with.
+ *
+ * Patterns are case-insensitive and allow common variations in phrasing. Add
+ * new entries here as bills surface new descriptions — keep it conservative:
+ * only map services where the description is unambiguous.
+ */
+export const DESCRIPTION_TO_CPT: Array<{ pattern: RegExp; cpt: string }> = [
+  { pattern: /comprehensive\s+metabolic\s+panel|^\s*cmp\s*$|\bcmp[-\s]*14\b/i, cpt: '80053' },
+  { pattern: /\bcbc\b[^\n]*?(?:auto\s*)?diff|complete\s+blood\s+count[^\n]*?diff/i, cpt: '85025' },
+  { pattern: /\blipase\b/i, cpt: '83690' },
+  { pattern: /c[-\s]?reactive\s+protein|\bcrp\b/i, cpt: '86140' },
+  { pattern: /\bvenipuncture\b|routine\s+venipuncture/i, cpt: '36415' },
+  { pattern: /gram\s+stain/i, cpt: '87205' }
+]
+
+export function mapDescriptionToCpt(description: string): string | null {
+  const text = description.trim()
+  if (!text) return null
+  for (const entry of DESCRIPTION_TO_CPT) {
+    if (entry.pattern.test(text)) return entry.cpt
+  }
+  return null
+}
 
 export const MAX_FILE_BYTES = 20 * 1024 * 1024
 
@@ -242,10 +277,22 @@ export async function extractBillContent(
   const candidates: ExtractedLineItem[] = rawItems
     .map((raw) => {
       const r = raw as Record<string, unknown>
+      const extractedCode = String(r.cpt_code ?? '').trim().toUpperCase()
+      const description = typeof r.description === 'string' ? r.description : ''
+
+      // If Claude pulled a non-CPT-format code (common on facility bills that
+      // list internal chargemaster IDs), try to resolve it from the service
+      // description. Don't override valid CPT codes.
+      let cptCode = extractedCode
+      if (extractedCode && !CPT_CODE_PATTERN.test(extractedCode)) {
+        const mapped = mapDescriptionToCpt(description)
+        if (mapped) cptCode = mapped
+      }
+
       return {
-        cpt_code: String(r.cpt_code ?? '').trim().toUpperCase(),
-        description:
-          typeof r.description === 'string' ? r.description : '',
+        cpt_code: cptCode,
+        raw_code: extractedCode,
+        description,
         date_of_service: String(r.date_of_service ?? '').trim(),
         units: Number(r.units) || 1,
         billed_amount: Number(r.billed_amount) || 0,
@@ -261,11 +308,11 @@ export async function extractBillContent(
   for (const item of candidates) {
     if (!CPT_CODE_PATTERN.test(item.cpt_code)) {
       warnings.push({
-        code: item.cpt_code,
+        code: item.raw_code,
         description: item.description,
         date_of_service: item.date_of_service,
         billed_amount: item.billed_amount,
-        reason: `"${item.cpt_code}" does not match standard CPT/HCPCS format (5 digits, 4 digits + letter, or letter + 4 digits). Excluded from rule-based audit; still reviewed for patient-reported disputes.`
+        reason: `"${item.raw_code}" does not match standard CPT/HCPCS format and no description-based CPT mapping was available. Excluded from rule-based audit; still reviewed for patient-reported disputes.`
       })
     }
   }
