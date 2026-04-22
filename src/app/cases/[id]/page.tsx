@@ -210,6 +210,7 @@ function errorTypeLabel(type: string): string {
     case "mue": return "MUE Violation";
     case "coverage": return "Coverage";
     case "patient_disputed": return "Patient Dispute";
+    case "rate_unavailable": return "Manual Review — No CMS Rate";
     default: return type;
   }
 }

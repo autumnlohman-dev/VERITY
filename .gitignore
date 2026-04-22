@@ -43,6 +43,7 @@ next-env.d.ts
 
 # CMS data caches (too large for repo; ingested from Supabase)
 scripts/data/
+cms-data/
 
 # env files (redundant with .env* above, listed explicitly for safety)
 .env.local

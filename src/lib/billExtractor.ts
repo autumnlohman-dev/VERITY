@@ -33,7 +33,7 @@ export interface ExtractionResult {
   rawToolInput: unknown
 }
 
-const CPT_CODE_PATTERN = /^(?:\d{5}|\d{4}[A-Z]|[A-Z]\d{4})$/
+export const CPT_CODE_PATTERN = /^(?:\d{5}|\d{4}[A-Z]|[A-Z]\d{4})$/
 
 export const MAX_FILE_BYTES = 20 * 1024 * 1024
 
@@ -256,18 +256,16 @@ export async function extractBillContent(
     })
     .filter((item) => item.cpt_code && item.date_of_service)
 
-  const lineItems: ExtractedLineItem[] = []
+  const lineItems: ExtractedLineItem[] = candidates
   const warnings: ExtractionWarning[] = []
   for (const item of candidates) {
-    if (CPT_CODE_PATTERN.test(item.cpt_code)) {
-      lineItems.push(item)
-    } else {
+    if (!CPT_CODE_PATTERN.test(item.cpt_code)) {
       warnings.push({
         code: item.cpt_code,
         description: item.description,
         date_of_service: item.date_of_service,
         billed_amount: item.billed_amount,
-        reason: `"${item.cpt_code}" does not match standard CPT/HCPCS format (5 digits, 4 digits + letter, or letter + 4 digits). Likely misread during OCR.`
+        reason: `"${item.cpt_code}" does not match standard CPT/HCPCS format (5 digits, 4 digits + letter, or letter + 4 digits). Excluded from rule-based audit; still reviewed for patient-reported disputes.`
       })
     }
   }
