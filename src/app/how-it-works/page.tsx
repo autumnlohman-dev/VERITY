@@ -80,7 +80,7 @@ function Nav() {
       </div>
       <Link href="/upload" style={{ textDecoration: "none" }}>
         <span style={{ ...sans("11px", "#0D0D0D"), backgroundColor: "#C8A97E", padding: "12px 24px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
-          Check my bill →
+          Upload my bill free →
         </span>
       </Link>
     </nav>
@@ -566,7 +566,7 @@ export default function HowItWorksPage() {
                 marginTop: "40px",
               }}
             >
-              Check my bill — free
+              Upload my bill free
             </span>
           </Link>
         </motion.div>

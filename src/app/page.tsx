@@ -132,7 +132,7 @@ function Nav() {
                 padding: "12px 24px",
               }}
             >
-              Check my bill →
+              Upload my bill free →
             </span>
           </Link>
         </div>
@@ -191,7 +191,7 @@ function Nav() {
                   padding: "12px 24px",
                 }}
               >
-                Check my bill →
+                Upload my bill free →
               </span>
             </Link>
           </div>
@@ -261,7 +261,7 @@ function Nav() {
                   padding: "18px",
                 }}
               >
-                Check my bill →
+                Upload my bill free →
               </div>
             </Link>
           </motion.div>
@@ -375,8 +375,9 @@ function Hero() {
                 fontWeight: 300,
               }}
             >
-              Start free. See every error on your bill. Then decide if you want
-              us to fight it.
+              Upload your itemized bill. We audit every charge, flag likely
+              billing errors, and show you exactly what you may be owed — before
+              you pay us anything.
             </p>
           </div>
 
@@ -393,7 +394,7 @@ function Hero() {
                   padding: "18px 32px",
                 }}
               >
-                Check my bill — free
+                Upload my bill free
               </span>
             </Link>
             <Link href="/how-it-works" className="no-underline">
@@ -427,19 +428,19 @@ function Hero() {
             style={{ objectFit: "cover", objectPosition: "center" }}
           />
 
-          {/* dark stats bar anchored to bottom */}
+          {/* dark claims bar anchored to bottom */}
           <div
             className="absolute bottom-0 left-0 right-0 grid grid-cols-3"
             style={{ backgroundColor: "var(--bg-dark)" }}
           >
             {[
-              { value: "$4.2M", label: "Recovered for clients" },
-              { value: "73%", label: "Avg. bill reduction" },
-              { value: "34d", label: "Avg. resolution" },
-            ].map((s, i) => (
+              "Billing errors found in the majority of bills we review",
+              "Average dispute resolved in weeks, not months",
+              "80% of medical bills contain at least one error",
+            ].map((text, i) => (
               <div
-                key={s.label}
-                className="flex flex-col items-start justify-center px-4 py-5 md:px-6 md:py-7"
+                key={i}
+                className="flex items-center px-4 py-5 md:px-6 md:py-7"
                 style={{
                   borderLeft: i === 0 ? "none" : "1px solid var(--border-dark)",
                 }}
@@ -447,25 +448,15 @@ function Hero() {
                 <div
                   className="font-[family-name:var(--font-cormorant)]"
                   style={{
-                    fontSize: "clamp(28px, 3vw, 40px)",
+                    fontSize: "clamp(14px, 1.2vw, 18px)",
+                    fontStyle: "italic",
                     fontWeight: 300,
                     color: "var(--amber)",
-                    lineHeight: 1,
-                    letterSpacing: "-0.01em",
+                    lineHeight: 1.4,
+                    letterSpacing: "-0.005em",
                   }}
                 >
-                  {s.value}
-                </div>
-                <div
-                  className="font-[family-name:var(--font-dm-sans)] uppercase mt-2"
-                  style={{
-                    fontSize: "9px",
-                    letterSpacing: "0.25em",
-                    color: "var(--text-faint)",
-                    fontWeight: 400,
-                  }}
-                >
-                  {s.label}
+                  {text}
                 </div>
               </div>
             ))}
@@ -731,58 +722,25 @@ function HowItWorks() {
             </em>
           </h2>
         </div>
-        <div
-          className="lg:pl-12 flex items-end"
-          style={{ borderLeft: "none" }}
-        >
+        <div className="lg:pl-12 flex items-end">
           <div
-            className="lg:pl-10"
-            style={{ borderLeft: "none" }}
+            className="w-full pt-6 lg:pt-0 lg:pl-10 border-t lg:border-t-0 lg:border-l"
+            style={{ borderColor: "var(--border)" }}
           >
-            <div
-              className="hidden lg:block"
+            <p
+              className="font-[family-name:var(--font-dm-sans)]"
               style={{
-                borderLeft: "1px solid var(--border)",
-                paddingLeft: "40px",
+                fontSize: "15px",
+                lineHeight: 1.8,
+                color: "var(--text-muted)",
+                fontWeight: 300,
               }}
             >
-              <p
-                className="font-[family-name:var(--font-dm-sans)]"
-                style={{
-                  fontSize: "15px",
-                  lineHeight: 1.8,
-                  color: "var(--text-muted)",
-                  fontWeight: 300,
-                }}
-              >
-                Most advocacy services are a black box. We show you the
-                evidence first — you decide how far to take it. Every error we
-                flag comes with a citation, a confidence score, and the
-                dollar amount at stake.
-              </p>
-            </div>
-            <div
-              className="lg:hidden"
-              style={{
-                borderTop: "1px solid var(--border)",
-                paddingTop: "24px",
-              }}
-            >
-              <p
-                className="font-[family-name:var(--font-dm-sans)]"
-                style={{
-                  fontSize: "15px",
-                  lineHeight: 1.8,
-                  color: "var(--text-muted)",
-                  fontWeight: 300,
-                }}
-              >
-                Most advocacy services are a black box. We show you the
-                evidence first — you decide how far to take it. Every error we
-                flag comes with a citation, a confidence score, and the
-                dollar amount at stake.
-              </p>
-            </div>
+              Most advocacy services are a black box. We show you the evidence
+              first — you decide how far to take it. Every error we flag comes
+              with a citation, a confidence score, and the dollar amount at
+              stake.
+            </p>
           </div>
         </div>
       </motion.div>
@@ -872,7 +830,7 @@ function PricingPreview() {
       name: "Audit",
       price: "Free",
       priceSuffix: "always",
-      tag: "see exactly what they got wrong",
+      tag: "Complete review of your bill with flagged errors, regulatory citations, and estimated dollar impact",
       features: [
         "Upload your bill",
         "AI scans every charge",
@@ -887,7 +845,7 @@ function PricingPreview() {
       name: "Dispute",
       price: "$39",
       priceSuffix: "per letter, or $19/mo",
-      tag: "your weapon. ready to send",
+      tag: "Prefilled dispute letter tailored to your bill, ready to send by certified mail",
       features: [
         "Everything in Audit, plus:",
         "Insurer-specific dispute letter",
@@ -903,7 +861,7 @@ function PricingPreview() {
       name: "Resolve",
       price: "25%",
       priceSuffix: "of savings recovered",
-      tag: "we handle everything. you cash the difference",
+      tag: "We manage the full dispute for you — filing, follow-up, and appeals. You pay only if we recover savings",
       features: [
         "Everything in Dispute, plus:",
         "We file the dispute on your behalf",

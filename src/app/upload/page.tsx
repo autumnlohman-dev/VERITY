@@ -106,7 +106,7 @@ function Nav() {
             display: "inline-block",
           }}
         >
-          Check my bill →
+          Upload my bill free →
         </span>
       </Link>
     </nav>
