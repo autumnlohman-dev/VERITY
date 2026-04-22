@@ -467,6 +467,430 @@ function Hero() {
   );
 }
 
+// ─── Trust Bar ────────────────────────────────────────────────────────────────
+function TrustBar() {
+  const items = [
+    "Bank-level encryption in transit and at rest",
+    "Encrypted documents",
+    "No upfront payment for audit",
+    "Administrative advocacy service — not a law firm",
+  ];
+
+  return (
+    <motion.section
+      {...fadeUp}
+      className="grid grid-cols-1 md:grid-cols-4"
+      style={{
+        backgroundColor: "var(--bg-dark)",
+        borderTop: "1px solid var(--border-dark)",
+      }}
+    >
+      {items.map((text, i) => (
+        <div
+          key={i}
+          className={[
+            "flex gap-3 items-start px-6 md:px-7 py-6",
+            i > 0 ? "border-t md:border-t-0 md:border-l" : "",
+          ].filter(Boolean).join(" ")}
+          style={{ borderColor: "var(--border-dark)" }}
+        >
+          <span
+            className="font-[family-name:var(--font-dm-sans)]"
+            style={{
+              color: "var(--amber)",
+              fontSize: "13px",
+              fontWeight: 400,
+              lineHeight: 1.6,
+              flexShrink: 0,
+            }}
+          >
+            —
+          </span>
+          <span
+            className="font-[family-name:var(--font-dm-sans)]"
+            style={{
+              fontSize: "12px",
+              color: "var(--bg)",
+              fontWeight: 300,
+              lineHeight: 1.55,
+              letterSpacing: "0.02em",
+            }}
+          >
+            {text}
+          </span>
+        </div>
+      ))}
+    </motion.section>
+  );
+}
+
+// ─── Mock Audit Card ──────────────────────────────────────────────────────────
+function MockAuditCard() {
+  const findings = [
+    {
+      title: "Duplicate charge detected — CPT 99213 billed twice",
+      confidence: "HIGH",
+      savings: "$180",
+    },
+    {
+      title: "CPT code likely upcoded — 99285 vs expected 99283",
+      confidence: "MEDIUM",
+      savings: "$340",
+    },
+    {
+      title: "Balance bill may violate No Surprises Act",
+      confidence: "HIGH",
+      savings: "$1,200",
+    },
+  ];
+
+  const confidenceStyle = (c: string) => {
+    if (c === "HIGH") {
+      return {
+        color: "#C47C6A",
+        border: "1px solid rgba(196,124,106,0.4)",
+        backgroundColor: "rgba(196,124,106,0.08)",
+      };
+    }
+    return {
+      color: "var(--amber)",
+      border: "1px solid rgba(200,169,126,0.4)",
+      backgroundColor: "rgba(200,169,126,0.08)",
+    };
+  };
+
+  return (
+    <section
+      className="px-6 md:px-12 lg:px-16 py-20 lg:py-28"
+      style={{
+        backgroundColor: "var(--bg)",
+        borderTop: "1px solid var(--border)",
+      }}
+    >
+      <motion.div {...fadeUp} className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-10 lg:gap-20 items-start">
+        <div>
+          <div
+            className="font-[family-name:var(--font-dm-sans)] uppercase mb-6"
+            style={{
+              fontSize: "10px",
+              letterSpacing: "0.3em",
+              color: "var(--text-muted)",
+              fontWeight: 400,
+            }}
+          >
+            — Sample audit
+          </div>
+          <h2
+            className="font-[family-name:var(--font-cormorant)]"
+            style={{
+              fontSize: "clamp(36px, 4.5vw, 56px)",
+              fontWeight: 300,
+              lineHeight: 1.05,
+              letterSpacing: "-0.02em",
+              color: "var(--text-primary)",
+              maxWidth: "420px",
+            }}
+          >
+            Here&apos;s what{" "}
+            <em
+              style={{
+                fontStyle: "italic",
+                color: "var(--amber)",
+                fontWeight: 300,
+              }}
+            >
+              your audit
+            </em>{" "}
+            looks like.
+          </h2>
+          <p
+            className="font-[family-name:var(--font-dm-sans)] mt-6"
+            style={{
+              fontSize: "13px",
+              lineHeight: 1.7,
+              color: "var(--text-muted)",
+              fontWeight: 300,
+              maxWidth: "360px",
+            }}
+          >
+            Every finding comes with a confidence score, regulatory citation,
+            and dollar impact — so you know exactly what you&apos;re disputing
+            and why.
+          </p>
+        </div>
+
+        <div
+          style={{
+            backgroundColor: "var(--bg-dark)",
+            border: "1px solid var(--border-dark)",
+          }}
+        >
+          <div
+            className="flex items-center justify-between px-6 md:px-8 py-5"
+            style={{ borderBottom: "1px solid var(--border-dark)" }}
+          >
+            <div
+              className="font-[family-name:var(--font-dm-sans)] uppercase"
+              style={{
+                fontSize: "10px",
+                letterSpacing: "0.25em",
+                color: "var(--text-faint)",
+                fontWeight: 400,
+              }}
+            >
+              Audit findings
+            </div>
+            <div
+              className="font-[family-name:var(--font-dm-sans)] uppercase"
+              style={{
+                fontSize: "9px",
+                letterSpacing: "0.2em",
+                color: "var(--amber)",
+                fontWeight: 400,
+                fontStyle: "italic",
+              }}
+            >
+              Illustrative example
+            </div>
+          </div>
+
+          {findings.map((f, i) => (
+            <div
+              key={i}
+              className="px-6 md:px-8 py-6"
+              style={{
+                borderTop: i === 0 ? "none" : "1px solid var(--border-dark)",
+              }}
+            >
+              <div className="flex items-start justify-between gap-4 md:gap-6 flex-wrap">
+                <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+                  <div
+                    className="font-[family-name:var(--font-cormorant)]"
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: 300,
+                      lineHeight: 1.3,
+                      color: "var(--bg)",
+                    }}
+                  >
+                    {f.title}
+                  </div>
+                  <div className="mt-3">
+                    <span
+                      className="font-[family-name:var(--font-dm-sans)] uppercase"
+                      style={{
+                        fontSize: "9px",
+                        letterSpacing: "0.2em",
+                        fontWeight: 400,
+                        padding: "2px 8px",
+                        ...confidenceStyle(f.confidence),
+                      }}
+                    >
+                      {f.confidence} confidence
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div
+                    className="font-[family-name:var(--font-cormorant)]"
+                    style={{
+                      fontSize: "28px",
+                      fontWeight: 300,
+                      fontStyle: "italic",
+                      color: "#7A9E87",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {f.savings}
+                  </div>
+                  <div
+                    className="font-[family-name:var(--font-dm-sans)] uppercase mt-2"
+                    style={{
+                      fontSize: "9px",
+                      letterSpacing: "0.2em",
+                      color: "var(--text-faint)",
+                      fontWeight: 400,
+                    }}
+                  >
+                    Potential savings
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <div
+            className="px-6 md:px-8 py-4"
+            style={{
+              borderTop: "1px solid var(--border-dark)",
+              backgroundColor: "rgba(0,0,0,0.15)",
+            }}
+          >
+            <div
+              className="font-[family-name:var(--font-dm-sans)]"
+              style={{
+                fontSize: "11px",
+                color: "var(--text-faint)",
+                fontWeight: 300,
+                lineHeight: 1.6,
+                fontStyle: "italic",
+                opacity: 0.85,
+              }}
+            >
+              Illustrative examples based on common billing dispute outcomes.
+              Your audit will reflect your specific bill.
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </section>
+  );
+}
+
+// ─── Upload Checklist ─────────────────────────────────────────────────────────
+function UploadChecklist() {
+  const items = [
+    { label: "Itemized medical bill", tag: "Required" },
+    { label: "Explanation of Benefits from insurer", tag: "Recommended" },
+    { label: "Insurance card", tag: "Recommended" },
+    { label: "Hospital statement", tag: "Optional" },
+  ];
+
+  const tagColor = (tag: string) => {
+    if (tag === "Required") return "#C47C6A";
+    if (tag === "Recommended") return "var(--amber)";
+    return "var(--text-muted)";
+  };
+
+  return (
+    <section
+      className="px-6 md:px-12 lg:px-16 py-20 lg:py-28"
+      style={{
+        backgroundColor: "var(--bg-mid)",
+        borderTop: "1px solid var(--border)",
+      }}
+    >
+      <motion.div
+        {...fadeUp}
+        className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-10 lg:gap-20"
+      >
+        <div>
+          <div
+            className="font-[family-name:var(--font-dm-sans)] uppercase mb-6"
+            style={{
+              fontSize: "10px",
+              letterSpacing: "0.3em",
+              color: "var(--text-muted)",
+              fontWeight: 400,
+            }}
+          >
+            — Before you upload
+          </div>
+          <h2
+            className="font-[family-name:var(--font-cormorant)]"
+            style={{
+              fontSize: "clamp(36px, 4.5vw, 56px)",
+              fontWeight: 300,
+              lineHeight: 1.05,
+              letterSpacing: "-0.02em",
+              color: "var(--text-primary)",
+              maxWidth: "460px",
+            }}
+          >
+            What to{" "}
+            <em
+              style={{
+                fontStyle: "italic",
+                color: "var(--amber)",
+                fontWeight: 300,
+              }}
+            >
+              have ready.
+            </em>
+          </h2>
+          <p
+            className="font-[family-name:var(--font-dm-sans)] mt-6"
+            style={{
+              fontSize: "14px",
+              lineHeight: 1.75,
+              color: "var(--text-muted)",
+              fontWeight: 300,
+              maxWidth: "420px",
+            }}
+          >
+            The itemized bill is the minimum — everything else sharpens the
+            audit. Missing something? Upload what you have. We&apos;ll tell you
+            what&apos;s worth requesting from the provider.
+          </p>
+        </div>
+
+        <div>
+          {items.map((item, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between gap-6 py-5"
+              style={{
+                borderTop: "1px solid var(--border)",
+                borderBottom:
+                  i === items.length - 1 ? "1px solid var(--border)" : "none",
+              }}
+            >
+              <span
+                className="font-[family-name:var(--font-cormorant)]"
+                style={{
+                  fontSize: "20px",
+                  fontWeight: 300,
+                  color: "var(--text-primary)",
+                  lineHeight: 1.3,
+                }}
+              >
+                {item.label}
+              </span>
+              <span
+                className="font-[family-name:var(--font-dm-sans)] uppercase flex-shrink-0"
+                style={{
+                  fontSize: "10px",
+                  letterSpacing: "0.2em",
+                  color: tagColor(item.tag),
+                  fontWeight: 400,
+                }}
+              >
+                {item.tag}
+              </span>
+            </div>
+          ))}
+
+          <div
+            className="flex flex-wrap gap-x-6 gap-y-2 mt-8"
+            style={{
+              paddingTop: "8px",
+            }}
+          >
+            {[
+              "PDF, JPG, PNG, HEIC",
+              "Max 20 MB",
+              "Photos accepted",
+            ].map((text, i) => (
+              <span
+                key={i}
+                className="font-[family-name:var(--font-dm-sans)] uppercase"
+                style={{
+                  fontSize: "10px",
+                  letterSpacing: "0.2em",
+                  color: "var(--text-muted)",
+                  fontWeight: 400,
+                }}
+              >
+                {text}
+              </span>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+    </section>
+  );
+}
+
 // ─── Stats Strip ──────────────────────────────────────────────────────────────
 function StatsStrip() {
   const stats = [
@@ -1428,6 +1852,9 @@ export default function LandingPage() {
     <div style={{ backgroundColor: "var(--bg)", minHeight: "100vh" }}>
       <Nav />
       <Hero />
+      <TrustBar />
+      <MockAuditCard />
+      <UploadChecklist />
       <StatsStrip />
       <ProblemSection />
       <HowItWorks />
