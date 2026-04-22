@@ -111,6 +111,13 @@ The letter should:
     })
 
   } catch (error) {
+    if (error instanceof Anthropic.APIError) {
+      console.error('Letter generation (Anthropic) error:', error.status, error.message)
+      return NextResponse.json(
+        { error: 'Letter generation is temporarily unavailable. Please try again in a few minutes.' },
+        { status: 503 }
+      )
+    }
     console.error('Letter generation error:', error)
     return NextResponse.json({ error: 'Failed to generate letter' }, { status: 500 })
   }

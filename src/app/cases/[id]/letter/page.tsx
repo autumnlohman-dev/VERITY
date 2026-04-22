@@ -46,6 +46,9 @@ interface CaseRow {
   provider_name: string | null;
   insurance_type: string | null;
   amount_billed: number | null;
+  amount_expected: number | null;
+  errors_found: unknown[] | null;
+  bill_data: { userNotes?: string } | null;
   created_at: string;
   patient_info: PatientInfo | null;
 }
@@ -653,6 +656,15 @@ export default function LetterPage({
   const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
   const [letter, setLetter] = useState<LetterRow | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [genFailed, setGenFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("genFailed") === "1") setGenFailed(true);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -662,7 +674,9 @@ export default function LetterPage({
 
     const { data: caseData, error: caseErr } = await supabase
       .from("cases")
-      .select("id, status, provider_name, insurance_type, amount_billed, created_at, patient_info")
+      .select(
+        "id, status, provider_name, insurance_type, amount_billed, amount_expected, errors_found, bill_data, created_at, patient_info"
+      )
       .eq("id", id)
       .maybeSingle();
 
@@ -698,6 +712,51 @@ export default function LetterPage({
   useEffect(() => {
     load();
   }, [load]);
+
+  const handleRetry = useCallback(async () => {
+    if (!caseRow) return;
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      const errors = Array.isArray(caseRow.errors_found) ? caseRow.errors_found : [];
+      const userNotes = caseRow.bill_data?.userNotes ?? "";
+      const res = await fetch("/api/generate-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caseId: caseRow.id,
+          errors,
+          caseData: {
+            provider_name: caseRow.provider_name ?? "Provider on file",
+            insurance_type: caseRow.insurance_type ?? "",
+            amount_billed: caseRow.amount_billed ?? 0,
+            amount_expected: caseRow.amount_expected ?? 0,
+            date_of_service: "",
+            userNotes,
+          },
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRetryError(
+          json.error ?? "Letter generation is temporarily unavailable. Please try again in a few minutes."
+        );
+        return;
+      }
+      setGenFailed(false);
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("genFailed");
+        window.history.replaceState({}, "", url.toString());
+      }
+      await load();
+    } catch (err) {
+      console.error("Letter retry failed:", err);
+      setRetryError("Letter generation is temporarily unavailable. Please try again in a few minutes.");
+    } finally {
+      setRetrying(false);
+    }
+  }, [caseRow, load]);
 
   // ─── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
@@ -761,8 +820,9 @@ export default function LetterPage({
     );
   }
 
-  // ─── Letter still generating ───────────────────────────────────────────────
+  // ─── Letter still generating / generation failed ───────────────────────────
   if (!letter) {
+    const showFailureState = genFailed || retryError !== null;
     return (
       <div
         style={{
@@ -779,38 +839,77 @@ export default function LetterPage({
           @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
           .dot-pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
         `}</style>
-        <div
-          className="dot-pulse"
-          style={{
-            width: "10px",
-            height: "10px",
-            borderRadius: "50%",
-            backgroundColor: "#C8A97E",
-            marginBottom: "24px",
-          }}
-        />
+        {showFailureState ? (
+          <div
+            style={{
+              width: "10px",
+              height: "10px",
+              borderRadius: "50%",
+              backgroundColor: "#C47C6A",
+              marginBottom: "24px",
+            }}
+          />
+        ) : (
+          <div
+            className="dot-pulse"
+            style={{
+              width: "10px",
+              height: "10px",
+              borderRadius: "50%",
+              backgroundColor: "#C8A97E",
+              marginBottom: "24px",
+            }}
+          />
+        )}
         <div style={{ ...serif("40px", { lineHeight: 1.1 }), maxWidth: "460px" }}>
-          Your letter is being generated.
+          {showFailureState
+            ? "Letter generation is temporarily unavailable."
+            : "Your letter is being generated."}
         </div>
-        <p style={{ ...sans("14px", "#A89F96"), marginTop: "16px", maxWidth: "360px", lineHeight: 1.65 }}>
-          Check back in a moment.
+        <p
+          role={showFailureState ? "alert" : undefined}
+          style={{ ...sans("14px", "#A89F96"), marginTop: "16px", maxWidth: "420px", lineHeight: 1.65 }}
+        >
+          {showFailureState
+            ? (retryError ?? "Please try again in a few minutes.")
+            : "Check back in a moment."}
         </p>
         <div style={{ display: "flex", gap: "12px", marginTop: "32px" }}>
-          <button
-            onClick={load}
-            style={{
-              ...sans("11px", "#0D0D0D"),
-              backgroundColor: "#C8A97E",
-              padding: "12px 24px",
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              fontWeight: 500,
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            Refresh
-          </button>
+          {showFailureState ? (
+            <button
+              onClick={handleRetry}
+              disabled={retrying || !caseRow}
+              style={{
+                ...sans("11px", "#0D0D0D"),
+                backgroundColor: "#C8A97E",
+                padding: "12px 24px",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                fontWeight: 500,
+                border: "none",
+                cursor: retrying ? "wait" : "pointer",
+                opacity: retrying ? 0.6 : 1,
+              }}
+            >
+              {retrying ? "Retrying..." : "Retry"}
+            </button>
+          ) : (
+            <button
+              onClick={load}
+              style={{
+                ...sans("11px", "#0D0D0D"),
+                backgroundColor: "#C8A97E",
+                padding: "12px 24px",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                fontWeight: 500,
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Refresh
+            </button>
+          )}
           <Link href={`/cases/${id}`} style={{ textDecoration: "none" }}>
             <span
               style={{

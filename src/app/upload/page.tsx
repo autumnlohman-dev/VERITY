@@ -1157,6 +1157,7 @@ const [error, setError] = useState<string | null>(null);
         return
       }
 
+      let letterGenerationFailed = false
       if (auditJson.errorCount > 0) {
         setLoadingMessage("Generating your dispute letter...")
 
@@ -1184,10 +1185,15 @@ const [error, setError] = useState<string | null>(null);
         if (!letterRes.ok) {
           const letterJson = await letterRes.json().catch(() => ({}))
           console.error('Letter generation failed:', letterJson)
+          letterGenerationFailed = true
         }
       }
 
-      router.push(`/cases/${caseId}`)
+      if (letterGenerationFailed) {
+        router.push(`/cases/${caseId}/letter?genFailed=1`)
+      } else {
+        router.push(`/cases/${caseId}`)
+      }
       return
 
     } catch (err) {
