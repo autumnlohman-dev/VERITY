@@ -28,9 +28,17 @@ export interface MueEditRow {
 
 export function effectiveAllowedAmount(row: FeeScheduleRow | null | undefined): number {
   if (!row) return 0
-  const primary =
-    row.non_facility_amount ?? row.allowed_amount ?? row.facility_amount
-  return primary != null ? Number(primary) || 0 : 0
+  // Treat 0 like null, not just null. PFS stub rows for lab codes often have
+  // non_facility_amount = 0 with a real rate in allowed_amount; `??` would
+  // short-circuit at the 0 and hide the real rate from both the CLFS fallback
+  // filter and rate_unavailable checks.
+  const candidates = [row.non_facility_amount, row.allowed_amount, row.facility_amount]
+  for (const c of candidates) {
+    if (c == null) continue
+    const n = Number(c)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  return 0
 }
 
 /**
