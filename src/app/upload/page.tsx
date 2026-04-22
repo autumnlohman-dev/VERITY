@@ -117,7 +117,7 @@ function Nav() {
 function TrustStrip() {
   const items = [
     "Bank-level encryption in transit and at rest",
-    "Encrypted documents",
+    "Documents never sold or shared",
     "No upfront payment for audit",
     "Administrative advocacy service — not a law firm",
   ];
