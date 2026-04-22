@@ -17,12 +17,22 @@ export async function POST(request: Request) {
       tier,
       amountBilled,
       userNotes,
-      providerName
+      providerName,
+      patientInfo
     } = await request.json()
 
     const normalizedProvider =
       typeof providerName === 'string' && providerName.trim()
         ? providerName.trim()
+        : null
+
+    const normalizedPatientInfo =
+      patientInfo && typeof patientInfo === 'object' && !Array.isArray(patientInfo)
+        ? Object.fromEntries(
+            Object.entries(patientInfo as Record<string, unknown>)
+              .filter(([, v]) => typeof v === 'string' && v.trim())
+              .map(([k, v]) => [k, (v as string).trim()])
+          )
         : null
 
     const { data: newCase, error } = await supabase
@@ -33,7 +43,10 @@ export async function POST(request: Request) {
         insurance_type: insuranceType,
         provider_name: normalizedProvider,
         amount_billed: amountBilled || 0,
-        bill_data: { careType, insuranceType, gfe, tier, userNotes: userNotes || '' }
+        bill_data: { careType, insuranceType, gfe, tier, userNotes: userNotes || '' },
+        ...(normalizedPatientInfo && Object.keys(normalizedPatientInfo).length > 0
+          ? { patient_info: normalizedPatientInfo }
+          : {})
       })
       .select()
       .single()

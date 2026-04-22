@@ -1052,6 +1052,10 @@ const [error, setError] = useState<string | null>(null);
         provider_address?: string
         bill_date?: string
         patient_name?: string
+        patient_address_street?: string
+        patient_address_city?: string
+        patient_address_state?: string
+        patient_address_zip?: string
         account_number?: string
       }
       const extractWarnings = (extractJson.warnings ?? []) as Array<{
@@ -1078,6 +1082,32 @@ const [error, setError] = useState<string | null>(null);
           ? billMetadata.provider_name.trim()
           : null
 
+      const street = billMetadata.patient_address_street?.trim() ?? ''
+      const city = billMetadata.patient_address_city?.trim() ?? ''
+      const state = billMetadata.patient_address_state?.trim() ?? ''
+      const zip = billMetadata.patient_address_zip?.trim() ?? ''
+      const cityStateZip = [
+        [city, state].filter(Boolean).join(', '),
+        zip
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .trim()
+      const combinedAddress = [street, cityStateZip]
+        .filter(Boolean)
+        .join('\n')
+
+      const patientInfo: Record<string, string> = {}
+      if (billMetadata.patient_name?.trim()) {
+        patientInfo.name = billMetadata.patient_name.trim()
+      }
+      if (combinedAddress) {
+        patientInfo.address = combinedAddress
+      }
+      if (billMetadata.account_number?.trim()) {
+        patientInfo.account_number = billMetadata.account_number.trim()
+      }
+
       const caseRes = await fetch('/api/cases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1088,7 +1118,8 @@ const [error, setError] = useState<string | null>(null);
           tier,
           userNotes,
           providerName,
-          amountBilled: lineItems.reduce((s, li) => s + li.billed_amount, 0)
+          amountBilled: lineItems.reduce((s, li) => s + li.billed_amount, 0),
+          patientInfo: Object.keys(patientInfo).length > 0 ? patientInfo : undefined
         })
       })
       const caseJson = await caseRes.json()

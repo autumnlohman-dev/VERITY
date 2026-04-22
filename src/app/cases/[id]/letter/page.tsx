@@ -37,6 +37,7 @@ interface PatientInfo {
   phone?: string;
   email?: string;
   member_id?: string;
+  account_number?: string;
 }
 
 interface CaseRow {
@@ -64,6 +65,7 @@ function substitutePlaceholders(content: string, info: PatientInfo): string {
   const phone = info.phone?.trim() || "";
   const email = info.email?.trim() || "";
   const memberId = info.member_id?.trim() || "";
+  const accountNumber = info.account_number?.trim() || "";
 
   const map: Record<string, string> = {
     "patient name": name,
@@ -88,6 +90,10 @@ function substitutePlaceholders(content: string, info: PatientInfo): string {
     "id number": memberId,
     "insurance id": memberId,
     "subscriber id": memberId,
+    "account number": accountNumber,
+    "account #": accountNumber,
+    "patient account number": accountNumber,
+    "statement number": accountNumber,
   };
 
   return content.replace(/\[([^\[\]\n]{2,40})\]/g, (match, key: string) => {
@@ -432,6 +438,11 @@ function PatientInfoPanel({
       label: "Insurance member ID",
       placeholder: "XYZ123456789",
     },
+    {
+      key: "account_number",
+      label: "Provider account number",
+      placeholder: "From the bill",
+    },
   ];
 
   async function save() {
@@ -444,6 +455,7 @@ function PatientInfoPanel({
       phone: form.phone?.trim() || undefined,
       email: form.email?.trim() || undefined,
       member_id: form.member_id?.trim() || undefined,
+      account_number: form.account_number?.trim() || undefined,
     };
     const { error } = await supabase
       .from("cases")
