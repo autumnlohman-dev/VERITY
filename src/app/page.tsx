@@ -1794,9 +1794,9 @@ function ComparisonTable() {
 // ─── Testimonials ─────────────────────────────────────────────────────────────
 function Testimonials() {
   const items = [
-    "ER bill: $4,800 → $1,200 after dispute. Found two procedures billed that were never performed. Resolved in 18 days.",
-    "Insurance denied my claim. ClearClaim found a No Surprises Act violation. Recovered $2,340 in 3 weeks.",
-    "Itemized bill had the same lab code billed four times. Got $680 back. Took 20 minutes to start.",
+    "ER bill reduced by over 70% after dispute. Found two procedures billed that were never performed. Resolved in under 30 days.",
+    "Insurance denied my claim. ClearClaim found a No Surprises Act violation. Recovered thousands in under a month.",
+    "Itemized bill had the same lab code billed four times. Got a meaningful refund back. Took minutes to get started.",
   ];
 
   return (
