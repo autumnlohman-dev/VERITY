@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { createClient } from "@/lib/supabase/client";
 
-// ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: "var(--font-cormorant), Georgia, serif",
   fontSize: size,
@@ -29,7 +29,6 @@ const label = (color = "#C8A97E"): React.CSSProperties => ({
   color,
 });
 
-// ─── Nav (copied from landing page) ──────────────────────────────────────────
 function Nav() {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -109,38 +108,57 @@ function Nav() {
   );
 }
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-const CASES = [
-  { id: "1", provider: "St. Mary's Hospital", insurer: "BlueCross BlueShield", bill: 8400, status: "Resolved", tier: "Resolve", savings: 2840, filed: "Mar 12, 2026", errors: 4 },
-  { id: "2", provider: "Westside Radiology", insurer: "Aetna", bill: 1200, status: "Error Found", tier: "Audit", savings: null, filed: "Apr 2, 2026", errors: 3 },
-  { id: "3", provider: "City Medical Center", insurer: "UnitedHealth", bill: 3600, status: "Auditing", tier: "Resolve", savings: null, filed: "Apr 14, 2026", errors: null },
-  { id: "4", provider: "North Shore Orthopedics", insurer: "Cigna", bill: 5200, status: "Under Review", tier: "Dispute", savings: null, filed: "Mar 28, 2026", errors: 2 },
-  { id: "5", provider: "Summit Labs", insurer: "BlueCross BlueShield", bill: 640, status: "Letter Ready", tier: "Dispute", savings: null, filed: "Apr 10, 2026", errors: 1 },
-];
+type RawStatus = "auditing" | "error_found" | "no_errors" | "letter_ready" | string;
 
-const NOTIFICATIONS = [
-  { id: "n1", type: "success", title: "St. Mary's — Resolved", body: "$2,840 credit applied to your account. Case closed.", date: "Apr 1", caseId: "1", cta: null },
-  { id: "n2", type: "alert", title: "Westside Radiology — Action needed", body: "3 errors found totaling $855. Upgrade to Dispute to get your letter.", date: "Apr 3", caseId: "2", cta: "Get letter →" },
-  { id: "n3", type: "info", title: "North Shore — Response received", body: "Insurer acknowledged your dispute. Internal review underway. Expected response by May 12.", date: "Apr 10", caseId: "4", cta: null },
-  { id: "n4", type: "warning", title: "Summit Labs — Letter ready", body: "Your dispute letter is ready to download and send. Deadline: May 10, 2026.", date: "Apr 10", caseId: "5", cta: "View letter →" },
-];
+interface BillData {
+  careType?: string;
+  insuranceType?: string;
+  gfe?: string;
+  tier?: string;
+  userNotes?: string;
+  date_of_service?: string;
+}
 
-// ─── Status config ────────────────────────────────────────────────────────────
-type StatusKey = "Auditing" | "Error Found" | "Letter Ready" | "Dispute Filed" | "Under Review" | "Resolved" | "Escalated";
+interface CaseRow {
+  id: string;
+  user_id: string;
+  status: RawStatus;
+  provider_name: string | null;
+  insurance_type: string | null;
+  amount_billed: number | null;
+  amount_recovered: number | null;
+  potential_savings: number | null;
+  bill_data: BillData | null;
+  created_at: string;
+}
 
-const STATUS_CONFIG: Record<StatusKey, { dot: string; text: string; pulse?: boolean }> = {
-  Auditing: { dot: "#4A90D9", text: "#A89F96", pulse: true },
-  "Error Found": { dot: "#C47C6A", text: "#C47C6A" },
-  "Letter Ready": { dot: "#C8A97E", text: "#C8A97E" },
-  "Dispute Filed": { dot: "#C8A97E", text: "#C8A97E" },
-  "Under Review": { dot: "#A89F96", text: "#A89F96" },
-  Resolved: { dot: "#7A9E87", text: "#7A9E87" },
-  Escalated: { dot: "#C47C6A", text: "#C47C6A", pulse: true },
+const STATUS_DISPLAY: Record<string, { label: string; dot: string; text: string; pulse?: boolean }> = {
+  auditing: { label: "Auditing", dot: "#4A90D9", text: "#A89F96", pulse: true },
+  error_found: { label: "Error Found", dot: "#C47C6A", text: "#C47C6A" },
+  no_errors: { label: "No Errors Found", dot: "#7A9E87", text: "#7A9E87" },
+  letter_ready: { label: "Letter Ready", dot: "#C8A97E", text: "#C8A97E" },
+  resolved: { label: "Resolved", dot: "#7A9E87", text: "#7A9E87" },
 };
 
-// ─── StatusPill ───────────────────────────────────────────────────────────────
-function StatusPill({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status as StatusKey] ?? { dot: "#A89F96", text: "#A89F96" };
+// Resolved is derived from amount_recovered > 0, not the status column.
+// Everything else buckets by whether a dispute is actively in flight.
+type Bucket = "open" | "in_progress" | "resolved";
+function bucketOf(c: CaseRow): Bucket {
+  if ((c.amount_recovered ?? 0) > 0) return "resolved";
+  if (c.status === "error_found" || c.status === "letter_ready") return "in_progress";
+  return "open";
+}
+
+function displayStatus(c: CaseRow): { key: string; label: string; dot: string; text: string; pulse?: boolean } {
+  if ((c.amount_recovered ?? 0) > 0) {
+    return { key: "resolved", ...STATUS_DISPLAY.resolved };
+  }
+  const cfg = STATUS_DISPLAY[c.status] ?? { label: c.status, dot: "#A89F96", text: "#A89F96" };
+  return { key: c.status, ...cfg };
+}
+
+function StatusPill({ c }: { c: CaseRow }) {
+  const cfg = displayStatus(c);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
       <span
@@ -154,46 +172,52 @@ function StatusPill({ status }: { status: string }) {
           flexShrink: 0,
         }}
       />
-      <span style={{ ...sans("12px", cfg.text) }}>{status}</span>
+      <span style={{ ...sans("12px", cfg.text) }}>{cfg.label}</span>
     </div>
   );
 }
 
-// ─── Savings countUp ──────────────────────────────────────────────────────────
-function useSavingsCountUp(target: number) {
+function useCountUp(target: number, duration = 1500) {
   const [count, setCount] = useState(0);
-  const started = useRef(false);
+  const lastTarget = useRef<number | null>(null);
 
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    const duration = 1500;
+    if (lastTarget.current === target) return;
+    lastTarget.current = target;
+    const startValue = 0;
     const startTime = performance.now();
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+    let raf = 0;
     const tick = (now: number) => {
       const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      setCount(Math.round(easeOutCubic(progress) * target));
-      if (progress < 1) requestAnimationFrame(tick);
+      setCount(Math.round(startValue + easeOutCubic(progress) * (target - startValue)));
+      if (progress < 1) raf = requestAnimationFrame(tick);
     };
-    requestAnimationFrame(tick);
-  }, [target]);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
 
   return count;
 }
 
-// ─── Notification border color ────────────────────────────────────────────────
-function notifBorderColor(type: string) {
-  if (type === "success") return "#7A9E87";
-  if (type === "alert") return "#C47C6A";
-  if (type === "warning") return "#C8A97E";
-  return "#4A90D9";
+function formatCurrency(n: number): string {
+  return `$${Math.round(n).toLocaleString("en-US")}`;
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-export default function DashboardPage() {
-  const savings = useSavingsCountUp(2840);
+function formatServiceDate(c: CaseRow): { value: string; labelText: string } {
+  const dos = c.bill_data?.date_of_service?.trim();
+  const iso = dos && dos.length > 0 ? dos : c.created_at;
+  try {
+    const d = new Date(iso);
+    const value = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return { value, labelText: dos ? "Date of service" : "Filed" };
+  } catch {
+    return { value: iso, labelText: dos ? "Date of service" : "Filed" };
+  }
+}
 
+function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ background: "#0D0D0D", minHeight: "100vh" }}>
       <style>{`
@@ -201,7 +225,196 @@ export default function DashboardPage() {
         .dot-pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
       `}</style>
       <Nav />
+      {children}
+    </div>
+  );
+}
 
+function LoadingState() {
+  return (
+    <Shell>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          paddingTop: "200px",
+          textAlign: "center",
+        }}
+      >
+        <div
+          className="dot-pulse"
+          style={{
+            width: "10px",
+            height: "10px",
+            borderRadius: "50%",
+            backgroundColor: "#C8A97E",
+            marginBottom: "24px",
+          }}
+        />
+        <div style={{ ...serif("32px", { fontStyle: "italic", color: "#A89F96" }) }}>
+          Loading your cases.
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <Shell>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          paddingTop: "200px",
+          textAlign: "center",
+          paddingLeft: "24px",
+          paddingRight: "24px",
+        }}
+      >
+        <div style={{ ...serif("40px", { lineHeight: 1.1 }) }}>Something went wrong.</div>
+        <p style={{ ...sans("14px", "#A89F96"), marginTop: "16px", maxWidth: "420px" }}>{message}</p>
+      </div>
+    </Shell>
+  );
+}
+
+function EmptyState() {
+  return (
+    <Shell>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          paddingTop: "200px",
+          textAlign: "center",
+          paddingLeft: "24px",
+          paddingRight: "24px",
+        }}
+      >
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
+        >
+          <div style={{ ...label("#6B635C"), marginBottom: "16px" }}>No cases yet</div>
+          <h1 style={{ ...serif("56px", { lineHeight: 1.05 }), margin: 0 }}>
+            Start with your first bill.
+          </h1>
+          <p
+            style={{
+              ...sans("15px", "#A89F96"),
+              marginTop: "20px",
+              maxWidth: "480px",
+              lineHeight: 1.6,
+              marginLeft: "auto",
+              marginRight: "auto",
+            }}
+          >
+            Upload a medical bill and we&apos;ll audit every charge against the Medicare
+            Physician Fee Schedule, NCCI edits, and MUE limits. Errors become a prefilled
+            dispute letter.
+          </p>
+          <Link href="/upload" style={{ textDecoration: "none", marginTop: "40px", display: "inline-block" }}>
+            <span
+              style={{
+                ...sans("11px", "#0D0D0D"),
+                backgroundColor: "#C8A97E",
+                padding: "16px 32px",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                fontWeight: 500,
+                display: "inline-block",
+              }}
+            >
+              Upload my first bill →
+            </span>
+          </Link>
+        </motion.div>
+      </div>
+    </Shell>
+  );
+}
+
+export default function DashboardPage() {
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [cases, setCases] = useState<CaseRow[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
+      if (!user) {
+        setFetchError("You need to be signed in to view your dashboard.");
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("cases")
+        .select(
+          "id, user_id, status, provider_name, insurance_type, amount_billed, amount_recovered, potential_savings, bill_data, created_at"
+        )
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (cancelled) return;
+
+      if (error) {
+        setFetchError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      setCases((data ?? []) as CaseRow[]);
+      setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const totals = cases.reduce(
+    (acc, c) => {
+      const billed = Number(c.amount_billed ?? 0);
+      const potential = Number(c.potential_savings ?? 0);
+      const recovered = Number(c.amount_recovered ?? 0);
+      acc.totalBilled += billed;
+      acc.totalPotentialSavings += potential;
+      if (recovered > 0) acc.totalSaved += potential;
+      const b = bucketOf(c);
+      acc.counts[b] += 1;
+      return acc;
+    },
+    {
+      totalBilled: 0,
+      totalPotentialSavings: 0,
+      totalSaved: 0,
+      counts: { open: 0, in_progress: 0, resolved: 0 } as Record<Bucket, number>,
+    }
+  );
+
+  const savedAnimated = useCountUp(totals.totalSaved);
+
+  if (loading) return <LoadingState />;
+  if (fetchError) return <ErrorState message={fetchError} />;
+  if (cases.length === 0) return <EmptyState />;
+
+  return (
+    <Shell>
       <div
         style={{
           paddingTop: "112px",
@@ -216,7 +429,7 @@ export default function DashboardPage() {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "flex-end",
-            marginBottom: "64px",
+            marginBottom: "48px",
           }}
         >
           <motion.h1
@@ -238,13 +451,13 @@ export default function DashboardPage() {
               style={{
                 fontFamily: "var(--font-cormorant), Georgia, serif",
                 fontSize: "48px",
-                color: "#7A9E87",
+                color: totals.totalSaved > 0 ? "#7A9E87" : "#6B635C",
                 lineHeight: 1,
                 fontWeight: 400,
                 fontStyle: "italic",
               }}
             >
-              ${savings.toLocaleString()}
+              {formatCurrency(savedAnimated)}
             </div>
             <Link
               href="/upload"
@@ -263,203 +476,210 @@ export default function DashboardPage() {
           </motion.div>
         </div>
 
-        {/* Upgrade banner (case 2) */}
+        {/* Totals summary */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.15 }}
           style={{
-            backgroundColor: "#1A1A1A",
-            borderLeft: "4px solid #C8A97E",
-            padding: "20px 24px",
-            marginBottom: "48px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "24px",
+            display: "grid",
+            gridTemplateColumns: "1fr 1px 1fr 1px 1fr",
+            alignItems: "stretch",
+            backgroundColor: "#111111",
+            border: "1px solid #242424",
+            padding: "28px 32px",
+            marginBottom: "24px",
           }}
         >
-          <div>
-            <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
-              We found 3 errors on your Westside Radiology bill.
-            </div>
-            <p style={{ ...sans("13px", "#A89F96"), marginTop: "4px" }}>
-              Potential savings: $855. Get your prefilled dispute letter for $39.
-            </p>
-          </div>
-          <Link href="/cases/2" style={{ textDecoration: "none", flexShrink: 0 }}>
-            <span
-              style={{
-                ...sans("10px", "#0D0D0D"),
-                backgroundColor: "#C8A97E",
-                padding: "12px 20px",
-                letterSpacing: "0.2em",
-                textTransform: "uppercase",
-                display: "inline-block",
-              }}
-            >
-              Get my letter →
-            </span>
-          </Link>
+          {[
+            { labelText: "total billed", value: formatCurrency(totals.totalBilled), color: "#F5F0E8" },
+            null,
+            {
+              labelText: "total potential savings",
+              value: formatCurrency(totals.totalPotentialSavings),
+              color: totals.totalPotentialSavings > 0 ? "#C8A97E" : "#6B635C",
+            },
+            null,
+            {
+              labelText: "total recovered",
+              value: formatCurrency(totals.totalSaved),
+              color: totals.totalSaved > 0 ? "#7A9E87" : "#6B635C",
+            },
+          ].map((item, i) =>
+            item === null ? (
+              <div
+                key={i}
+                style={{ width: "1px", backgroundColor: "#242424", alignSelf: "stretch", margin: "0 24px" }}
+              />
+            ) : (
+              <div key={i}>
+                <div style={{ ...label("#6B635C"), marginBottom: "8px" }}>{item.labelText}</div>
+                <div
+                  style={{
+                    fontFamily: "var(--font-cormorant), Georgia, serif",
+                    fontSize: "36px",
+                    color: item.color,
+                    lineHeight: 1,
+                    fontWeight: 400,
+                  }}
+                >
+                  {item.value}
+                </div>
+              </div>
+            )
+          )}
         </motion.div>
 
-        {/* Two-column body */}
-        <div
+        {/* Status counts */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.2 }}
           style={{
             display: "grid",
-            gridTemplateColumns: "2fr 1fr",
-            gap: "48px",
-            alignItems: "start",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: "16px",
+            marginBottom: "48px",
           }}
         >
-          {/* Left: cases */}
-          <div>
-            <div style={{ ...label("#6B635C"), marginBottom: "24px" }}>Active cases</div>
-            {CASES.map((c, i) => (
+          {([
+            { key: "open", labelText: "Open", count: totals.counts.open, dot: "#4A90D9" },
+            { key: "in_progress", labelText: "In progress", count: totals.counts.in_progress, dot: "#C8A97E" },
+            { key: "resolved", labelText: "Resolved", count: totals.counts.resolved, dot: "#7A9E87" },
+          ] as const).map((item) => (
+            <div
+              key={item.key}
+              style={{
+                backgroundColor: "#111111",
+                border: "1px solid #242424",
+                padding: "20px 24px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: "8px",
+                    height: "8px",
+                    borderRadius: "50%",
+                    backgroundColor: item.dot,
+                  }}
+                />
+                <span
+                  style={{
+                    ...sans("12px", "#A89F96"),
+                    letterSpacing: "0.15em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {item.labelText}
+                </span>
+              </div>
+              <div
+                style={{
+                  fontFamily: "var(--font-cormorant), Georgia, serif",
+                  fontSize: "32px",
+                  color: "#F5F0E8",
+                  lineHeight: 1,
+                  fontWeight: 400,
+                }}
+              >
+                {item.count}
+              </div>
+            </div>
+          ))}
+        </motion.div>
+
+        {/* Cases list */}
+        <div>
+          <div style={{ ...label("#6B635C"), marginBottom: "24px" }}>All cases</div>
+
+          {/* Column headers */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(220px, 2fr) 160px 140px 160px 160px 110px",
+              gap: "16px",
+              paddingBottom: "12px",
+              borderBottom: "1px solid #242424",
+            }}
+          >
+            {["Provider", "Date of service", "Amount billed", "Potential savings", "Status", ""].map((h, i) => (
+              <span
+                key={i}
+                style={{
+                  ...sans("11px", "#6B635C"),
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {h}
+              </span>
+            ))}
+          </div>
+
+          {cases.map((c, i) => {
+            const providerName = c.provider_name?.trim() || "Pending provider";
+            const dateInfo = formatServiceDate(c);
+            const billed = Number(c.amount_billed ?? 0);
+            const potential = Number(c.potential_savings ?? 0);
+
+            return (
               <motion.div
                 key={c.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.2 + i * 0.07 }}
+                transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.25 + i * 0.05 }}
                 style={{
-                  borderBottom: "1px solid #1C1C1C",
-                  padding: "24px 0",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
+                  display: "grid",
+                  gridTemplateColumns: "minmax(220px, 2fr) 160px 140px 160px 160px 110px",
                   gap: "16px",
+                  alignItems: "center",
+                  padding: "20px 0",
+                  borderBottom: "1px solid #1C1C1C",
                 }}
               >
-                {/* Left block */}
-                <div style={{ minWidth: "180px" }}>
-                  <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>{c.provider}</div>
-                  <div style={{ ...sans("12px", "#6B635C"), marginTop: "4px" }}>
-                    {c.insurer} · ${c.bill.toLocaleString()}
-                  </div>
-                  <div style={{ ...sans("12px", "#6B635C"), marginTop: "2px" }}>
-                    Filed {c.filed}
-                  </div>
-                </div>
-
-                {/* Center block */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <StatusPill status={c.status} />
-                  <div
-                    style={{
-                      ...sans("10px", "#6B635C"),
-                      letterSpacing: "0.15em",
-                      textTransform: "uppercase",
-                      border: "1px solid #242424",
-                      padding: "2px 8px",
-                      display: "inline-block",
-                    }}
-                  >
-                    {c.tier}
-                  </div>
-                </div>
-
-                {/* Right block */}
-                <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  {c.savings != null ? (
-                    <>
-                      <div style={{ ...serif("24px", { color: "#7A9E87" }) }}>
-                        ${c.savings.toLocaleString()}
-                      </div>
-                      <div style={{ ...sans("11px", "#6B635C") }}>recovered</div>
-                    </>
-                  ) : c.errors && c.status === "Error Found" ? (
-                    <>
-                      <div style={{ ...sans("13px", "#C47C6A") }}>{c.errors} errors found</div>
-                      <div style={{ ...sans("11px", "#6B635C") }}>potential recovery</div>
-                    </>
-                  ) : null}
-                  <Link
-                    href={`/cases/${c.id}`}
-                    style={{
-                      ...sans("12px", "#C8A97E"),
-                      textDecoration: "none",
-                      letterSpacing: "0.1em",
-                      display: "block",
-                      marginTop: "8px",
-                      transition: "color 0.2s",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = "#C8A97E")}
-                  >
-                    View details →
-                  </Link>
-                  {c.tier === "Dispute" && c.status === "Letter Ready" && (
-                    <Link
-                      href={`/cases/${c.id}/letter`}
-                      style={{
-                        ...sans("12px", "#C8A97E"),
-                        textDecoration: "none",
-                        letterSpacing: "0.1em",
-                        display: "block",
-                        marginTop: "4px",
-                        transition: "color 0.2s",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = "#C8A97E")}
-                    >
-                      View letter →
-                    </Link>
+                <div>
+                  <div style={{ ...serif("20px", { lineHeight: 1.2 }) }}>{providerName}</div>
+                  {c.insurance_type && (
+                    <div style={{ ...sans("12px", "#6B635C"), marginTop: "4px" }}>{c.insurance_type}</div>
                   )}
                 </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Right: notifications */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.35 }}
-          >
-            <div style={{ ...label("#6B635C"), marginBottom: "24px" }}>Notifications</div>
-            {NOTIFICATIONS.map((n) => (
-              <div
-                key={n.id}
-                style={{
-                  borderBottom: "1px solid #1C1C1C",
-                  paddingTop: "20px",
-                  paddingBottom: "20px",
-                  paddingLeft: "16px",
-                  borderLeft: `3px solid ${notifBorderColor(n.type)}`,
-                }}
-              >
-                <div style={{ ...sans("10px", "#6B635C"), marginBottom: "4px" }}>{n.date}</div>
+                <div>
+                  <div style={{ ...sans("13px", "#A89F96") }}>{dateInfo.value}</div>
+                  <div style={{ ...sans("11px", "#6B635C"), marginTop: "2px" }}>{dateInfo.labelText}</div>
+                </div>
+                <div style={{ ...sans("14px", "#F5F0E8") }}>{formatCurrency(billed)}</div>
                 <div
                   style={{
-                    ...sans("13px", "#F5F0E8"),
-                    fontWeight: 500,
-                    marginBottom: "4px",
+                    ...sans("14px", potential > 0 ? "#7A9E87" : "#6B635C"),
                   }}
                 >
-                  {n.title}
+                  {potential > 0 ? formatCurrency(potential) : "—"}
                 </div>
-                <div style={{ ...sans("12px", "#A89F96"), lineHeight: 1.65 }}>{n.body}</div>
-                {n.cta && (
-                  <Link
-                    href={n.cta === "View letter →" ? `/cases/${n.caseId}/letter` : `/cases/${n.caseId}`}
-                    style={{
-                      ...sans("12px", "#C8A97E"),
-                      display: "block",
-                      marginTop: "8px",
-                      textDecoration: "none",
-                      transition: "color 0.2s",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = "#C8A97E")}
-                  >
-                    {n.cta}
-                  </Link>
-                )}
-              </div>
-            ))}
-          </motion.div>
+                <StatusPill c={c} />
+                <Link
+                  href={`/cases/${c.id}`}
+                  style={{
+                    ...sans("12px", "#C8A97E"),
+                    textDecoration: "none",
+                    letterSpacing: "0.1em",
+                    transition: "color 0.2s",
+                    textAlign: "right",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "#C8A97E")}
+                >
+                  View →
+                </Link>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
-    </div>
+    </Shell>
   );
 }
