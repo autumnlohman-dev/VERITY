@@ -113,6 +113,118 @@ function Nav() {
   );
 }
 
+// ─── Trust Strip (dark) ───────────────────────────────────────────────────────
+function TrustStrip() {
+  const items = [
+    "Bank-level encryption in transit and at rest",
+    "Encrypted documents",
+    "No upfront payment for audit",
+    "Administrative advocacy service — not a law firm",
+  ];
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        backgroundColor: "#111111",
+        borderTop: "1px solid #1C1C1C",
+        borderBottom: "1px solid #1C1C1C",
+      }}
+    >
+      {items.map((text, i) => (
+        <div
+          key={i}
+          style={{
+            display: "flex",
+            gap: "10px",
+            alignItems: "flex-start",
+            padding: "18px 20px",
+            borderLeft: i > 0 ? "1px solid #1C1C1C" : "none",
+          }}
+        >
+          <span style={{ ...sans("12px", "#C8A97E"), lineHeight: 1.6, flexShrink: 0 }}>—</span>
+          <span style={{ ...sans("11px", "#A89F96"), lineHeight: 1.55, letterSpacing: "0.02em" }}>
+            {text}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── After-upload explainer ───────────────────────────────────────────────────
+function AfterUploadExplainer() {
+  const steps = [
+    "We extract line items and CPT codes from your bill.",
+    "Each charge is audited against CMS fee schedules and NCCI edits.",
+    "You get a full error report within 24 hours — free, before you pay for anything.",
+  ];
+  return (
+    <div
+      style={{
+        backgroundColor: "#111111",
+        border: "1px solid #242424",
+        borderLeft: "3px solid #C8A97E",
+        padding: "20px 24px",
+        marginTop: "24px",
+      }}
+    >
+      <div style={{ ...label("#6B635C"), marginBottom: "12px" }}>What happens after you upload</div>
+      <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
+        {steps.map((s, i) => (
+          <li
+            key={i}
+            style={{
+              display: "flex",
+              gap: "12px",
+              alignItems: "flex-start",
+              padding: "6px 0",
+            }}
+          >
+            <span
+              style={{
+                ...sans("12px", "#C8A97E"),
+                lineHeight: 1.6,
+                flexShrink: 0,
+                fontStyle: "italic",
+                minWidth: "18px",
+              }}
+            >
+              {i + 1}.
+            </span>
+            <span style={{ ...sans("13px", "#A89F96"), lineHeight: 1.65 }}>{s}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+// ─── Support footer (upload page) ─────────────────────────────────────────────
+function SupportFooter() {
+  return (
+    <div
+      style={{
+        borderTop: "1px solid #1C1C1C",
+        padding: "24px 0",
+        marginTop: "48px",
+        textAlign: "center",
+      }}
+    >
+      <div style={{ ...sans("12px", "#6B635C"), lineHeight: 1.7 }}>
+        Need help? Email{" "}
+        <a
+          href="mailto:support@clearclaim.co"
+          style={{ color: "#C8A97E", textDecoration: "none" }}
+        >
+          support@clearclaim.co
+        </a>{" "}
+        — responses within 1 business day.
+      </div>
+    </div>
+  );
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type FileState = File;
 
@@ -488,6 +600,8 @@ const [error, setError] = useState<string | null>(null);
         )}
       </div>
 
+      <TrustStrip />
+
       {/* Main content */}
       <div
         style={{
@@ -513,6 +627,8 @@ const [error, setError] = useState<string | null>(null);
               <p style={{ ...sans("14px", "#A89F96"), marginTop: "12px" }}>
                 Your bill, EOB, and insurance card. Takes three minutes.
               </p>
+
+              <AfterUploadExplainer />
 
               <div
                 style={{
@@ -1222,6 +1338,8 @@ const [error, setError] = useState<string | null>(null);
             </motion.div>
           )}
         </AnimatePresence>
+
+        <SupportFooter />
       </div>
     </div>
   );
