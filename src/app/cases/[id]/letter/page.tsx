@@ -3,6 +3,7 @@
 import React, { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/client";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
@@ -481,6 +482,14 @@ function PatientInfoPanel({
     setSaving(true);
     setSaveError(null);
     const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setSaving(false);
+      setSaveError("You need to be signed in to save patient info.");
+      return;
+    }
     const payload: PatientInfo = {
       name: form.name?.trim() || undefined,
       address: form.address?.trim() || undefined,
@@ -489,10 +498,12 @@ function PatientInfoPanel({
       member_id: form.member_id?.trim() || undefined,
       account_number: form.account_number?.trim() || undefined,
     };
+    // Defensive user_id filter in addition to RLS.
     const { error } = await supabase
       .from("cases")
       .update({ patient_info: payload })
-      .eq("id", caseId);
+      .eq("id", caseId)
+      .eq("user_id", user.id);
     setSaving(false);
     if (error) {
       setSaveError(error.message);
@@ -656,28 +667,34 @@ export default function LetterPage({
   const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
   const [letter, setLetter] = useState<LetterRow | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [genFailed, setGenFailed] = useState(false);
+  const [genFailed, setGenFailed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("genFailed") === "1";
+  });
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("genFailed") === "1") setGenFailed(true);
-  }, []);
-
   const load = useCallback(async () => {
-    setLoading(true);
-    setFetchError(null);
-
     const supabase = createClient();
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setFetchError("You need to be signed in to view this case.");
+      setLoading(false);
+      return;
+    }
+
+    // Defensive user_id filter in addition to RLS.
     const { data: caseData, error: caseErr } = await supabase
       .from("cases")
       .select(
         "id, status, provider_name, insurance_type, amount_billed, amount_expected, errors_found, bill_data, created_at, patient_info"
       )
       .eq("id", id)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (caseErr) {
@@ -692,6 +709,7 @@ export default function LetterPage({
     }
     setCaseRow(caseData as CaseRow);
 
+    // Letter query is scoped by case_id; ownership was just verified above.
     const { data: letterData, error: letterErr } = await supabase
       .from("dispute_letters")
       .select("*")
@@ -710,7 +728,10 @@ export default function LetterPage({
   }, [id]);
 
   useEffect(() => {
-    load();
+    // load() is async and only calls setState after await points — not
+    // synchronously in the effect body — so the rule fires a false positive.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
   }, [load]);
 
   const handleRetry = useCallback(async () => {
@@ -752,6 +773,9 @@ export default function LetterPage({
       await load();
     } catch (err) {
       console.error("Letter retry failed:", err);
+      Sentry.captureException(err, {
+        tags: { location: "letter-page", stage: "retry" },
+      });
       setRetryError("Letter generation is temporarily unavailable. Please try again in a few minutes.");
     } finally {
       setRetrying(false);

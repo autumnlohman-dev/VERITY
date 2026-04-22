@@ -17,8 +17,8 @@ export async function createClient() {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
             )
-          } catch (error) {
-            // Ignore - read only in Server Components
+          } catch {
+            // Ignore — cookies cannot be set from a Server Component read path.
           }
         },
       },

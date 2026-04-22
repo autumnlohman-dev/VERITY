@@ -211,6 +211,7 @@ function errorTypeLabel(type: string): string {
     case "coverage": return "Coverage";
     case "patient_disputed": return "Patient Dispute";
     case "rate_unavailable": return "Manual Review — No CMS Rate";
+    case "reference_data_missing": return "Audit Reference Data Unavailable";
     default: return type;
   }
 }
@@ -307,10 +308,24 @@ export default function CaseDetailPage({
     const supabase = createClient();
 
     (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
+      if (!user) {
+        setFetchError("You need to be signed in to view this case.");
+        setLoading(false);
+        return;
+      }
+
+      // Defensive user_id filter in addition to RLS.
       const { data: caseData, error: caseErr } = await supabase
         .from("cases")
         .select("*")
         .eq("id", id)
+        .eq("user_id", user.id)
         .maybeSingle();
 
       if (cancelled) return;
@@ -328,6 +343,7 @@ export default function CaseDetailPage({
 
       setCaseRow(caseData as CaseRow);
 
+      // Letter query is scoped by case_id; ownership was just verified above.
       const { data: letterData } = await supabase
         .from("dispute_letters")
         .select("*")
