@@ -27,6 +27,7 @@ export type ErrorType =
   | 'mue'
   | 'coverage'
   | 'patient_disputed'
+  | 'rate_unavailable'
 export type Confidence = 'HIGH' | 'MEDIUM' | 'LOW'
 
 export interface BillingError {
@@ -247,6 +248,32 @@ function checkMue(
   return errors
 }
 
+function checkRateUnavailable(
+  items: LineItem[],
+  feeSchedule: Map<string, FeeScheduleRow>
+): BillingError[] {
+  const errors: BillingError[] = []
+  for (const item of items) {
+    const code = normalizeCode(item.cpt_code)
+    const row = feeSchedule.get(code)
+    if (row && effectiveAllowedAmount(row) > 0) continue
+
+    const billed = Number(item.billed_amount) || 0
+    errors.push({
+      cpt_code: code,
+      description: item.description ?? '',
+      error_type: 'rate_unavailable',
+      billed_amount: billed,
+      expected_amount: 0,
+      confidence: 'LOW',
+      explanation: `No published Medicare Physician Fee Schedule or Clinical Lab Fee Schedule rate was found for "${code}" billed at $${billed.toFixed(2)}. This is often a facility/revenue code, a proprietary internal charge code, or an OCR misread — it cannot be priced automatically and should be reviewed manually against the provider's chargemaster or explanation of benefits.`,
+      rule_violated:
+        'Fee schedule match unavailable — code could not be priced against CMS PFS or CLFS. Not presumptively an overcharge, but requires manual review to verify the billed amount is reasonable.'
+    })
+  }
+  return errors
+}
+
 function checkCoverage(
   items: LineItem[],
   insuranceType: InsuranceType
@@ -343,6 +370,7 @@ export async function runAudit(
     ...checkUnbundling(normalized, ptpEdits, feeSchedule),
     ...checkDuplicates(normalized),
     ...checkMue(normalized, mueMap, feeSchedule),
-    ...checkCoverage(normalized, insuranceType)
+    ...checkCoverage(normalized, insuranceType),
+    ...checkRateUnavailable(normalized, feeSchedule)
   ]
 }

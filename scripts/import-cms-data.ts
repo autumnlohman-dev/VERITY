@@ -1,8 +1,8 @@
 /**
- * Ingest CMS reference data (PFS, NCCI PTP, NCCI MUE) into Supabase.
+ * Ingest CMS reference data (PFS, CLFS, NCCI PTP, NCCI MUE) into Supabase.
  *
- * Run once per year after CMS publishes the annual PFS, and quarterly for
- * NCCI PTP / MUE refreshes. See README-DATA-SETUP.md for source URLs and
+ * Run once per year after CMS publishes the annual PFS / CLFS, and quarterly
+ * for NCCI PTP / MUE refreshes. See README-DATA-SETUP.md for source URLs and
  * schema prerequisites.
  *
  * Env required:
@@ -11,12 +11,13 @@
  *
  * Env optional (override sources):
  *   PFS_SOURCE        URL or local path to PFS rates (CSV / JSON)
+ *   CLFS_SOURCE       URL or local path to CLFS lab rates (CSV / JSON)
  *   NCCI_PTP_SOURCE   URL or local path to NCCI PTP edits (CSV)
  *   NCCI_MUE_SOURCE   URL or local path to NCCI MUE edits (CSV)
  *   PFS_CONVERSION_FACTOR  (default 32.7442 — CMS 2024 final rule)
  *
  * Each source can also be passed via CLI flag:
- *   --pfs=<url|path> --ncci-ptp=<url|path> --ncci-mue=<url|path>
+ *   --pfs=<url|path> --clfs=<url|path> --ncci-ptp=<url|path> --ncci-mue=<url|path>
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
@@ -39,6 +40,9 @@ const DEFAULT_SOURCES = {
   pfs:
     process.env.PFS_SOURCE ||
     'https://www.cms.gov/medicare/payment/fee-schedules/physician',
+  clfs:
+    process.env.CLFS_SOURCE ||
+    'https://www.cms.gov/medicare/payment/fee-schedules/clinical-laboratory-fee-schedule',
   ncciPtp:
     process.env.NCCI_PTP_SOURCE ||
     'https://www.cms.gov/medicare/coding-billing/national-correct-coding-initiative-ncci-edits',
@@ -242,6 +246,67 @@ function mapPfsRow(
   }
 }
 
+function mapClfsRow(raw: Record<string, string>): {
+  cpt_code: string
+  description: string | null
+  allowed_amount: number | null
+  locality: string
+} | null {
+  const code = (
+    raw.HCPCS ||
+    raw.HCPCS_Cd ||
+    raw.hcpcs ||
+    raw['HCPCS Code'] ||
+    raw.CPT ||
+    raw.cpt_code ||
+    ''
+  )
+    .trim()
+    .toUpperCase()
+  if (!code) return null
+
+  // Skip modifier variants (QW, TC, 26, etc.) — the unmodified row carries
+  // the base rate we want to upsert against the (cpt_code, locality) key.
+  const mod = (raw.MOD || raw.Mod || raw.modifier || '').trim()
+  if (mod) return null
+
+  const description =
+    raw.Description ||
+    raw.DESCRIPTION ||
+    raw.SHORT_DESCRIPTION ||
+    raw.SHORTDESC ||
+    raw.short_description ||
+    raw.description ||
+    null
+
+  // CMS CLFS Public Use File uses "RATE"; older national-limit files use
+  // "National Limitation Amount" / "Payment Limit".
+  const amountRaw =
+    raw.RATE ||
+    raw.rate ||
+    raw['National Limit'] ||
+    raw['National Limitation Amount'] ||
+    raw['Payment Limit'] ||
+    raw.NATIONAL_LIMIT ||
+    raw.NATIONAL_LIMITATION_AMOUNT ||
+    raw.PAYMENT_LIMIT ||
+    raw.national_limit ||
+    raw.payment_limit ||
+    raw.allowed_amount ||
+    ''
+  const amount =
+    amountRaw !== undefined && amountRaw !== ''
+      ? Number(String(amountRaw).replace(/[$,]/g, ''))
+      : null
+
+  return {
+    cpt_code: code,
+    description,
+    allowed_amount: toFiniteOrNull(amount),
+    locality: NATIONAL_LOCALITY
+  }
+}
+
 function mapPtpRow(raw: Record<string, string>): {
   code_1: string
   code_2: string
@@ -381,6 +446,50 @@ async function ingestPfs(supabase: SupabaseClient, source: string): Promise<numb
   return mapped.length
 }
 
+async function ingestClfs(supabase: SupabaseClient, source: string): Promise<number> {
+  console.log('\n[CLFS] Ingesting Clinical Laboratory Fee Schedule')
+  const text = await loadSourceText(source)
+  let raw: Record<string, string>[]
+  const trimmed = text.trim()
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    const parsed = JSON.parse(trimmed)
+    const arr = Array.isArray(parsed) ? parsed : parsed.data ?? parsed.results ?? []
+    raw = arr.map((o: Record<string, unknown>) => {
+      const coerced: Record<string, string> = {}
+      for (const [k, v] of Object.entries(o)) coerced[k] = String(v ?? '')
+      return coerced
+    })
+  } else {
+    // CMS CLFS Public Use Files begin with 1–4 lines of title / copyright
+    // preamble before the real CSV header. Skip lines until we find one
+    // that looks like a header (contains HCPCS as a bare field).
+    const lines = text.split(/\r?\n/)
+    let headerIdx = 0
+    for (let i = 0; i < lines.length; i++) {
+      const firstField = lines[i].split(',')[0].trim().toUpperCase()
+      if (firstField === 'HCPCS' || firstField === 'YEAR') {
+        headerIdx = i
+        break
+      }
+    }
+    const csvBody = lines.slice(headerIdx).join('\n')
+    raw = parseCsv(csvBody)
+  }
+
+  const mapped = raw
+    .map(mapClfsRow)
+    .filter((r): r is NonNullable<ReturnType<typeof mapClfsRow>> => r !== null)
+
+  console.log(`  parsed ${raw.length} rows → ${mapped.length} CLFS entries`)
+  if (mapped.length === 0) {
+    console.log('  skipping upsert (no rows)')
+    return 0
+  }
+
+  await upsertInBatches(supabase, 'clfs_fee_schedule', mapped, 'cpt_code,locality')
+  return mapped.length
+}
+
 async function ingestPtp(supabase: SupabaseClient, source: string): Promise<number> {
   console.log('\n[NCCI-PTP] Ingesting Procedure-to-Procedure edits')
   const text = await loadSourceText(source)
@@ -427,11 +536,13 @@ async function main(): Promise<void> {
   })
 
   const pfsSrc = args.pfs || DEFAULT_SOURCES.pfs
+  const clfsSrc = args.clfs || DEFAULT_SOURCES.clfs
   const ptpSrc = args['ncci-ptp'] || DEFAULT_SOURCES.ncciPtp
   const mueSrc = args['ncci-mue'] || DEFAULT_SOURCES.ncciMue
 
   console.log('CMS data ingestion starting')
   console.log(`  PFS source:      ${pfsSrc}`)
+  console.log(`  CLFS source:     ${clfsSrc}`)
   console.log(`  NCCI PTP source: ${ptpSrc}`)
   console.log(`  NCCI MUE source: ${mueSrc}`)
 
@@ -441,6 +552,12 @@ async function main(): Promise<void> {
     results.pfs = await ingestPfs(supabase, pfsSrc)
   } catch (err) {
     console.error('PFS ingestion failed:', err instanceof Error ? err.message : err)
+  }
+
+  try {
+    results.clfs = await ingestClfs(supabase, clfsSrc)
+  } catch (err) {
+    console.error('CLFS ingestion failed:', err instanceof Error ? err.message : err)
   }
 
   try {
@@ -457,11 +574,12 @@ async function main(): Promise<void> {
 
   console.log('\n─── Summary ──────────────────────────────────────────')
   console.log(`  pfs_fee_schedule rows:  ${results.pfs ?? 0}`)
+  console.log(`  clfs_fee_schedule rows: ${results.clfs ?? 0}`)
   console.log(`  ncci_ptp_edits rows:    ${results.ncci_ptp ?? 0}`)
   console.log(`  ncci_mue_edits rows:    ${results.ncci_mue ?? 0}`)
 
   const anyFailed =
-    !results.pfs || !results.ncci_ptp || !results.ncci_mue
+    !results.pfs || !results.clfs || !results.ncci_ptp || !results.ncci_mue
   if (anyFailed) {
     console.log(
       '\nOne or more tables received 0 rows. If the default CMS URLs returned an HTML landing page (not the CSV),\n' +

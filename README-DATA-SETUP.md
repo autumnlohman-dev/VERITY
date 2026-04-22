@@ -1,12 +1,17 @@
 # Data setup — CMS reference files
 
-ClearClaim's audit engine compares bills to three CMS-published datasets:
+ClearClaim's audit engine compares bills to four CMS-published datasets:
 
-| Table              | Source                                         | Refresh cadence |
-| ------------------ | ---------------------------------------------- | --------------- |
-| `pfs_fee_schedule` | Medicare Physician Fee Schedule (PFS)          | Annual (Jan 1)  |
-| `ncci_ptp_edits`   | NCCI Procedure-to-Procedure edits              | Quarterly       |
-| `ncci_mue_edits`   | NCCI Medically Unlikely Edits (MUE)            | Quarterly       |
+| Table               | Source                                         | Refresh cadence |
+| ------------------- | ---------------------------------------------- | --------------- |
+| `pfs_fee_schedule`  | Medicare Physician Fee Schedule (PFS)          | Annual (Jan 1)  |
+| `clfs_fee_schedule` | Clinical Laboratory Fee Schedule (CLFS)        | Annual (Jan 1)  |
+| `ncci_ptp_edits`    | NCCI Procedure-to-Procedure edits              | Quarterly       |
+| `ncci_mue_edits`    | NCCI Medically Unlikely Edits (MUE)            | Quarterly       |
+
+PFS covers physician / professional services; CLFS covers lab tests like CMP
+(80053), CBC (85025), and lipid panels. The audit checks PFS first and falls
+back to CLFS when a code isn't priced by PFS.
 
 None of these are shipped with the repo. You need to ingest them once, then refresh on CMS's schedule.
 
@@ -39,6 +44,14 @@ create table if not exists pfs_fee_schedule (
   primary key (cpt_code, locality)
 );
 
+create table if not exists clfs_fee_schedule (
+  cpt_code       text not null,
+  description    text,
+  allowed_amount numeric,
+  locality       text not null default '00',
+  primary key (cpt_code, locality)
+);
+
 create table if not exists ncci_ptp_edits (
   code_1    text not null,
   code_2    text not null,
@@ -65,6 +78,9 @@ CMS publishes download URLs that rotate each cycle. **Before you run the script,
 - **PFS (annual):** https://www.cms.gov/medicare/payment/fee-schedules/physician
   Look for the "PFS Relative Value Files" section. The yearly ZIP contains `PPRRVU<YY>_<quarter>.csv` — the file you want.
 
+- **CLFS (annual):** https://www.cms.gov/medicare/payment/fee-schedules/clinical-laboratory-fee-schedule
+  Look for the current-year "Clinical Laboratory Fee Schedule" ZIP (e.g. `26CLABQ1.zip` for 2026 Q1). Inside you'll find a CSV or XLSX keyed on HCPCS code with a "National Limitation Amount" / "Payment Limit" column — that's the allowed amount the mapper picks up.
+
 - **NCCI PTP (quarterly):** https://www.cms.gov/medicare/coding-billing/national-correct-coding-initiative-ncci-edits
   Two file sets: "Practitioner PTP Edits" and "Hospital OP PTP Edits." Practitioner is what to use for professional-service bills.
 
@@ -78,9 +94,10 @@ Run once after downloading/exporting the three CSVs:
 
 ```bash
 npx tsx scripts/import-cms-data.ts \
-  --pfs=./cms-data/PPRRVU24.csv \
-  --ncci-ptp=./cms-data/PPRRVU24-ptp.csv \
-  --ncci-mue=./cms-data/PPRRVU24-mue.csv
+  --pfs=./cms-data/PPRRVU26.csv \
+  --clfs=./cms-data/26CLABQ1.csv \
+  --ncci-ptp=./cms-data/NCCI-PTP-2026Q1.csv \
+  --ncci-mue=./cms-data/NCCI-MUE-2026Q1.csv
 ```
 
 > `npx ts-node scripts/import-cms-data.ts` also works, but `tsx` handles the project's ESM config without extra flags. If `ts-node` errors on module resolution, switch to `tsx`.
@@ -88,7 +105,8 @@ npx tsx scripts/import-cms-data.ts \
 You can also pass URLs (the script will `fetch` them):
 
 ```bash
-PFS_SOURCE=https://example.com/pfs2024.csv \
+PFS_SOURCE=https://example.com/pfs2026.csv \
+CLFS_SOURCE=https://example.com/clfs2026.csv \
 NCCI_PTP_SOURCE=https://example.com/ptp.csv \
 NCCI_MUE_SOURCE=https://example.com/mue.csv \
   npx tsx scripts/import-cms-data.ts
@@ -105,23 +123,25 @@ NCCI_MUE_SOURCE=https://example.com/mue.csv \
 
 ### Expected row counts (rough)
 
-| Table              | Rows (2024)           |
-| ------------------ | --------------------- |
-| `pfs_fee_schedule` | ~9,500 CPT/HCPCS codes|
-| `ncci_ptp_edits`   | ~1.3M pairs           |
-| `ncci_mue_edits`   | ~9,000 codes          |
+| Table               | Rows (2026)            |
+| ------------------- | ---------------------- |
+| `pfs_fee_schedule`  | ~9,500 CPT/HCPCS codes |
+| `clfs_fee_schedule` | ~1,300 lab codes       |
+| `ncci_ptp_edits`    | ~1.3M pairs            |
+| `ncci_mue_edits`    | ~9,000 codes           |
 
 PTP is by far the largest table — the first ingestion takes a few minutes.
 
 ## Refreshing
 
-- **Every January:** re-run with the new PFS RVU file. Update `PFS_CONVERSION_FACTOR` if CMS changes it in the final rule.
+- **Every January:** re-run with the new PFS RVU file and the new CLFS file. Update `PFS_CONVERSION_FACTOR` if CMS changes it in the final rule.
 - **Every quarter** (Jan/Apr/Jul/Oct): re-run NCCI PTP and NCCI MUE with the new quarterly files. Upsert handles version churn — no need to wipe the tables first.
 
 If CMS retires a code, the upsert leaves the old row in place. To clean out codes that disappeared from a refresh, truncate before ingest:
 
 ```sql
 truncate pfs_fee_schedule;
+truncate clfs_fee_schedule;
 truncate ncci_ptp_edits;
 truncate ncci_mue_edits;
 ```

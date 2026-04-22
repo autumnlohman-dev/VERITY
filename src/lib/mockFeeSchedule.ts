@@ -131,6 +131,53 @@ export async function batchFeeSchedule(
   for (const row of (data ?? []) as FeeScheduleRow[]) {
     map.set(normalize(row.cpt_code), row)
   }
+
+  // Clinical Lab Fee Schedule fallback: lab codes (e.g. CMP 80053, CBC 85025)
+  // are priced under CLFS, not PFS, so a PFS-only lookup returns nothing.
+  // Query CLFS for any code absent from PFS or priced at $0.
+  const clfsFallbackCodes = normalized.filter((c) => {
+    const existing = map.get(c)
+    return !existing || effectiveAllowedAmount(existing) === 0
+  })
+  if (clfsFallbackCodes.length > 0) {
+    const clfsMap = await batchClfsFeeSchedule(supabase, clfsFallbackCodes)
+    for (const [code, row] of clfsMap) {
+      if (effectiveAllowedAmount(row) > 0) {
+        map.set(code, row)
+      }
+    }
+  }
+
+  return map
+}
+
+export async function batchClfsFeeSchedule(
+  supabase: SupabaseClient,
+  codes: string[]
+): Promise<Map<string, FeeScheduleRow>> {
+  const map = new Map<string, FeeScheduleRow>()
+  if (codes.length === 0) return map
+
+  const normalized = Array.from(new Set(codes.map(normalize)))
+  const { data, error } = await supabase
+    .from('clfs_fee_schedule')
+    .select('cpt_code, description, allowed_amount, locality')
+    .in('cpt_code', normalized)
+    .eq('locality', NATIONAL_LOCALITY)
+
+  if (error) throw new Error(`CLFS lookup failed: ${error.message}`)
+  for (const row of (data ?? []) as Array<Partial<FeeScheduleRow>>) {
+    if (!row.cpt_code) continue
+    map.set(normalize(row.cpt_code), {
+      cpt_code: row.cpt_code,
+      description: row.description ?? null,
+      work_rvu: null,
+      facility_amount: null,
+      non_facility_amount: null,
+      allowed_amount: row.allowed_amount ?? null,
+      locality: row.locality ?? NATIONAL_LOCALITY
+    })
+  }
   return map
 }
 
