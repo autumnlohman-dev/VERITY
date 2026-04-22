@@ -21,6 +21,10 @@ export interface ExtractedBillMetadata {
   provider_address: string
   bill_date: string
   patient_name: string
+  patient_address_street: string
+  patient_address_city: string
+  patient_address_state: string
+  patient_address_zip: string
   account_number: string
 }
 
@@ -116,7 +120,27 @@ const EXTRACT_BILL_TOOL = {
           patient_name: {
             type: 'string',
             description:
-              'Patient name as shown on the bill. Empty string if not visible.'
+              'Patient name as shown on the bill. Check the "Responsible Party" or "Guarantor" section if present. Empty string if not visible.'
+          },
+          patient_address_street: {
+            type: 'string',
+            description:
+              'Patient street address from the "Responsible Party" / "Guarantor" / "Bill To" section. Include apartment/suite if shown. Empty string if not visible.'
+          },
+          patient_address_city: {
+            type: 'string',
+            description:
+              'Patient city from the "Responsible Party" / "Guarantor" / "Bill To" section. Empty string if not visible.'
+          },
+          patient_address_state: {
+            type: 'string',
+            description:
+              'Patient state (2-letter USPS code, uppercase) from the "Responsible Party" / "Guarantor" / "Bill To" section. Empty string if not visible.'
+          },
+          patient_address_zip: {
+            type: 'string',
+            description:
+              'Patient ZIP code from the "Responsible Party" / "Guarantor" / "Bill To" section. Empty string if not visible.'
           },
           account_number: {
             type: 'string',
@@ -130,6 +154,10 @@ const EXTRACT_BILL_TOOL = {
           'provider_address',
           'bill_date',
           'patient_name',
+          'patient_address_street',
+          'patient_address_city',
+          'patient_address_state',
+          'patient_address_zip',
           'account_number'
         ]
       },
@@ -184,7 +212,7 @@ const EXTRACT_BILL_TOOL = {
 
 const EXTRACT_BILL_PROMPT = `Extract the bill metadata and every itemized charge line from this medical bill.
 
-For the bill metadata, record the provider/facility name, NPI, address, bill date, patient name, and account number. Use empty strings for any field that is not visible.
+For the bill metadata, record the provider/facility name, NPI, address, bill date, patient name, patient mailing address, and account number. The patient's mailing address is usually in a "Responsible Party", "Guarantor", or "Bill To" block — split it into street, city, state (2-letter code), and ZIP. Use empty strings for any field that is not visible.
 
 For each line item, identify:
 - CPT or HCPCS code (5 alphanumeric characters)
@@ -203,6 +231,10 @@ function emptyMetadata(): ExtractedBillMetadata {
     provider_address: '',
     bill_date: '',
     patient_name: '',
+    patient_address_street: '',
+    patient_address_city: '',
+    patient_address_state: '',
+    patient_address_zip: '',
     account_number: ''
   }
 }
@@ -270,6 +302,10 @@ export async function extractBillContent(
     provider_address: String(metaRaw.provider_address ?? '').trim(),
     bill_date: String(metaRaw.bill_date ?? '').trim(),
     patient_name: String(metaRaw.patient_name ?? '').trim(),
+    patient_address_street: String(metaRaw.patient_address_street ?? '').trim(),
+    patient_address_city: String(metaRaw.patient_address_city ?? '').trim(),
+    patient_address_state: String(metaRaw.patient_address_state ?? '').trim().toUpperCase(),
+    patient_address_zip: String(metaRaw.patient_address_zip ?? '').trim(),
     account_number: String(metaRaw.account_number ?? '').trim()
   }
 
