@@ -261,7 +261,7 @@ function DropZone({
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.jpg,.jpeg,.png"
+        accept=".pdf,.jpg,.jpeg,.png,.heic,.HEIC,.heif,image/heic,image/heif"
         style={{ display: "none" }}
         onChange={(e: ChangeEvent<HTMLInputElement>) => handleFiles(e.target.files)}
       />
@@ -302,7 +302,7 @@ function DropZone({
             {sublabel}
           </div>
           <div style={{ ...sans("12px", "#3A3530"), marginTop: "8px" }}>
-            Drop here, or click to browse — PDF, JPG, PNG
+            Drop here, or click to browse — PDF, JPG, PNG, HEIC
           </div>
           <div
             style={{
