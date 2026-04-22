@@ -10,7 +10,11 @@ export async function analyzeDisputedProcedures(
   if (trimmed.length === 0 || lineItems.length === 0) return []
 
   const client =
-    anthropic ?? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    anthropic ??
+    new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      timeout: 60_000,
+    })
 
   const summary = lineItems.map((li, idx) => ({
     index: idx,

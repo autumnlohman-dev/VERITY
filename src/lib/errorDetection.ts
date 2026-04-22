@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/client'
 import {
   batchFeeSchedule,
@@ -28,6 +29,7 @@ export type ErrorType =
   | 'coverage'
   | 'patient_disputed'
   | 'rate_unavailable'
+  | 'reference_data_missing'
 export type Confidence = 'HIGH' | 'MEDIUM' | 'LOW'
 
 export interface BillingError {
@@ -365,7 +367,34 @@ export async function runAudit(
     modifiers: (li.modifiers ?? []).map(normalizeCode)
   }))
 
+  const referenceDataEmpty =
+    feeSchedule.size === 0 && ptpEdits.length === 0 && mueMap.size === 0
+
+  const preamble: BillingError[] = []
+  if (referenceDataEmpty) {
+    const message = `runAudit: all reference tables returned empty for ${uniqueCodes.length} codes — likely missing reference data`
+    console.error(message, { uniqueCodes })
+    Sentry.captureMessage(message, {
+      level: 'error',
+      tags: { module: 'runAudit' },
+      extra: { uniqueCodes },
+    })
+    preamble.push({
+      cpt_code: '—',
+      description: 'Audit reference data unavailable',
+      error_type: 'reference_data_missing',
+      billed_amount: 0,
+      expected_amount: 0,
+      confidence: 'HIGH',
+      explanation:
+        'The CMS fee schedule, NCCI edits, and MUE limits used to price your bill were all unavailable at the time of this audit. Line-level pricing could not be verified, and this case requires manual review before any dispute is filed.',
+      rule_violated:
+        'Internal reference data integrity check — runAudit detected empty PFS/CLFS, NCCI PTP, and NCCI MUE tables.',
+    })
+  }
+
   return [
+    ...preamble,
     ...checkOvercharge(normalized, feeSchedule),
     ...checkUnbundling(normalized, ptpEdits, feeSchedule),
     ...checkDuplicates(normalized),

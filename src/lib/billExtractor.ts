@@ -244,7 +244,11 @@ export async function extractBillContent(
   anthropic?: Anthropic
 ): Promise<ExtractionResult> {
   const client =
-    anthropic ?? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    anthropic ??
+    new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      timeout: 60_000,
+    })
   const mediaType = file.type
   const isPdf = mediaType === 'application/pdf'
   const base64 = Buffer.from(await file.arrayBuffer()).toString('base64')

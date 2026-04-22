@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, CheckCircle, Camera } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/client";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
@@ -33,83 +34,115 @@ const label = (color = "#C8A97E"): React.CSSProperties => ({
   color,
 });
 
-// ─── Nav (copied from landing page) ──────────────────────────────────────────
-function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-  React.useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
+// ─── Trust Strip (dark) ───────────────────────────────────────────────────────
+function TrustStrip() {
+  const items = [
+    "Bank-level encryption in transit and at rest",
+    "Documents never sold or shared",
+    "No upfront payment for audit",
+    "Administrative advocacy service — not a law firm",
+  ];
   return (
-    <nav
+    <div
       style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 50,
-        backgroundColor: scrolled ? "rgba(13,13,13,0.92)" : "transparent",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
-        transition: "background-color 0.4s, backdrop-filter 0.4s",
-        padding: "20px 64px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        backgroundColor: "#111111",
+        borderTop: "1px solid #1C1C1C",
+        borderBottom: "1px solid #1C1C1C",
       }}
     >
-      <Link href="/" style={{ textDecoration: "none" }}>
-        <span
+      {items.map((text, i) => (
+        <div
+          key={i}
           style={{
-            ...sans("12px", "#F5F0E8"),
-            letterSpacing: "0.2em",
-            textTransform: "uppercase",
-            fontWeight: 500,
+            display: "flex",
+            gap: "10px",
+            alignItems: "flex-start",
+            padding: "18px 20px",
+            borderLeft: i > 0 ? "1px solid #1C1C1C" : "none",
           }}
         >
-          ClearClaim
-        </span>
-      </Link>
-      <div className="hidden md:flex" style={{ gap: "40px" }}>
-        {[
-          { label: "How it works", href: "/how-it-works" },
-          { label: "Pricing", href: "/pricing" },
-          { label: "FAQ", href: "#faq" },
-        ].map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
+          <span style={{ ...sans("12px", "#C8A97E"), lineHeight: 1.6, flexShrink: 0 }}>—</span>
+          <span style={{ ...sans("11px", "#A89F96"), lineHeight: 1.55, letterSpacing: "0.02em" }}>
+            {text}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── After-upload explainer ───────────────────────────────────────────────────
+function AfterUploadExplainer() {
+  const steps = [
+    "We extract line items and CPT codes from your bill.",
+    "Each charge is audited against CMS fee schedules and NCCI edits.",
+    "You get a full error report within 24 hours — free, before you pay for anything.",
+  ];
+  return (
+    <div
+      style={{
+        backgroundColor: "#111111",
+        border: "1px solid #242424",
+        borderLeft: "3px solid #C8A97E",
+        padding: "20px 24px",
+        marginTop: "24px",
+      }}
+    >
+      <div style={{ ...label("#6B635C"), marginBottom: "12px" }}>What happens after you upload</div>
+      <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
+        {steps.map((s, i) => (
+          <li
+            key={i}
             style={{
-              ...sans("11px", "#A89F96"),
-              letterSpacing: "0.15em",
-              textTransform: "uppercase",
-              textDecoration: "none",
-              transition: "color 0.2s",
+              display: "flex",
+              gap: "12px",
+              alignItems: "flex-start",
+              padding: "6px 0",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#A89F96")}
           >
-            {link.label}
-          </Link>
+            <span
+              style={{
+                ...sans("12px", "#C8A97E"),
+                lineHeight: 1.6,
+                flexShrink: 0,
+                fontStyle: "italic",
+                minWidth: "18px",
+              }}
+            >
+              {i + 1}.
+            </span>
+            <span style={{ ...sans("13px", "#A89F96"), lineHeight: 1.65 }}>{s}</span>
+          </li>
         ))}
-      </div>
-      <Link href="/upload" style={{ textDecoration: "none" }}>
-        <span
-          style={{
-            ...sans("11px", "#0D0D0D"),
-            backgroundColor: "#C8A97E",
-            padding: "12px 24px",
-            letterSpacing: "0.2em",
-            textTransform: "uppercase",
-            fontWeight: 500,
-            display: "inline-block",
-          }}
+      </ol>
+    </div>
+  );
+}
+
+// ─── Support footer (upload page) ─────────────────────────────────────────────
+function SupportFooter() {
+  return (
+    <div
+      style={{
+        borderTop: "1px solid #1C1C1C",
+        padding: "24px 0",
+        marginTop: "48px",
+        textAlign: "center",
+      }}
+    >
+      <div style={{ ...sans("12px", "#6B635C"), lineHeight: 1.7 }}>
+        Need help? Email{" "}
+        <a
+          href="mailto:support@clearclaim.co"
+          style={{ color: "#C8A97E", textDecoration: "none" }}
         >
-          Check my bill →
-        </span>
-      </Link>
-    </nav>
+          support@clearclaim.co
+        </a>{" "}
+        — responses within 1 business day.
+      </div>
+    </div>
   );
 }
 
@@ -364,7 +397,11 @@ function UploadPageInner() {
   const router = useRouter();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [tier, setTier] = useState<"audit" | "dispute" | "resolve" | null>(null);
+  const [tier, setTier] = useState<"audit" | "dispute" | "resolve" | null>(() => {
+    const param = searchParams.get("tier");
+    if (param === "audit" || param === "dispute" || param === "resolve") return param;
+    return null;
+  });
   const [billFile, setBillFile] = useState<FileState | null>(null);
   const [eobFile, setEobFile] = useState<FileState | null>(null);
   const [cardFile, setCardFile] = useState<FileState | null>(null);
@@ -372,17 +409,9 @@ function UploadPageInner() {
   const [insuranceType, setInsuranceType] = useState<string | null>(null);
   const [gfe, setGfe] = useState<string | null>(null);
   const [userNotes, setUserNotes] = useState<string>("");
-  const [submitted, setSubmitted] = useState(false);
 const [loading, setLoading] = useState(false);
 const [loadingMessage, setLoadingMessage] = useState<string>("Submit for audit →");
 const [error, setError] = useState<string | null>(null);
-
-  React.useEffect(() => {
-    const param = searchParams.get("tier");
-    if (param === "audit" || param === "dispute" || param === "resolve") {
-      setTier(param);
-    }
-  }, [searchParams]);
 
   const tierLabel =
     tier === "audit"
@@ -392,61 +421,6 @@ const [error, setError] = useState<string | null>(null);
       : tier === "resolve"
       ? "Resolve · 25%"
       : null;
-
-  if (submitted) {
-    return (
-      <div
-        style={{
-          background: "#0D0D0D",
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          paddingTop: "128px",
-          paddingBottom: "96px",
-          textAlign: "center",
-        }}
-      >
-        <div style={{ ...serif("48px", { lineHeight: 1.1 }) }}>
-          Your audit
-          <br />
-          is underway.
-        </div>
-        <div
-          style={{
-            width: "48px",
-            height: "1px",
-            backgroundColor: "#242424",
-            margin: "32px auto",
-          }}
-        />
-        <p
-          style={{
-            ...sans("15px", "#A89F96"),
-            maxWidth: "340px",
-            lineHeight: 1.7,
-          }}
-        >
-          We&apos;ll email you within 24 hours with your full error report.
-          Billing errors are more common than you think — we&apos;ll find them.
-        </p>
-        <Link
-          href="/dashboard"
-          style={{
-            ...sans("12px", "#C8A97E"),
-            textDecoration: "none",
-            letterSpacing: "0.1em",
-            marginTop: "40px",
-            display: "inline-block",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#C8A97E")}
-        >
-          View your dashboard →
-        </Link>
-      </div>
-    );
-  }
 
   return (
     <div style={{ background: "#0D0D0D", minHeight: "100vh" }}>
@@ -488,6 +462,8 @@ const [error, setError] = useState<string | null>(null);
         )}
       </div>
 
+      <TrustStrip />
+
       {/* Main content */}
       <div
         style={{
@@ -513,6 +489,8 @@ const [error, setError] = useState<string | null>(null);
               <p style={{ ...sans("14px", "#A89F96"), marginTop: "12px" }}>
                 Your bill, EOB, and insurance card. Takes three minutes.
               </p>
+
+              <AfterUploadExplainer />
 
               <div
                 style={{
@@ -1020,6 +998,9 @@ const [error, setError] = useState<string | null>(null);
             .upload(filePath, file)
           if (uploadError) {
             console.error(`Upload error (${category}):`, uploadError)
+            Sentry.captureException(uploadError, {
+              tags: { location: "upload-page", category },
+            })
           }
         })
       )
@@ -1062,9 +1043,6 @@ const [error, setError] = useState<string | null>(null);
         code: string
         reason: string
       }>
-      if (extractWarnings.length > 0) {
-        console.warn('Extraction warnings:', extractWarnings)
-      }
       if (lineItems.length === 0) {
         if (extractWarnings.length > 0) {
           setError(
@@ -1185,6 +1163,11 @@ const [error, setError] = useState<string | null>(null);
         if (!letterRes.ok) {
           const letterJson = await letterRes.json().catch(() => ({}))
           console.error('Letter generation failed:', letterJson)
+          Sentry.captureMessage("Letter generation failed at upload flow", {
+            level: "error",
+            tags: { location: "upload-page" },
+            extra: { status: letterRes.status, body: letterJson },
+          })
           letterGenerationFailed = true
         }
       }
@@ -1198,6 +1181,9 @@ const [error, setError] = useState<string | null>(null);
 
     } catch (err) {
       console.error(err)
+      Sentry.captureException(err, {
+        tags: { location: "upload-page", stage: "submit" },
+      })
       setError("Something went wrong. Please try again.")
       setLoading(false)
     }
@@ -1222,6 +1208,8 @@ const [error, setError] = useState<string | null>(null);
             </motion.div>
           )}
         </AnimatePresence>
+
+        <SupportFooter />
       </div>
     </div>
   );

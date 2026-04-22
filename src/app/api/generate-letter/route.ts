@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
@@ -6,7 +7,8 @@ import { NextResponse } from 'next/server'
 export const maxDuration = 60
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  timeout: 60_000,
 })
 
 export async function POST(request: Request) {
@@ -59,6 +61,10 @@ Format the letter professionally with proper sections and spacing.
 Always include specific CPT codes, dollar amounts, and regulatory citations.`,
       messages: [{
         role: 'user',
+        // The bracketed tokens below ([PATIENT NAME] / [ACCOUNT NUMBER] /
+        // [MEMBER ID]) are intentional: the model is instructed to preserve
+        // them verbatim in the generated letter so the patient can fill them
+        // in by hand before sending. They are NOT leaked test data.
         content: `Generate a formal medical bill dispute letter for the following case:
 
 Provider: ${caseData.provider_name}
@@ -82,9 +88,17 @@ The letter should:
       }]
     })
 
-    const letterContent = message.content[0].type === 'text' 
-      ? message.content[0].text 
-      : ''
+    const textBlock = message.content.find((b) => b.type === 'text')
+    const letterContent = textBlock && textBlock.type === 'text' ? textBlock.text : ''
+    if (!letterContent) {
+      console.error('Letter generation returned no text content', {
+        stopReason: message.stop_reason,
+      })
+      return NextResponse.json(
+        { error: 'Letter generation returned no content. Please try again.' },
+        { status: 502 }
+      )
+    }
 
     // Save the letter to the database
     const { data: letter, error: dbError } = await supabase
@@ -101,11 +115,21 @@ The letter should:
       return NextResponse.json({ error: 'Failed to save letter' }, { status: 500 })
     }
 
-    // Update case status to letter_ready
-    await supabase
+    // Update case status to letter_ready. If this fails the letter is still
+    // saved and returned — but the case status will be stale, so report to
+    // Sentry so we can reconcile.
+    const { error: statusErr } = await supabase
       .from('cases')
       .update({ status: 'letter_ready' })
       .eq('id', caseId)
+      .eq('user_id', user.id)
+    if (statusErr) {
+      console.error('Case status update failed:', statusErr)
+      Sentry.captureException(statusErr, {
+        tags: { route: 'generate-letter', stage: 'status-update' },
+        extra: { caseId, letterId: letter.id },
+      })
+    }
 
     return NextResponse.json({ 
       success: true, 

@@ -9,28 +9,28 @@ import { Menu, X, Plus } from "lucide-react";
 // ─── FAQs ─────────────────────────────────────────────────────────────────────
 const FAQS = [
   {
-    q: "What types of billing errors do you find?",
-    a: "The most common: upcoding (charging for a more expensive procedure than performed), duplicate billing, balance billing violations, charges above contracted rates, and unbundling (splitting one procedure into multiple charges). Most patients have at least two.",
+    q: "Can you help if I already paid the bill?",
+    a: "Often, yes. Providers and insurers are required to correct billing errors even after payment, and most states give you at least a year to request a refund on an overbilled claim (federal timely filing windows vary by payer). Upload the bill and your payment record — we'll tell you whether the timing still works for a refund request.",
   },
   {
-    q: "How long does it take?",
-    a: "Audit reports are ready within 24 hours of upload. Dispute letters are generated instantly. If you're on the Resolve tier, most disputes close in 14–21 days. Complex cases or second-level appeals may take 45–60 days.",
+    q: "What if I only have a hospital statement?",
+    a: "A hospital statement usually only shows totals — we need the itemized bill to audit specific charges against CPT codes and contracted rates. Under CMS hospital transparency rules you're entitled to request the itemized version from the provider. Upload what you have; we'll generate the exact language to request the itemized bill on your behalf.",
   },
   {
-    q: "What do I need to upload?",
-    a: "Your itemized medical bill (not the summary — request the itemized version from your provider if you don't have it), your Explanation of Benefits from your insurer, and your insurance card. The EOB is optional but makes the audit more precise.",
+    q: "Can you review out of network emergency bills?",
+    a: "Yes — these are often the strongest cases. Emergency services are protected by the No Surprises Act, which requires in-network cost sharing regardless of provider network status. If you were balance-billed above in-network rates for an ER visit, the audit will flag it and the dispute letter will cite the applicable federal protection.",
   },
   {
-    q: "What happens if my insurer denies the dispute?",
-    a: "On the Dispute tier, you can upgrade to Resolve and we take over. On the Resolve tier, we escalate to a second-level appeal, then external review if needed. We track every deadline and handle every follow-up.",
+    q: "Do you need my insurance portal login?",
+    a: "No. We never ask for portal or account credentials. Everything we need comes from documents you already have: the itemized bill, your Explanation of Benefits PDF from your insurer, and your insurance card. Uploads are encrypted in transit and at rest.",
   },
   {
-    q: "Is my medical data safe?",
-    a: "All documents are encrypted at rest and in transit using AES-256. We operate under HIPAA-compliant data handling protocols. We never sell or share your information with any third party.",
+    q: "What happens if you find nothing wrong?",
+    a: "On the free Audit, you pay nothing either way. We'll tell you the bill checks out and explain what we reviewed (fee-schedule comparisons, NCCI edits, MUE limits, No Surprises Act coverage). On Resolve, our fee is contingent on recovery — if we don't recover savings, you don't owe anything.",
   },
   {
-    q: "Do you work with all insurance types?",
-    a: "We handle PPO, HMO, EPO, and Medicare Advantage plans. We also review self-pay bills over $500. Medicare and Medicaid disputes follow different pathways — we'll flag this during your audit.",
+    q: "What states do you support?",
+    a: "All 50 states for the audit and the self-serve dispute letter — federal protections like the No Surprises Act apply nationwide. On Resolve (full-service filing), state-specific dispute timelines and external review processes vary; we'll flag any state-specific step during your case and handle the filing under the correct framework.",
   },
 ];
 
@@ -132,7 +132,7 @@ function Nav() {
                 padding: "12px 24px",
               }}
             >
-              Check my bill →
+              Upload my bill free →
             </span>
           </Link>
         </div>
@@ -191,7 +191,7 @@ function Nav() {
                   padding: "12px 24px",
                 }}
               >
-                Check my bill →
+                Upload my bill free →
               </span>
             </Link>
           </div>
@@ -261,7 +261,7 @@ function Nav() {
                   padding: "18px",
                 }}
               >
-                Check my bill →
+                Upload my bill free →
               </div>
             </Link>
           </motion.div>
@@ -375,8 +375,9 @@ function Hero() {
                 fontWeight: 300,
               }}
             >
-              Start free. See every error on your bill. Then decide if you want
-              us to fight it.
+              Upload your itemized bill. We audit every charge, flag likely
+              billing errors, and show you exactly what you may be owed — before
+              you pay us anything.
             </p>
           </div>
 
@@ -393,7 +394,7 @@ function Hero() {
                   padding: "18px 32px",
                 }}
               >
-                Check my bill — free
+                Upload my bill free
               </span>
             </Link>
             <Link href="/how-it-works" className="no-underline">
@@ -427,19 +428,19 @@ function Hero() {
             style={{ objectFit: "cover", objectPosition: "center" }}
           />
 
-          {/* dark stats bar anchored to bottom */}
+          {/* dark claims bar anchored to bottom */}
           <div
             className="absolute bottom-0 left-0 right-0 grid grid-cols-3"
             style={{ backgroundColor: "var(--bg-dark)" }}
           >
             {[
-              { value: "$4.2M", label: "Recovered for clients" },
-              { value: "73%", label: "Avg. bill reduction" },
-              { value: "34d", label: "Avg. resolution" },
-            ].map((s, i) => (
+              "Billing errors found in the majority of bills we review",
+              "Average dispute resolved in weeks, not months",
+              "80% of medical bills contain at least one error",
+            ].map((text, i) => (
               <div
-                key={s.label}
-                className="flex flex-col items-start justify-center px-4 py-5 md:px-6 md:py-7"
+                key={i}
+                className="flex items-center px-4 py-5 md:px-6 md:py-7"
                 style={{
                   borderLeft: i === 0 ? "none" : "1px solid var(--border-dark)",
                 }}
@@ -447,31 +448,445 @@ function Hero() {
                 <div
                   className="font-[family-name:var(--font-cormorant)]"
                   style={{
-                    fontSize: "clamp(28px, 3vw, 40px)",
+                    fontSize: "clamp(14px, 1.2vw, 18px)",
+                    fontStyle: "italic",
                     fontWeight: 300,
                     color: "var(--amber)",
-                    lineHeight: 1,
-                    letterSpacing: "-0.01em",
+                    lineHeight: 1.4,
+                    letterSpacing: "-0.005em",
                   }}
                 >
-                  {s.value}
-                </div>
-                <div
-                  className="font-[family-name:var(--font-dm-sans)] uppercase mt-2"
-                  style={{
-                    fontSize: "9px",
-                    letterSpacing: "0.25em",
-                    color: "var(--text-faint)",
-                    fontWeight: 400,
-                  }}
-                >
-                  {s.label}
+                  {text}
                 </div>
               </div>
             ))}
           </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+// ─── Trust Bar ────────────────────────────────────────────────────────────────
+function TrustBar() {
+  const items = [
+    "Bank-level encryption in transit and at rest",
+    "Documents never sold or shared",
+    "No upfront payment for audit",
+    "Administrative advocacy service — not a law firm",
+  ];
+
+  return (
+    <motion.section
+      {...fadeUp}
+      className="grid grid-cols-1 md:grid-cols-4"
+      style={{
+        backgroundColor: "var(--bg-dark)",
+        borderTop: "1px solid var(--border-dark)",
+      }}
+    >
+      {items.map((text, i) => (
+        <div
+          key={i}
+          className={[
+            "flex gap-3 items-start px-6 md:px-7 py-6",
+            i > 0 ? "border-t md:border-t-0 md:border-l" : "",
+          ].filter(Boolean).join(" ")}
+          style={{ borderColor: "var(--border-dark)" }}
+        >
+          <span
+            className="font-[family-name:var(--font-dm-sans)]"
+            style={{
+              color: "var(--amber)",
+              fontSize: "13px",
+              fontWeight: 400,
+              lineHeight: 1.6,
+              flexShrink: 0,
+            }}
+          >
+            —
+          </span>
+          <span
+            className="font-[family-name:var(--font-dm-sans)]"
+            style={{
+              fontSize: "12px",
+              color: "var(--bg)",
+              fontWeight: 300,
+              lineHeight: 1.55,
+              letterSpacing: "0.02em",
+            }}
+          >
+            {text}
+          </span>
+        </div>
+      ))}
+    </motion.section>
+  );
+}
+
+// ─── Mock Audit Card ──────────────────────────────────────────────────────────
+function MockAuditCard() {
+  const findings = [
+    {
+      title: "Duplicate charge detected — CPT 99213 billed twice",
+      confidence: "HIGH",
+      savings: "$180",
+    },
+    {
+      title: "CPT code likely upcoded — 99285 vs expected 99283",
+      confidence: "MEDIUM",
+      savings: "$340",
+    },
+    {
+      title: "Balance bill may violate No Surprises Act",
+      confidence: "HIGH",
+      savings: "$1,200",
+    },
+  ];
+
+  const confidenceStyle = (c: string) => {
+    if (c === "HIGH") {
+      return {
+        color: "#C47C6A",
+        border: "1px solid rgba(196,124,106,0.4)",
+        backgroundColor: "rgba(196,124,106,0.08)",
+      };
+    }
+    return {
+      color: "var(--amber)",
+      border: "1px solid rgba(200,169,126,0.4)",
+      backgroundColor: "rgba(200,169,126,0.08)",
+    };
+  };
+
+  return (
+    <section
+      className="px-6 md:px-12 lg:px-16 py-20 lg:py-28"
+      style={{
+        backgroundColor: "var(--bg)",
+        borderTop: "1px solid var(--border)",
+      }}
+    >
+      <motion.div {...fadeUp} className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-10 lg:gap-20 items-start">
+        <div>
+          <div
+            className="font-[family-name:var(--font-dm-sans)] uppercase mb-6"
+            style={{
+              fontSize: "10px",
+              letterSpacing: "0.3em",
+              color: "var(--text-muted)",
+              fontWeight: 400,
+            }}
+          >
+            — Sample audit
+          </div>
+          <h2
+            className="font-[family-name:var(--font-cormorant)]"
+            style={{
+              fontSize: "clamp(36px, 4.5vw, 56px)",
+              fontWeight: 300,
+              lineHeight: 1.05,
+              letterSpacing: "-0.02em",
+              color: "var(--text-primary)",
+              maxWidth: "420px",
+            }}
+          >
+            Here&apos;s what{" "}
+            <em
+              style={{
+                fontStyle: "italic",
+                color: "var(--amber)",
+                fontWeight: 300,
+              }}
+            >
+              your audit
+            </em>{" "}
+            looks like.
+          </h2>
+          <p
+            className="font-[family-name:var(--font-dm-sans)] mt-6"
+            style={{
+              fontSize: "13px",
+              lineHeight: 1.7,
+              color: "var(--text-muted)",
+              fontWeight: 300,
+              maxWidth: "360px",
+            }}
+          >
+            Every finding comes with a confidence score, regulatory citation,
+            and dollar impact — so you know exactly what you&apos;re disputing
+            and why.
+          </p>
+        </div>
+
+        <div
+          style={{
+            backgroundColor: "var(--bg-dark)",
+            border: "1px solid var(--border-dark)",
+          }}
+        >
+          <div
+            className="flex items-center justify-between px-6 md:px-8 py-5"
+            style={{ borderBottom: "1px solid var(--border-dark)" }}
+          >
+            <div
+              className="font-[family-name:var(--font-dm-sans)] uppercase"
+              style={{
+                fontSize: "10px",
+                letterSpacing: "0.25em",
+                color: "var(--text-faint)",
+                fontWeight: 400,
+              }}
+            >
+              Audit findings
+            </div>
+            <div
+              className="font-[family-name:var(--font-dm-sans)] uppercase"
+              style={{
+                fontSize: "9px",
+                letterSpacing: "0.2em",
+                color: "var(--amber)",
+                fontWeight: 400,
+                fontStyle: "italic",
+              }}
+            >
+              Illustrative example
+            </div>
+          </div>
+
+          {findings.map((f, i) => (
+            <div
+              key={i}
+              className="px-6 md:px-8 py-6"
+              style={{
+                borderTop: i === 0 ? "none" : "1px solid var(--border-dark)",
+              }}
+            >
+              <div className="flex items-start justify-between gap-4 md:gap-6 flex-wrap">
+                <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+                  <div
+                    className="font-[family-name:var(--font-cormorant)]"
+                    style={{
+                      fontSize: "18px",
+                      fontWeight: 300,
+                      lineHeight: 1.3,
+                      color: "var(--bg)",
+                    }}
+                  >
+                    {f.title}
+                  </div>
+                  <div className="mt-3">
+                    <span
+                      className="font-[family-name:var(--font-dm-sans)] uppercase"
+                      style={{
+                        fontSize: "9px",
+                        letterSpacing: "0.2em",
+                        fontWeight: 400,
+                        padding: "2px 8px",
+                        ...confidenceStyle(f.confidence),
+                      }}
+                    >
+                      {f.confidence} confidence
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div
+                    className="font-[family-name:var(--font-cormorant)]"
+                    style={{
+                      fontSize: "28px",
+                      fontWeight: 300,
+                      fontStyle: "italic",
+                      color: "#7A9E87",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {f.savings}
+                  </div>
+                  <div
+                    className="font-[family-name:var(--font-dm-sans)] uppercase mt-2"
+                    style={{
+                      fontSize: "9px",
+                      letterSpacing: "0.2em",
+                      color: "var(--text-faint)",
+                      fontWeight: 400,
+                    }}
+                  >
+                    Potential savings
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <div
+            className="px-6 md:px-8 py-4"
+            style={{
+              borderTop: "1px solid var(--border-dark)",
+              backgroundColor: "rgba(0,0,0,0.15)",
+            }}
+          >
+            <div
+              className="font-[family-name:var(--font-dm-sans)]"
+              style={{
+                fontSize: "11px",
+                color: "var(--text-faint)",
+                fontWeight: 300,
+                lineHeight: 1.6,
+                fontStyle: "italic",
+                opacity: 0.85,
+              }}
+            >
+              Illustrative examples based on common billing dispute outcomes.
+              Your audit will reflect your specific bill.
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </section>
+  );
+}
+
+// ─── Upload Checklist ─────────────────────────────────────────────────────────
+function UploadChecklist() {
+  const items = [
+    { label: "Itemized medical bill", tag: "Required" },
+    { label: "Explanation of Benefits from insurer", tag: "Recommended" },
+    { label: "Insurance card", tag: "Recommended" },
+    { label: "Hospital statement", tag: "Optional" },
+  ];
+
+  const tagColor = (tag: string) => {
+    if (tag === "Required") return "#C47C6A";
+    if (tag === "Recommended") return "var(--amber)";
+    return "var(--text-muted)";
+  };
+
+  return (
+    <section
+      className="px-6 md:px-12 lg:px-16 py-20 lg:py-28"
+      style={{
+        backgroundColor: "var(--bg-mid)",
+        borderTop: "1px solid var(--border)",
+      }}
+    >
+      <motion.div
+        {...fadeUp}
+        className="grid grid-cols-1 lg:grid-cols-[1fr_1.2fr] gap-10 lg:gap-20"
+      >
+        <div>
+          <div
+            className="font-[family-name:var(--font-dm-sans)] uppercase mb-6"
+            style={{
+              fontSize: "10px",
+              letterSpacing: "0.3em",
+              color: "var(--text-muted)",
+              fontWeight: 400,
+            }}
+          >
+            — Before you upload
+          </div>
+          <h2
+            className="font-[family-name:var(--font-cormorant)]"
+            style={{
+              fontSize: "clamp(36px, 4.5vw, 56px)",
+              fontWeight: 300,
+              lineHeight: 1.05,
+              letterSpacing: "-0.02em",
+              color: "var(--text-primary)",
+              maxWidth: "460px",
+            }}
+          >
+            What to{" "}
+            <em
+              style={{
+                fontStyle: "italic",
+                color: "var(--amber)",
+                fontWeight: 300,
+              }}
+            >
+              have ready.
+            </em>
+          </h2>
+          <p
+            className="font-[family-name:var(--font-dm-sans)] mt-6"
+            style={{
+              fontSize: "14px",
+              lineHeight: 1.75,
+              color: "var(--text-muted)",
+              fontWeight: 300,
+              maxWidth: "420px",
+            }}
+          >
+            The itemized bill is the minimum — everything else sharpens the
+            audit. Missing something? Upload what you have. We&apos;ll tell you
+            what&apos;s worth requesting from the provider.
+          </p>
+        </div>
+
+        <div>
+          {items.map((item, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between gap-6 py-5"
+              style={{
+                borderTop: "1px solid var(--border)",
+                borderBottom:
+                  i === items.length - 1 ? "1px solid var(--border)" : "none",
+              }}
+            >
+              <span
+                className="font-[family-name:var(--font-cormorant)]"
+                style={{
+                  fontSize: "20px",
+                  fontWeight: 300,
+                  color: "var(--text-primary)",
+                  lineHeight: 1.3,
+                }}
+              >
+                {item.label}
+              </span>
+              <span
+                className="font-[family-name:var(--font-dm-sans)] uppercase flex-shrink-0"
+                style={{
+                  fontSize: "10px",
+                  letterSpacing: "0.2em",
+                  color: tagColor(item.tag),
+                  fontWeight: 400,
+                }}
+              >
+                {item.tag}
+              </span>
+            </div>
+          ))}
+
+          <div
+            className="flex flex-wrap gap-x-6 gap-y-2 mt-8"
+            style={{
+              paddingTop: "8px",
+            }}
+          >
+            {[
+              "PDF, JPG, PNG, HEIC",
+              "Max 20 MB",
+              "Photos accepted",
+            ].map((text, i) => (
+              <span
+                key={i}
+                className="font-[family-name:var(--font-dm-sans)] uppercase"
+                style={{
+                  fontSize: "10px",
+                  letterSpacing: "0.2em",
+                  color: "var(--text-muted)",
+                  fontWeight: 400,
+                }}
+              >
+                {text}
+              </span>
+            ))}
+          </div>
+        </div>
+      </motion.div>
     </section>
   );
 }
@@ -662,22 +1077,28 @@ function ProblemSection() {
 function HowItWorks() {
   const steps = [
     {
-      num: "01",
-      title: "Upload your bill",
-      body: "Drop your itemized medical bill, EOB, and insurance card. Takes three minutes.",
-      time: "3 min",
+      num: "0–3 min",
+      title: "Upload",
+      body: "Upload your documents securely. Itemized bill, EOB, and insurance card if you have them.",
+      time: "Minutes 0–3",
     },
     {
-      num: "02",
-      title: "We find every error",
-      body: "Our system cross-references every CPT code and charge against your insurer's contracted rates. Every error gets flagged with evidence.",
-      time: "24 hours",
+      num: "24 hrs",
+      title: "Audit delivered",
+      body: "Receive your full audit with flagged errors, confidence scores, regulatory citations, and dollar estimates.",
+      time: "Within 24 hours",
     },
     {
-      num: "03",
-      title: "You choose what happens next",
-      body: "See the audit free. Get a prefilled dispute letter. Or let us file and close the dispute entirely.",
-      time: "Your call",
+      num: "Your call",
+      title: "Choose your path",
+      body: "Choose self-serve dispute letter or full-service resolution. See what each tier includes before deciding.",
+      time: "After audit",
+    },
+    {
+      num: "14–45d",
+      title: "Resolution",
+      body: "On full service: we file, follow up, and escalate through second-level appeals and external review until resolved.",
+      time: "If full service",
     },
   ];
 
@@ -731,135 +1152,106 @@ function HowItWorks() {
             </em>
           </h2>
         </div>
-        <div
-          className="lg:pl-12 flex items-end"
-          style={{ borderLeft: "none" }}
-        >
+        <div className="lg:pl-12 flex items-end">
           <div
-            className="lg:pl-10"
-            style={{ borderLeft: "none" }}
+            className="w-full pt-6 lg:pt-0 lg:pl-10 border-t lg:border-t-0 lg:border-l"
+            style={{ borderColor: "var(--border)" }}
           >
-            <div
-              className="hidden lg:block"
+            <p
+              className="font-[family-name:var(--font-dm-sans)]"
               style={{
-                borderLeft: "1px solid var(--border)",
-                paddingLeft: "40px",
+                fontSize: "15px",
+                lineHeight: 1.8,
+                color: "var(--text-muted)",
+                fontWeight: 300,
               }}
             >
-              <p
-                className="font-[family-name:var(--font-dm-sans)]"
-                style={{
-                  fontSize: "15px",
-                  lineHeight: 1.8,
-                  color: "var(--text-muted)",
-                  fontWeight: 300,
-                }}
-              >
-                Most advocacy services are a black box. We show you the
-                evidence first — you decide how far to take it. Every error we
-                flag comes with a citation, a confidence score, and the
-                dollar amount at stake.
-              </p>
-            </div>
-            <div
-              className="lg:hidden"
-              style={{
-                borderTop: "1px solid var(--border)",
-                paddingTop: "24px",
-              }}
-            >
-              <p
-                className="font-[family-name:var(--font-dm-sans)]"
-                style={{
-                  fontSize: "15px",
-                  lineHeight: 1.8,
-                  color: "var(--text-muted)",
-                  fontWeight: 300,
-                }}
-              >
-                Most advocacy services are a black box. We show you the
-                evidence first — you decide how far to take it. Every error we
-                flag comes with a citation, a confidence score, and the
-                dollar amount at stake.
-              </p>
-            </div>
+              Most advocacy services are a black box. We show you the evidence
+              first — you decide how far to take it. Every error we flag comes
+              with a citation, a confidence score, and the dollar amount at
+              stake.
+            </p>
           </div>
         </div>
       </motion.div>
 
-      {/* 3-col steps */}
+      {/* 4-step timeline */}
       <div
-        className="grid grid-cols-1 md:grid-cols-3"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
         style={{ borderTop: "1px solid var(--border)" }}
       >
-        {steps.map((step, i) => (
-          <motion.div
-            key={step.num}
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{
-              duration: 0.7,
-              ease: [0.25, 0.1, 0.25, 1],
-              delay: i * 0.1,
-            }}
-            className="relative px-6 md:px-8 py-12"
-            style={{
-              borderLeft: i === 0 ? "none" : "1px solid var(--border)",
-              borderTop: "none",
-            }}
-          >
-            <div
-              className="font-[family-name:var(--font-cormorant)] mb-8"
-              style={{
-                fontSize: "clamp(88px, 10vw, 140px)",
-                fontWeight: 300,
-                lineHeight: 1,
-                color: "#E5DDD5",
-                letterSpacing: "-0.02em",
+        {steps.map((step, i) => {
+          let borderClass = "";
+          if (i === 1) borderClass = "border-t md:border-t-0 md:border-l";
+          else if (i === 2) borderClass = "border-t lg:border-t-0 lg:border-l";
+          else if (i === 3) borderClass = "border-t md:border-l lg:border-t-0";
+          return (
+            <motion.div
+              key={step.num}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-80px" }}
+              transition={{
+                duration: 0.7,
+                ease: [0.25, 0.1, 0.25, 1],
+                delay: i * 0.1,
               }}
+              className={`relative px-6 md:px-8 py-12 ${borderClass}`}
+              style={{ borderColor: "var(--border)" }}
             >
-              {step.num}
-            </div>
-            <div
-              className="font-[family-name:var(--font-dm-sans)] uppercase mb-4"
-              style={{
-                fontSize: "12px",
-                letterSpacing: "0.25em",
-                color: "var(--text-primary)",
-                fontWeight: 500,
-              }}
-            >
-              {step.title}
-            </div>
-            <p
-              className="font-[family-name:var(--font-dm-sans)] mb-8"
-              style={{
-                fontSize: "14px",
-                lineHeight: 1.75,
-                color: "var(--text-muted)",
-                fontWeight: 300,
-                maxWidth: "320px",
-              }}
-            >
-              {step.body}
-            </p>
-            <div
-              className="inline-block font-[family-name:var(--font-dm-sans)] uppercase"
-              style={{
-                fontSize: "10px",
-                letterSpacing: "0.25em",
-                color: "var(--amber)",
-                fontWeight: 400,
-                fontStyle: "italic",
-                borderTop: "1px solid var(--amber)",
-                paddingTop: "8px",
-              }}
-            >
-              {step.time}
-            </div>
-          </motion.div>
-        ))}
+              <div
+                className="font-[family-name:var(--font-cormorant)] mb-8"
+                style={{
+                  fontSize: "clamp(48px, 5.5vw, 72px)",
+                  fontWeight: 300,
+                  lineHeight: 1,
+                  fontStyle: "italic",
+                  color: "var(--amber)",
+                  letterSpacing: "-0.01em",
+                }}
+              >
+                {step.num}
+              </div>
+              <div
+                className="font-[family-name:var(--font-dm-sans)] uppercase mb-4"
+                style={{
+                  fontSize: "12px",
+                  letterSpacing: "0.25em",
+                  color: "var(--text-primary)",
+                  fontWeight: 500,
+                }}
+              >
+                {step.title}
+              </div>
+              <p
+                className="font-[family-name:var(--font-dm-sans)] mb-8"
+                style={{
+                  fontSize: "14px",
+                  lineHeight: 1.75,
+                  color: "var(--text-muted)",
+                  fontWeight: 300,
+                  maxWidth: "320px",
+                }}
+              >
+                {step.body}
+              </p>
+              <div
+                className="inline-block font-[family-name:var(--font-dm-sans)] uppercase"
+                style={{
+                  fontSize: "10px",
+                  letterSpacing: "0.25em",
+                  color: "var(--text-muted)",
+                  fontWeight: 400,
+                  fontStyle: "italic",
+                  borderTop: "1px solid var(--border)",
+                  paddingTop: "8px",
+                }}
+              >
+                {step.time}
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
     </section>
   );
@@ -872,7 +1264,7 @@ function PricingPreview() {
       name: "Audit",
       price: "Free",
       priceSuffix: "always",
-      tag: "see exactly what they got wrong",
+      tag: "Complete review of your bill with flagged errors, regulatory citations, and estimated dollar impact",
       features: [
         "Upload your bill",
         "AI scans every charge",
@@ -887,7 +1279,7 @@ function PricingPreview() {
       name: "Dispute",
       price: "$39",
       priceSuffix: "per letter, or $19/mo",
-      tag: "your weapon. ready to send",
+      tag: "Prefilled dispute letter tailored to your bill, ready to send by certified mail",
       features: [
         "Everything in Audit, plus:",
         "Insurer-specific dispute letter",
@@ -903,7 +1295,7 @@ function PricingPreview() {
       name: "Resolve",
       price: "25%",
       priceSuffix: "of savings recovered",
-      tag: "we handle everything. you cash the difference",
+      tag: "We manage the full dispute for you — filing, follow-up, and appeals. You pay only if we recover savings",
       features: [
         "Everything in Dispute, plus:",
         "We file the dispute on your behalf",
@@ -1114,12 +1506,429 @@ function PricingPreview() {
   );
 }
 
+// ─── Who This Is For ──────────────────────────────────────────────────────────
+function WhoThisIsFor() {
+  const scenarios = [
+    "Surprise ER bills",
+    "Anesthesia and radiology overcharges",
+    "Out of network balance bills",
+    "Denied or underpaid insurance claims",
+    "Duplicate or inflated hospital charges",
+  ];
+
+  return (
+    <section
+      className="px-6 md:px-12 lg:px-16 py-24 lg:py-32"
+      style={{
+        backgroundColor: "var(--bg)",
+        borderTop: "1px solid var(--border)",
+      }}
+    >
+      <motion.div
+        {...fadeUp}
+        className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-10 lg:gap-20"
+      >
+        <div>
+          <div
+            className="font-[family-name:var(--font-dm-sans)] uppercase mb-8"
+            style={{
+              fontSize: "10px",
+              letterSpacing: "0.3em",
+              color: "var(--text-muted)",
+              fontWeight: 400,
+            }}
+          >
+            — Who this is for
+          </div>
+          <h2
+            className="font-[family-name:var(--font-cormorant)]"
+            style={{
+              fontSize: "clamp(40px, 5vw, 64px)",
+              fontWeight: 300,
+              lineHeight: 1.02,
+              letterSpacing: "-0.02em",
+              color: "var(--text-primary)",
+            }}
+          >
+            Built for the{" "}
+            <em
+              style={{
+                fontStyle: "italic",
+                color: "var(--amber)",
+                fontWeight: 300,
+              }}
+            >
+              bills you didn&apos;t see coming.
+            </em>
+          </h2>
+        </div>
+        <div className="flex flex-col">
+          {scenarios.map((s, i) => (
+            <div
+              key={s}
+              className="flex gap-5 items-center py-6"
+              style={{
+                borderTop: "1px solid var(--border)",
+                borderBottom:
+                  i === scenarios.length - 1 ? "1px solid var(--border)" : "none",
+              }}
+            >
+              <span
+                className="font-[family-name:var(--font-cormorant)]"
+                style={{
+                  fontSize: "clamp(20px, 2vw, 26px)",
+                  fontWeight: 300,
+                  color: "var(--amber)",
+                  fontStyle: "italic",
+                  lineHeight: 1,
+                  minWidth: "48px",
+                }}
+              >
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <span
+                className="font-[family-name:var(--font-cormorant)]"
+                style={{
+                  fontSize: "clamp(22px, 2.2vw, 28px)",
+                  fontWeight: 300,
+                  color: "var(--text-primary)",
+                  lineHeight: 1.3,
+                }}
+              >
+                {s}
+              </span>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+    </section>
+  );
+}
+
+// ─── Comparison Table ─────────────────────────────────────────────────────────
+function ComparisonTable() {
+  const rows: Array<{ label: string; diy: boolean; fs: boolean }> = [
+    { label: "Upload documents", diy: true, fs: true },
+    { label: "Error detection", diy: true, fs: true },
+    { label: "Dispute letter generated", diy: true, fs: true },
+    { label: "Filing instructions included", diy: true, fs: true },
+    { label: "We file on your behalf", diy: false, fs: true },
+    { label: "Appeals handled", diy: false, fs: true },
+    { label: "External review escalation", diy: false, fs: true },
+  ];
+
+  const Check = ({ on }: { on: boolean }) =>
+    on ? (
+      <span
+        className="font-[family-name:var(--font-cormorant)]"
+        style={{
+          fontSize: "22px",
+          color: "var(--amber)",
+          lineHeight: 1,
+          fontStyle: "italic",
+        }}
+      >
+        ✓
+      </span>
+    ) : (
+      <span
+        style={{
+          color: "var(--border)",
+          fontSize: "18px",
+          lineHeight: 1,
+        }}
+      >
+        —
+      </span>
+    );
+
+  return (
+    <section
+      className="px-6 md:px-12 lg:px-16 py-24 lg:py-32"
+      style={{
+        backgroundColor: "var(--bg-mid)",
+        borderTop: "1px solid var(--border)",
+      }}
+    >
+      <motion.div {...fadeUp} className="mb-12 lg:mb-16 max-w-2xl">
+        <div
+          className="font-[family-name:var(--font-dm-sans)] uppercase mb-6"
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.3em",
+            color: "var(--text-muted)",
+            fontWeight: 400,
+          }}
+        >
+          — What&apos;s included
+        </div>
+        <h2
+          className="font-[family-name:var(--font-cormorant)]"
+          style={{
+            fontSize: "clamp(36px, 4.5vw, 56px)",
+            fontWeight: 300,
+            lineHeight: 1.05,
+            letterSpacing: "-0.02em",
+            color: "var(--text-primary)",
+          }}
+        >
+          DIY or{" "}
+          <em
+            style={{
+              fontStyle: "italic",
+              color: "var(--amber)",
+              fontWeight: 300,
+            }}
+          >
+            full service.
+          </em>
+        </h2>
+      </motion.div>
+
+      <motion.div {...fadeUp}>
+        {/* Header */}
+        <div
+          className="grid grid-cols-[1fr_110px_110px] md:grid-cols-[1fr_160px_160px] items-end"
+          style={{
+            borderBottom: "1px solid var(--border)",
+            paddingBottom: "16px",
+          }}
+        >
+          <div
+            className="font-[family-name:var(--font-dm-sans)] uppercase"
+            style={{
+              fontSize: "10px",
+              letterSpacing: "0.25em",
+              color: "var(--text-muted)",
+              fontWeight: 400,
+            }}
+          >
+            Capability
+          </div>
+          <div className="text-center">
+            <div
+              className="font-[family-name:var(--font-dm-sans)] uppercase"
+              style={{
+                fontSize: "11px",
+                letterSpacing: "0.25em",
+                color: "var(--text-primary)",
+                fontWeight: 500,
+              }}
+            >
+              DIY
+            </div>
+            <div
+              className="font-[family-name:var(--font-dm-sans)]"
+              style={{
+                fontSize: "11px",
+                color: "var(--text-muted)",
+                fontWeight: 300,
+                marginTop: "4px",
+              }}
+            >
+              Dispute · $39
+            </div>
+          </div>
+          <div className="text-center">
+            <div
+              className="font-[family-name:var(--font-dm-sans)] uppercase"
+              style={{
+                fontSize: "11px",
+                letterSpacing: "0.25em",
+                color: "var(--amber)",
+                fontWeight: 500,
+              }}
+            >
+              Full Service
+            </div>
+            <div
+              className="font-[family-name:var(--font-dm-sans)]"
+              style={{
+                fontSize: "11px",
+                color: "var(--text-muted)",
+                fontWeight: 300,
+                marginTop: "4px",
+              }}
+            >
+              Resolve · 25% of savings
+            </div>
+          </div>
+        </div>
+
+        {/* Rows */}
+        {rows.map((row, i) => (
+          <div
+            key={row.label}
+            className="grid grid-cols-[1fr_110px_110px] md:grid-cols-[1fr_160px_160px] items-center"
+            style={{
+              borderBottom:
+                i === rows.length - 1
+                  ? "1px solid var(--border)"
+                  : "1px solid var(--border)",
+              padding: "18px 0",
+            }}
+          >
+            <div
+              className="font-[family-name:var(--font-dm-sans)]"
+              style={{
+                fontSize: "14px",
+                color: "var(--text-primary)",
+                fontWeight: 300,
+              }}
+            >
+              {row.label}
+            </div>
+            <div className="text-center">
+              <Check on={row.diy} />
+            </div>
+            <div className="text-center">
+              <Check on={row.fs} />
+            </div>
+          </div>
+        ))}
+      </motion.div>
+    </section>
+  );
+}
+
+// ─── Testimonials ─────────────────────────────────────────────────────────────
+function Testimonials() {
+  const items = [
+    "ER bill reduced by over 70% after dispute. Found two procedures billed that were never performed. Resolved in under 30 days.",
+    "Insurance denied my claim. ClearClaim found a No Surprises Act violation. Recovered thousands in under a month.",
+    "Itemized bill had the same lab code billed four times. Got a meaningful refund back. Took minutes to get started.",
+  ];
+
+  return (
+    <section
+      className="px-6 md:px-12 lg:px-16 py-24 lg:py-32"
+      style={{
+        backgroundColor: "var(--bg)",
+        borderTop: "1px solid var(--border)",
+      }}
+    >
+      <motion.div {...fadeUp} className="mb-12 lg:mb-16 max-w-2xl">
+        <div
+          className="font-[family-name:var(--font-dm-sans)] uppercase mb-6"
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.3em",
+            color: "var(--text-muted)",
+            fontWeight: 400,
+          }}
+        >
+          — Sample outcomes
+        </div>
+        <h2
+          className="font-[family-name:var(--font-cormorant)]"
+          style={{
+            fontSize: "clamp(36px, 4.5vw, 56px)",
+            fontWeight: 300,
+            lineHeight: 1.05,
+            letterSpacing: "-0.02em",
+            color: "var(--text-primary)",
+          }}
+        >
+          What a typical{" "}
+          <em
+            style={{
+              fontStyle: "italic",
+              color: "var(--amber)",
+              fontWeight: 300,
+            }}
+          >
+            dispute looks like.
+          </em>
+        </h2>
+      </motion.div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
+        {items.map((text, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{
+              duration: 0.7,
+              ease: [0.25, 0.1, 0.25, 1],
+              delay: i * 0.1,
+            }}
+            className="p-8 lg:p-10 flex flex-col"
+            style={{
+              border: "1px solid var(--border)",
+              marginLeft: i > 0 ? "-1px" : 0,
+              marginTop: 0,
+              backgroundColor: "var(--bg)",
+            }}
+          >
+            <div
+              className="font-[family-name:var(--font-cormorant)] mb-6"
+              style={{
+                fontSize: "36px",
+                color: "var(--amber)",
+                fontWeight: 300,
+                lineHeight: 1,
+                fontStyle: "italic",
+              }}
+            >
+              &ldquo;
+            </div>
+            <p
+              className="font-[family-name:var(--font-cormorant)] flex-1"
+              style={{
+                fontSize: "clamp(18px, 1.8vw, 22px)",
+                fontWeight: 300,
+                color: "var(--text-primary)",
+                lineHeight: 1.5,
+                letterSpacing: "-0.005em",
+              }}
+            >
+              {text}
+            </p>
+            <div
+              className="font-[family-name:var(--font-dm-sans)] uppercase mt-8"
+              style={{
+                fontSize: "10px",
+                letterSpacing: "0.2em",
+                color: "var(--text-muted)",
+                fontWeight: 400,
+                fontStyle: "italic",
+                borderTop: "1px solid var(--border)",
+                paddingTop: "12px",
+              }}
+            >
+              Illustrative example
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <div
+        className="mt-8 max-w-3xl font-[family-name:var(--font-dm-sans)]"
+        style={{
+          fontSize: "11px",
+          color: "var(--text-muted)",
+          fontWeight: 300,
+          lineHeight: 1.7,
+          fontStyle: "italic",
+          opacity: 0.85,
+        }}
+      >
+        Illustrative examples based on common billing dispute outcomes. Individual
+        results vary depending on bill specifics, payer, and applicable state and
+        federal protections.
+      </div>
+    </section>
+  );
+}
+
 // ─── Trust Section ────────────────────────────────────────────────────────────
 function TrustSection() {
   const points = [
     "Disputes filed under your signed patient authorization",
     "Federally protected under the No Surprises Act",
-    "HIPAA-compliant document handling, AES-256 encryption at rest",
+    "Bank-level AES-256 encryption in transit and at rest",
   ];
 
   return (
@@ -1360,16 +2169,20 @@ function FaqSection() {
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
 function Footer() {
-  const links = [
+  const productLinks = [
     { lbl: "How it works", href: "/how-it-works" },
     { lbl: "Pricing", href: "/pricing" },
     { lbl: "Dashboard", href: "/dashboard" },
     { lbl: "FAQ", href: "#faq" },
   ];
+  const legalLinks = [
+    { lbl: "Privacy policy", href: "/privacy" },
+    { lbl: "Terms of service", href: "/terms" },
+  ];
 
   return (
     <footer
-      className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr] gap-12 px-6 md:px-12 lg:px-16 py-16 lg:py-20"
+      className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_1fr_1fr] gap-12 px-6 md:px-12 lg:px-16 py-16 lg:py-20"
       style={{
         backgroundColor: "var(--bg-dark)",
         borderTop: "1px solid var(--border-dark)",
@@ -1406,8 +2219,8 @@ function Footer() {
             color: "var(--text-faint)",
             fontWeight: 300,
             lineHeight: 1.7,
-            maxWidth: "280px",
-            opacity: 0.7,
+            maxWidth: "300px",
+            opacity: 0.8,
           }}
         >
           ClearClaim is an administrative advocacy service. We are not a law
@@ -1416,7 +2229,19 @@ function Footer() {
       </div>
 
       <div className="flex flex-col gap-3">
-        {links.map((link) => (
+        <div
+          className="font-[family-name:var(--font-dm-sans)] uppercase mb-1"
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.25em",
+            color: "var(--bg)",
+            fontWeight: 500,
+            opacity: 0.85,
+          }}
+        >
+          Product
+        </div>
+        {productLinks.map((link) => (
           <Link
             key={link.href}
             href={link.href}
@@ -1436,9 +2261,78 @@ function Footer() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-1 md:items-end">
+      <div className="flex flex-col gap-3">
+        <div
+          className="font-[family-name:var(--font-dm-sans)] uppercase mb-1"
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.25em",
+            color: "var(--bg)",
+            fontWeight: 500,
+            opacity: 0.85,
+          }}
+        >
+          Support
+        </div>
+        <a
+          href="mailto:support@clearclaim.co"
+          className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
+          style={{
+            fontSize: "13px",
+            color: "var(--amber)",
+            fontWeight: 300,
+          }}
+        >
+          support@clearclaim.co
+        </a>
         <div
           className="font-[family-name:var(--font-dm-sans)]"
+          style={{
+            fontSize: "11px",
+            color: "var(--text-faint)",
+            fontWeight: 300,
+            lineHeight: 1.6,
+            fontStyle: "italic",
+            opacity: 0.85,
+          }}
+        >
+          Support responses within 1 business day.
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 md:items-end">
+        <div
+          className="font-[family-name:var(--font-dm-sans)] uppercase mb-1"
+          style={{
+            fontSize: "10px",
+            letterSpacing: "0.25em",
+            color: "var(--bg)",
+            fontWeight: 500,
+            opacity: 0.85,
+          }}
+        >
+          Legal
+        </div>
+        {legalLinks.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
+            style={{
+              fontSize: "11px",
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              color: "var(--text-faint)",
+              fontWeight: 400,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--bg)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-faint)")}
+          >
+            {link.lbl}
+          </Link>
+        ))}
+        <div
+          className="font-[family-name:var(--font-dm-sans)] md:text-right mt-4"
           style={{
             fontSize: "11px",
             color: "var(--text-faint)",
@@ -1447,17 +2341,6 @@ function Footer() {
           }}
         >
           © 2026 ClearClaim
-        </div>
-        <div
-          className="font-[family-name:var(--font-dm-sans)]"
-          style={{
-            fontSize: "11px",
-            color: "var(--text-faint)",
-            fontWeight: 300,
-            opacity: 0.7,
-          }}
-        >
-          All rights reserved.
         </div>
       </div>
     </footer>
@@ -1470,10 +2353,16 @@ export default function LandingPage() {
     <div style={{ backgroundColor: "var(--bg)", minHeight: "100vh" }}>
       <Nav />
       <Hero />
+      <TrustBar />
+      <MockAuditCard />
+      <UploadChecklist />
       <StatsStrip />
       <ProblemSection />
+      <WhoThisIsFor />
       <HowItWorks />
       <PricingPreview />
+      <ComparisonTable />
+      <Testimonials />
       <TrustSection />
       <FaqSection />
       <Footer />
