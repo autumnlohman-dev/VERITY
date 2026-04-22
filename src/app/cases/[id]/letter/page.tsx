@@ -96,7 +96,36 @@ function substitutePlaceholders(content: string, info: PatientInfo): string {
     "statement number": accountNumber,
   };
 
-  return content.replace(/\[([^\[\]\n]{2,40})\]/g, (match, key: string) => {
+  // Phone, email, and member ID aren't on the bill and may be left blank.
+  // When they are, drop the entire line rather than printing "[Phone Number]"
+  // or "[Member ID]" in the final letter.
+  const dropLineWhenEmpty = new Set([
+    "phone",
+    "phone number",
+    "telephone",
+    "contact phone",
+    "email",
+    "email address",
+    "e-mail",
+    "member id",
+    "member number",
+    "id number",
+    "insurance id",
+    "subscriber id",
+  ]);
+
+  const filteredLines = content.split("\n").filter((line) => {
+    const matches = line.matchAll(/\[([^\[\]\n]{2,40})\]/g);
+    for (const m of matches) {
+      const normalized = m[1].trim().toLowerCase();
+      if (dropLineWhenEmpty.has(normalized) && !map[normalized]) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  return filteredLines.join("\n").replace(/\[([^\[\]\n]{2,40})\]/g, (match, key: string) => {
     const normalized = key.trim().toLowerCase();
     const replacement = map[normalized];
     if (replacement === undefined) return match;
