@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Plus } from "lucide-react";
+import { Menu, X, Plus, Lock, Shield, DollarSign, Scale } from "lucide-react";
 
 // ─── FAQs ─────────────────────────────────────────────────────────────────────
 const FAQS = [
@@ -403,11 +403,11 @@ function Hero() {
 
 // ─── Trust Bar ────────────────────────────────────────────────────────────────
 function TrustBar() {
-  const items = [
-    "Bank-level encryption in transit and at rest",
-    "Documents never sold or shared",
-    "No upfront payment for audit",
-    "Administrative advocacy service — not a law firm",
+  const items: Array<{ icon: React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }>; text: string }> = [
+    { icon: Lock, text: "Bank-level encryption" },
+    { icon: Shield, text: "Your documents stay private" },
+    { icon: DollarSign, text: "Free to audit" },
+    { icon: Scale, text: "Advocacy service, not a law firm" },
   ];
 
   return (
@@ -419,35 +419,25 @@ function TrustBar() {
         borderTop: "1px solid var(--border-dark)",
       }}
     >
-      {items.map((text, i) => (
+      {items.map(({ icon: Icon, text }, i) => (
         <div
           key={i}
           className={[
-            "flex gap-3 items-start px-6 md:px-7 py-6",
+            "flex gap-3 items-center justify-center px-8 md:px-12 py-7 md:py-8",
             i > 0 ? "border-t md:border-t-0 md:border-l" : "",
           ].filter(Boolean).join(" ")}
           style={{ borderColor: "var(--border-dark)" }}
         >
+          <Icon size={16} strokeWidth={1.6} color="#F5F0E8" />
           <span
             className="font-[family-name:var(--font-dm-sans)]"
             style={{
-              color: "var(--amber)",
               fontSize: "13px",
+              color: "#F5F0E8",
               fontWeight: 400,
-              lineHeight: 1.6,
-              flexShrink: 0,
-            }}
-          >
-            —
-          </span>
-          <span
-            className="font-[family-name:var(--font-dm-sans)]"
-            style={{
-              fontSize: "12px",
-              color: "var(--bg)",
-              fontWeight: 300,
-              lineHeight: 1.55,
-              letterSpacing: "0.02em",
+              lineHeight: 1.4,
+              letterSpacing: "0.01em",
+              whiteSpace: "nowrap",
             }}
           >
             {text}
