@@ -8,6 +8,7 @@ import { Upload, CheckCircle, Camera } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/client";
+import { hasEmFlag } from "@/lib/emReview";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -1136,7 +1137,13 @@ const [error, setError] = useState<string | null>(null);
       }
 
       let letterGenerationFailed = false
-      if (auditJson.errorCount > 0) {
+      // If any E&M (evaluation & management) CPT is flagged, skip auto-letter-gen
+      // here and route to the case detail page. The letter is generated after the
+      // user answers the E&M complexity questionnaire so it can cite their answers.
+      const auditErrors = (auditJson.errors ?? []) as Array<{ cpt_code?: string }>
+      const emFlagPresent = hasEmFlag(auditErrors)
+
+      if (auditJson.errorCount > 0 && !emFlagPresent) {
         setLoadingMessage("Generating your dispute letter...")
 
         const totalBilled = lineItems.reduce((s, li) => s + li.billed_amount, 0)

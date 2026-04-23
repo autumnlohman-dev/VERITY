@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { renderEmReviewForPrompt, type EmReview } from '@/lib/emReview'
 
 // Anthropic generation runs longer than Vercel's 10s Hobby / 15s Pro default.
 export const maxDuration = 60
@@ -21,7 +22,26 @@ if (!user) {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 }
 
-    const { caseId, errors, caseData } = await request.json()
+    const { caseId, errors, caseData, emReview } = (await request.json()) as {
+      caseId?: string
+      errors?: unknown
+      caseData?: {
+        provider_name?: string
+        insurance_type?: string
+        amount_billed?: number
+        amount_expected?: number
+        date_of_service?: string
+        userNotes?: string
+      }
+      emReview?: EmReview
+    }
+
+    if (!caseId || !caseData) {
+      return NextResponse.json(
+        { error: 'Missing caseId or caseData' },
+        { status: 400 }
+      )
+    }
 
     // Verify this case belongs to the user
     const { data: caseRecord } = await supabase
@@ -48,6 +68,24 @@ Additional context provided by the patient: ${userNotes.trim()}
 
 If the patient has described a service that was billed but not rendered, a procedure that was cancelled, or any other situational error not captured in the billing codes, incorporate this into the dispute letter with specific language citing that billing for unrendered services violates 42 C.F.R. § 1001.952 and CMS policy on billing for services not provided.`
       : ''
+
+    // If the patient completed the E&M complexity review and the outcome is
+    // 'confirmed' or 'borderline', inject their answers so the letter can make
+    // a specific complexity argument citing CMS 2021 E&M guidelines. A
+    // 'cleared' outcome means the upstream caller filtered E&M codes out of
+    // `errors` — no narrative needed here.
+    const emReviewSection =
+      emReview && (emReview.outcome === 'confirmed' || emReview.outcome === 'borderline')
+        ? `
+
+${renderEmReviewForPrompt(emReview)}
+
+E&M DISPUTE GUIDANCE:
+- Cite the CMS 2021 E&M guidelines revision (for office/outpatient CPT 99202–99215) and, where applicable, the 2023 revision for emergency department codes (99281–99285). Reference that levels must be supported by either medical decision-making complexity OR total time, not by a fixed per-visit amount.
+- Reference the patient's responses above as evidence the billed complexity level is not supported.
+- If the outcome is 'borderline', request that the provider produce documentation substantiating the billed level or downcode to the level supported by the encounter.
+- If the outcome is 'confirmed', request that the charge be adjusted to the E&M level supported by the visit's complexity and time.`
+        : ''
 
     // Generate the dispute letter with Claude
     const message = await anthropic.messages.create({
@@ -77,7 +115,7 @@ Account Number: [ACCOUNT NUMBER]
 Member ID: [MEMBER ID]
 
 Errors Found:
-${JSON.stringify(errors, null, 2)}${userNotesSection}
+${JSON.stringify(errors, null, 2)}${userNotesSection}${emReviewSection}
 
 The letter should:
 1. Be addressed to the insurance company claims review department

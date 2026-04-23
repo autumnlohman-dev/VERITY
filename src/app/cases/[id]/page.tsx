@@ -5,6 +5,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import type { BillingError } from "@/lib/errorDetection";
+import { getEmFlaggedCodes, hasEmFlag, type EmReview } from "@/lib/emReview";
+import EmReviewPanel from "./EmReviewPanel";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -97,6 +99,8 @@ interface BillData {
   gfe?: string;
   tier?: string;
   userNotes?: string;
+  date_of_service?: string;
+  em_review?: EmReview;
 }
 
 interface CaseRow {
@@ -287,6 +291,106 @@ function NotFoundState({ message }: { message: string }) {
         </Link>
       </div>
     </Shell>
+  );
+}
+
+// ─── E&M Outcome Callout ─────────────────────────────────────────────────────
+function EmOutcomeCallout({ review }: { review: EmReview }) {
+  const outcomeLabel =
+    review.outcome === "cleared"
+      ? "E&M flag cleared — no dispute recommended on this code"
+      : review.outcome === "borderline"
+      ? "Borderline — consider requesting an itemized statement"
+      : "E&M flag confirmed — included in your dispute letter";
+
+  const borderColor =
+    review.outcome === "cleared"
+      ? "#7A9E87"
+      : review.outcome === "borderline"
+      ? "#C8A97E"
+      : "#C47C6A";
+
+  const body =
+    review.outcome === "cleared"
+      ? "Based on your answers, the complexity of this visit is consistent with a lower-level code. We won't dispute this charge. Your answers remain on file."
+      : review.outcome === "borderline"
+      ? "Your answers place this visit between complexity levels. Before disputing, request a fully itemized statement with CPT justification from the provider — the exact wording is below. If the provider can't substantiate the higher level, the bill is disputable."
+      : "Your answers indicate the visit complexity does not match the higher-level E&M code billed. Your dispute letter now cites CMS 2021 E&M guidelines and references your responses.";
+
+  return (
+    <div
+      style={{
+        backgroundColor: "#111111",
+        border: "1px solid #242424",
+        borderLeft: `3px solid ${borderColor}`,
+        padding: "24px 28px",
+        marginBottom: "48px",
+      }}
+    >
+      <div style={{ ...label("#6B635C"), marginBottom: "8px" }}>E&amp;M visit review</div>
+      <div
+        style={{
+          ...serif("22px", {
+            lineHeight: 1.3,
+            color: borderColor,
+            fontStyle: "italic",
+          }),
+        }}
+      >
+        {outcomeLabel}
+      </div>
+      <p
+        style={{
+          ...sans("13px", "#A89F96"),
+          marginTop: "12px",
+          lineHeight: 1.65,
+          maxWidth: "640px",
+        }}
+      >
+        {body}
+      </p>
+      <div
+        style={{
+          ...sans("11px", "#6B635C"),
+          marginTop: "16px",
+          letterSpacing: "0.05em",
+        }}
+      >
+        Complexity score: {review.score.toFixed(1)} / 8 ·{" "}
+        {review.flagged_codes.join(", ")}
+      </div>
+
+      {review.outcome === "borderline" && (
+        <div
+          style={{
+            backgroundColor: "#0D0D0D",
+            border: "1px solid #242424",
+            padding: "16px 20px",
+            marginTop: "20px",
+          }}
+        >
+          <div
+            style={{
+              ...sans("10px", "#6B635C"),
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              marginBottom: "8px",
+            }}
+          >
+            Suggested request to the provider
+          </div>
+          <p
+            style={{
+              ...sans("13px", "#A89F96"),
+              lineHeight: 1.7,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {`I am writing to request a fully itemized statement for account [ACCOUNT NUMBER], including documentation that justifies the evaluation & management (E&M) CPT code billed (${review.flagged_codes.join(", ")}). Specifically, please provide the problem(s) addressed, the medical decision-making level supporting this code under CMS 2021 E&M guidelines, and the total visit time if time-based billing was used. I will review against my records before paying the charge.`}
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -577,6 +681,34 @@ export default function CaseDetailPage({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
         >
+          {/* E&M review: questionnaire if unanswered, outcome callout if answered */}
+          {hasEmFlag(errors) &&
+            (caseRow.bill_data?.em_review ? (
+              <EmOutcomeCallout review={caseRow.bill_data.em_review} />
+            ) : (
+              <div style={{ marginBottom: "48px" }}>
+                <EmReviewPanel
+                  caseId={caseRow.id}
+                  flaggedCodes={getEmFlaggedCodes(errors)}
+                  errors={errors}
+                  caseData={{
+                    provider_name: caseRow.provider_name ?? "Provider on file",
+                    insurance_type: caseRow.insurance_type ?? "",
+                    amount_billed: Number(caseRow.amount_billed ?? 0),
+                    amount_expected: Number(caseRow.amount_expected ?? 0),
+                    date_of_service:
+                      caseRow.bill_data?.date_of_service ?? undefined,
+                    userNotes: caseRow.bill_data?.userNotes ?? undefined,
+                  }}
+                  onComplete={() => {
+                    // Reload case state so the outcome callout renders and any
+                    // newly-generated letter CTA appears.
+                    if (typeof window !== "undefined") window.location.reload();
+                  }}
+                />
+              </div>
+            ))}
+
           <div style={{ ...label("#6B635C"), marginBottom: "24px" }}>Audit findings</div>
 
           {caseRow.status === "auditing" ? (
