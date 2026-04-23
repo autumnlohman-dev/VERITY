@@ -22,11 +22,11 @@ const FAQS = [
   },
   {
     q: "What happens if you find nothing wrong?",
-    a: "On the free Audit, you pay nothing either way. We'll tell you the bill checks out and explain what we reviewed (fee-schedule comparisons, NCCI edits, MUE limits, No Surprises Act coverage). On Resolve, our fee is contingent on recovery — if we don't recover savings, you don't owe anything.",
+    a: "On the free Audit, you pay nothing either way. We'll tell you the bill checks out and explain what we reviewed (fee-schedule comparisons, NCCI edits, MUE limits, No Surprises Act coverage). If your audit is clean, you're done — no dispute letter needed.",
   },
   {
     q: "What states do you support?",
-    a: "All 50 states for the audit and the self-serve dispute letter — federal protections like the No Surprises Act apply nationwide. On Resolve (full-service filing), state-specific dispute timelines and external review processes vary; we'll flag any state-specific step during your case and handle the filing under the correct framework.",
+    a: "All 50 states — federal protections like the No Surprises Act apply nationwide, and the audit and dispute letter are generated against federal and CMS rules that apply regardless of your state. Where state-specific protections give you stronger rights, the letter cites those too.",
   },
 ];
 
@@ -688,7 +688,7 @@ function HowItWorks() {
     {
       num: "03",
       title: "You decide",
-      body: "Get a prefilled dispute letter ready to send, or let us manage the full process — filing, follow-up, and appeals.",
+      body: "Get a prefilled dispute letter tailored to your bill, ready to send by certified mail with step-by-step filing instructions.",
     },
   ];
 
@@ -832,23 +832,6 @@ function PricingPreview() {
       ],
       cta: "Get my dispute letter",
       href: "/upload?tier=dispute",
-      accent: false,
-    },
-    {
-      name: "Resolve",
-      price: "25%",
-      priceSuffix: "of savings recovered",
-      tag: "We manage the full dispute for you — filing, follow-up, and appeals. You pay only if we recover savings",
-      features: [
-        "Everything in Dispute, plus:",
-        "We file the dispute on your behalf",
-        "All insurer communication",
-        "Second-level appeal if denied",
-        "External review if needed",
-        "$0 upfront — pay only if we recover",
-      ],
-      cta: "Let us handle it",
-      href: "/upload?tier=resolve",
       accent: true,
     },
   ];
@@ -896,7 +879,7 @@ function PricingPreview() {
         </h2>
       </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-0 max-w-4xl">
         {tiers.map((tier, i) => (
           <motion.div
             key={tier.name}
@@ -932,7 +915,7 @@ function PricingPreview() {
                   fontWeight: 500,
                 }}
               >
-                Full service
+                Most popular
               </div>
             )}
 
