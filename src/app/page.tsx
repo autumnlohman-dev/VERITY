@@ -388,10 +388,11 @@ function Hero() {
         {/* Right column: image */}
         <div className="relative min-h-[420px] lg:min-h-full">
           <Image
-            src="https://images.unsplash.com/photo-1758523418820-a492bf647c63?w=1200&q=80"
+            src="https://images.unsplash.com/photo-1758523418820-a492bf647c63?w=2400&q=100"
             alt="Couple reviewing bills and paperwork at a kitchen table, looking concerned"
             fill
             priority
+            quality={95}
             sizes="(max-width: 1024px) 100vw, 50vw"
             style={{ objectFit: "cover", objectPosition: "center" }}
           />
