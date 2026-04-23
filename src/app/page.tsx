@@ -279,42 +279,18 @@ const fadeUp = {
 function Hero() {
   return (
     <section
-      className="relative grid"
+      className="relative"
       style={{
-        gridTemplateColumns: "48px 1fr",
-        minHeight: "100svh",
         backgroundColor: "var(--bg)",
       }}
     >
-      {/* Dark sidebar with rotated text */}
-      <aside
-        className="hidden md:flex relative"
-        style={{ backgroundColor: "var(--bg-dark)" }}
-      >
-        <div
-          className="absolute font-[family-name:var(--font-dm-sans)] uppercase whitespace-nowrap"
-          style={{
-            fontSize: "10px",
-            letterSpacing: "0.3em",
-            color: "var(--text-faint)",
-            fontWeight: 400,
-            bottom: "40px",
-            left: "50%",
-            transform: "translateX(-50%) rotate(-90deg)",
-            transformOrigin: "center",
-          }}
-        >
-          Medical Bill Advocacy — Est. 2024
-        </div>
-      </aside>
-
-      {/* Right side content: 2-col (text | image) */}
+      {/* 2-col (text | image) */}
       <div
         className="grid grid-cols-1 lg:grid-cols-[1fr_1fr]"
-        style={{ minHeight: "100svh" }}
+        style={{ minHeight: "82vh" }}
       >
         {/* Left column: text */}
-        <div className="relative flex flex-col justify-center px-6 md:px-12 lg:px-16 py-32 lg:py-0">
+        <div className="relative flex flex-col justify-center px-6 md:px-12 lg:px-16 py-16 lg:py-0">
           {/* amber eyebrow line */}
           <div className="flex items-center gap-4 mb-10 lg:mb-14">
             <div style={{ width: "40px", height: "1px", backgroundColor: "var(--amber)" }} />
@@ -359,7 +335,7 @@ function Hero() {
 
           {/* subtext with amber left border */}
           <div
-            className="mb-10 pl-5"
+            className="mb-5 pl-5"
             style={{ borderLeft: "1px solid var(--amber)", maxWidth: "420px" }}
           >
             <p
@@ -376,6 +352,19 @@ function Hero() {
               you pay us anything.
             </p>
           </div>
+
+          <p
+            className="font-[family-name:var(--font-dm-sans)] mb-6"
+            style={{
+              fontSize: "12px",
+              lineHeight: 1.5,
+              color: "var(--text-faint)",
+              fontWeight: 400,
+              letterSpacing: "0.02em",
+            }}
+          >
+            Results in 24 hours. Takes 3 minutes to upload.
+          </p>
 
           <div>
             <Link href="/upload" className="no-underline">
@@ -399,8 +388,8 @@ function Hero() {
         {/* Right column: image */}
         <div className="relative min-h-[420px] lg:min-h-full">
           <Image
-            src="/images/hero-main.jpg"
-            alt=""
+            src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1200&q=80"
+            alt="Close-up of a medical document"
             fill
             priority
             sizes="(max-width: 1024px) 100vw, 50vw"
@@ -698,17 +687,17 @@ function HowItWorks() {
     {
       num: "01",
       title: "Upload",
-      body: "Upload your itemized bill. Takes three minutes.",
+      body: "Upload your itemized bill or EOB. Takes about three minutes — photo or PDF both work.",
     },
     {
       num: "02",
       title: "We audit",
-      body: "Every charge checked against CMS rates and federal billing rules. Results within 24 hours.",
+      body: "Every charge checked against CMS rates and federal billing rules. Confidence scores on every finding. Results within 24 hours.",
     },
     {
       num: "03",
       title: "You decide",
-      body: "Self-serve dispute letter, or let us file and see it through.",
+      body: "Get a prefilled dispute letter ready to send, or let us manage the full process — filing, follow-up, and appeals.",
     },
   ];
 
