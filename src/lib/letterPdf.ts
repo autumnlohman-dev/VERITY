@@ -4,7 +4,46 @@ type Block =
   | { kind: "h1" | "h2" | "h3"; text: string }
   | { kind: "p"; text: string }
   | { kind: "ul" | "ol"; items: string[] }
-  | { kind: "hr" };
+  | { kind: "hr" }
+  | { kind: "table"; headers: string[]; rows: string[][] };
+
+const PLACEHOLDER_RE = /\[[^\[\]\n]{2,40}\]/;
+const PLACEHOLDER_RE_GLOBAL = /\[[^\[\]\n]{2,40}\]/g;
+
+// Drops any [Bracket] placeholders left after the substitution pass.
+// Lines that become structurally empty (only punctuation/whitespace remains)
+// are removed so the PDF doesn't ship with stray "Re:" or "Subject:" stubs.
+function stripUnfilledPlaceholders(content: string): string {
+  const lines = content.split("\n");
+  const out: string[] = [];
+
+  for (const line of lines) {
+    if (!PLACEHOLDER_RE.test(line)) {
+      out.push(line);
+      continue;
+    }
+
+    const stripped = line.replace(PLACEHOLDER_RE_GLOBAL, "");
+    const meaningful = stripped.replace(/[\s.,:;\-—–]/g, "");
+    if (meaningful === "") continue;
+
+    out.push(stripped.replace(/[ \t]+/g, " ").trimEnd());
+  }
+
+  return out.join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+function parseTableRow(line: string): string[] {
+  let s = line.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s.split("|").map((c) => c.trim());
+}
+
+function isTableSeparator(line: string): boolean {
+  const t = line.trim();
+  return t.includes("|") && t.includes("-") && /^[\s|:\-]+$/.test(t);
+}
 
 function parseMarkdown(src: string): Block[] {
   const lines = src.replace(/\r\n/g, "\n").split("\n");
@@ -21,6 +60,22 @@ function parseMarkdown(src: string): Block[] {
 
     if (!trimmed) {
       i++;
+      continue;
+    }
+
+    if (
+      trimmed.includes("|") &&
+      i + 1 < lines.length &&
+      isTableSeparator(lines[i + 1])
+    ) {
+      const headers = parseTableRow(trimmed);
+      i += 2;
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].trim() && lines[i].includes("|")) {
+        rows.push(parseTableRow(lines[i]));
+        i++;
+      }
+      blocks.push({ kind: "table", headers, rows });
       continue;
     }
 
@@ -75,7 +130,10 @@ function parseMarkdown(src: string): Block[] {
         t.startsWith("### ") ||
         isBullet(t) ||
         isNumbered(t) ||
-        isHr(t)
+        isHr(t) ||
+        (t.includes("|") &&
+          i + 1 < lines.length &&
+          isTableSeparator(lines[i + 1]))
       )
         break;
       paraLines.push(lines[i]);
@@ -130,7 +188,7 @@ export function generateLetterPdf(
   doc.setFont("helvetica", "normal");
   doc.setTextColor(20, 20, 20);
 
-  const blocks = parseMarkdown(markdown);
+  const blocks = parseMarkdown(stripUnfilledPlaceholders(markdown));
 
   for (const b of blocks) {
     switch (b.kind) {
@@ -199,6 +257,47 @@ export function generateLetterPdf(
         doc.setLineWidth(0.5);
         doc.line(marginX, y, pageWidth - marginX, y);
         y += 14;
+        break;
+      }
+      case "table": {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
+
+        const labels = b.headers.map((h) => `${h}:`);
+        const labelTextWidth = Math.max(
+          0,
+          ...labels.map((l) => doc.getTextWidth(l))
+        );
+        const labelGap = 16;
+        const valueX = marginX + labelTextWidth + labelGap;
+        const valueWidth = Math.max(120, contentWidth - (labelTextWidth + labelGap));
+        const lineHeight = 16;
+        const rowGap = 10;
+
+        for (let r = 0; r < b.rows.length; r++) {
+          const row = b.rows[r];
+          for (let c = 0; c < b.headers.length; c++) {
+            const label = labels[c];
+            const value = stripInline((row[c] ?? "").trim());
+            const valueLines: string[] =
+              value.length > 0
+                ? doc.splitTextToSize(value, valueWidth)
+                : [""];
+
+            ensureSpace(lineHeight);
+            doc.text(label, marginX, y);
+            doc.text(valueLines[0], valueX, y);
+            y += lineHeight;
+
+            for (let li = 1; li < valueLines.length; li++) {
+              ensureSpace(lineHeight);
+              doc.text(valueLines[li], valueX, y);
+              y += lineHeight;
+            }
+          }
+          if (r < b.rows.length - 1) y += rowGap;
+        }
+        y += 8;
         break;
       }
     }
