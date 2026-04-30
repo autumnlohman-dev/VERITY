@@ -5,6 +5,14 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/client";
+import {
+  buildSubstitutionMap,
+  getMissingFields,
+  todayLongDate,
+  type MissingField,
+  type MissingFieldKey,
+} from "@/lib/letterFields";
+import { generateLetterPdf } from "@/lib/letterPdf";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -63,42 +71,22 @@ interface LetterRow {
 }
 
 // ─── Placeholder substitution ────────────────────────────────────────────────
-function substitutePlaceholders(content: string, info: PatientInfo): string {
-  const name = info.name?.trim() || "";
-  const address = info.address?.trim() || "";
-  const phone = info.phone?.trim() || "";
-  const email = info.email?.trim() || "";
-  const memberId = info.member_id?.trim() || "";
-  const accountNumber = info.account_number?.trim() || "";
-
-  const map: Record<string, string> = {
-    "patient name": name,
-    "your name": name,
-    "name": name,
-    "full name": name,
-    "address": address,
-    "address line 1": address,
-    "street address": address,
-    "mailing address": address,
-    "patient address": address,
-    "your address": address,
-    "phone": phone,
-    "phone number": phone,
-    "telephone": phone,
-    "contact phone": phone,
-    "email": email,
-    "email address": email,
-    "e-mail": email,
-    "member id": memberId,
-    "member number": memberId,
-    "id number": memberId,
-    "insurance id": memberId,
-    "subscriber id": memberId,
-    "account number": accountNumber,
-    "account #": accountNumber,
-    "patient account number": accountNumber,
-    "statement number": accountNumber,
-  };
+function substitutePlaceholders(
+  content: string,
+  info: PatientInfo,
+  extras?: { provider_name?: string | null; date_of_service?: string }
+): string {
+  const map = buildSubstitutionMap({
+    name: info.name,
+    address: info.address,
+    phone: info.phone,
+    email: info.email,
+    member_id: info.member_id,
+    account_number: info.account_number,
+    provider_name: extras?.provider_name ?? null,
+    date_of_service: extras?.date_of_service,
+    today: todayLongDate(),
+  });
 
   // Phone, email, and member ID aren't on the bill and may be left blank.
   // When they are, drop the entire line rather than printing "[Phone Number]"
@@ -129,12 +117,24 @@ function substitutePlaceholders(content: string, info: PatientInfo): string {
     return true;
   });
 
-  return filteredLines.join("\n").replace(/\[([^\[\]\n]{2,40})\]/g, (match, key: string) => {
-    const normalized = key.trim().toLowerCase();
-    const replacement = map[normalized];
-    if (replacement === undefined) return match;
-    return replacement || match;
-  });
+  let result = filteredLines
+    .join("\n")
+    .replace(/\[([^\[\]\n]{2,40})\]/g, (match, key: string) => {
+      const normalized = key.trim().toLowerCase();
+      const replacement = map[normalized];
+      if (replacement === undefined) return match;
+      return replacement || match;
+    });
+
+  // The generate-letter API substitutes "Provider on file" when the case row
+  // has no provider_name. Swap that fallback out when the caller supplies an
+  // override so the PDF doesn't ship with the placeholder text inlined.
+  const providerOverride = extras?.provider_name?.trim();
+  if (providerOverride && providerOverride !== "Provider on file") {
+    result = result.replace(/Provider on file/g, providerOverride);
+  }
+
+  return result;
 }
 
 // ─── Markdown renderer (minimal subset: headings, paragraphs, lists, bold, italic) ─
@@ -655,6 +655,161 @@ function PatientInfoPanel({
   );
 }
 
+// ─── Missing-fields modal ────────────────────────────────────────────────────
+function MissingFieldsModal({
+  fields,
+  values,
+  onChange,
+  onConfirm,
+  onCancel,
+}: {
+  fields: MissingField[];
+  values: Record<MissingFieldKey, string>;
+  onChange: (key: MissingFieldKey, value: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const allFilled = fields.every((f) => values[f.key]?.trim());
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="missing-fields-title"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 100,
+        backgroundColor: "rgba(0,0,0,0.7)",
+        backdropFilter: "blur(6px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "32px 16px",
+        overflowY: "auto",
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        style={{
+          width: "100%",
+          maxWidth: "520px",
+          backgroundColor: "#111111",
+          border: "1px solid #242424",
+          borderLeft: "4px solid #C8A97E",
+          padding: "32px",
+          maxHeight: "calc(100vh - 64px)",
+          overflowY: "auto",
+        }}
+      >
+        <h2
+          id="missing-fields-title"
+          style={{
+            ...serif("28px", { lineHeight: 1.2 }),
+            margin: 0,
+          }}
+        >
+          Complete your letter before downloading.
+        </h2>
+        <p style={{ ...sans("13px", "#A89F96"), marginTop: "12px", lineHeight: 1.6 }}>
+          A few details still need to be filled in. We&rsquo;ll inject them
+          into the letter, then generate your PDF.
+        </p>
+
+        <div style={{ marginTop: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
+          {fields.map((f) => (
+            <div key={f.key}>
+              <label htmlFor={`missing-${f.key}`} style={{ ...label("#6B635C"), display: "block", marginBottom: "6px" }}>
+                {f.label}
+              </label>
+              {f.multiline ? (
+                <textarea
+                  id={`missing-${f.key}`}
+                  value={values[f.key] ?? ""}
+                  onChange={(e) => onChange(f.key, e.target.value)}
+                  placeholder={f.placeholder}
+                  rows={3}
+                  style={{
+                    width: "100%",
+                    backgroundColor: "#0D0D0D",
+                    border: "1px solid #2A2A2A",
+                    color: "#F5F0E8",
+                    padding: "10px 12px",
+                    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                    fontSize: "13px",
+                    lineHeight: 1.5,
+                    resize: "vertical",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              ) : (
+                <input
+                  id={`missing-${f.key}`}
+                  type="text"
+                  value={values[f.key] ?? ""}
+                  onChange={(e) => onChange(f.key, e.target.value)}
+                  placeholder={f.placeholder}
+                  style={{
+                    width: "100%",
+                    backgroundColor: "#0D0D0D",
+                    border: "1px solid #2A2A2A",
+                    color: "#F5F0E8",
+                    padding: "10px 12px",
+                    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                    fontSize: "13px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", gap: "12px", marginTop: "28px", justifyContent: "flex-end" }}>
+          <button
+            onClick={onCancel}
+            style={{
+              ...sans("11px", "#A89F96"),
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              background: "transparent",
+              border: "1px solid #242424",
+              padding: "10px 20px",
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!allFilled}
+            style={{
+              ...sans("11px", "#0D0D0D"),
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              backgroundColor: "#C8A97E",
+              border: "none",
+              padding: "10px 20px",
+              cursor: allFilled ? "pointer" : "not-allowed",
+              opacity: allFilled ? 1 : 0.5,
+              fontWeight: 500,
+            }}
+          >
+            Confirm and download
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function LetterPage({
   params,
@@ -673,6 +828,15 @@ export default function LetterPage({
   });
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const [pendingMissing, setPendingMissing] = useState<MissingField[] | null>(null);
+  const [fieldOverrides, setFieldOverrides] = useState<Record<MissingFieldKey, string>>({
+    name: "",
+    address: "",
+    account_number: "",
+    member_id: "",
+    date_of_service: "",
+    provider_name: "",
+  });
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -960,7 +1124,9 @@ export default function LetterPage({
   const deadline = deadlineFrom(letter.generated_at ?? caseRow.created_at);
   const patientInfo = caseRow.patient_info ?? {};
   const patientInfoFilled = Boolean(patientInfo.name?.trim());
-  const displayContent = substitutePlaceholders(letter.letter_content, patientInfo);
+  const displayContent = substitutePlaceholders(letter.letter_content, patientInfo, {
+    provider_name: caseRow.provider_name,
+  });
 
   return (
     <div style={{ background: "#0D0D0D", minHeight: "100vh" }}>
@@ -1021,13 +1187,23 @@ export default function LetterPage({
           </button>
           <button
             onClick={() => {
-              const blob = new Blob([displayContent], { type: "text/plain;charset=utf-8" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `dispute-letter-${caseShortId}.txt`;
-              a.click();
-              URL.revokeObjectURL(url);
+              const missing = getMissingFields(letter.letter_content, {
+                name: patientInfo.name,
+                address: patientInfo.address,
+                account_number: patientInfo.account_number,
+                member_id: patientInfo.member_id,
+                provider_name: caseRow.provider_name,
+              });
+              if (missing.length === 0) {
+                generateLetterPdf(displayContent, `dispute-letter-${caseShortId}.pdf`);
+                return;
+              }
+              setFieldOverrides((prev) => {
+                const next = { ...prev };
+                for (const f of missing) next[f.key] = "";
+                return next;
+              });
+              setPendingMissing(missing);
             }}
             style={{
               ...sans("11px", "#0D0D0D"),
@@ -1197,6 +1373,34 @@ export default function LetterPage({
           </span>
         </Link>
       </motion.div>
+
+      {pendingMissing && (
+        <MissingFieldsModal
+          fields={pendingMissing}
+          values={fieldOverrides}
+          onChange={(key, value) =>
+            setFieldOverrides((prev) => ({ ...prev, [key]: value }))
+          }
+          onCancel={() => setPendingMissing(null)}
+          onConfirm={() => {
+            const mergedInfo: PatientInfo = {
+              ...patientInfo,
+              name: fieldOverrides.name?.trim() || patientInfo.name,
+              address: fieldOverrides.address?.trim() || patientInfo.address,
+              account_number:
+                fieldOverrides.account_number?.trim() || patientInfo.account_number,
+              member_id: fieldOverrides.member_id?.trim() || patientInfo.member_id,
+            };
+            const finalContent = substitutePlaceholders(letter.letter_content, mergedInfo, {
+              provider_name:
+                fieldOverrides.provider_name?.trim() || caseRow.provider_name,
+              date_of_service: fieldOverrides.date_of_service?.trim() || undefined,
+            });
+            generateLetterPdf(finalContent, `dispute-letter-${caseShortId}.pdf`);
+            setPendingMissing(null);
+          }}
+        />
+      )}
     </div>
   );
 }
