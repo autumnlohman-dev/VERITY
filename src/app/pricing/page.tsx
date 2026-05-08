@@ -186,15 +186,7 @@ const PRICING_FAQS = [
     a: "Because you should know what's wrong before deciding how to fight it. The free Audit tier scans your bill and shows you every error — no credit card, no commitment. If we find nothing, you owe nothing and lose nothing.",
   },
   {
-    q: "When does the 25% fee apply?",
-    a: "Only when we recover money. The fee is calculated on the difference between what you were originally billed and what you actually owe after the dispute resolves. If we file and recover nothing, your fee is zero.",
-  },
-  {
-    q: "Can I upgrade mid-case?",
-    a: "Yes, at any time. If you started on Dispute and your letter is denied, you'll see a one-click option to escalate to Resolve. We take over from where you left off — no need to re-upload or start over.",
-  },
-  {
-    q: "Is the $19/mo membership worth it?",
+    q: "Is the membership worth it?",
     a: "If you see doctors more than 3–4 times a year, almost certainly. Every new bill you receive gets automatically audited. Most members catch at least one error every few months — usually worth far more than the subscription.",
   },
 ];
@@ -202,22 +194,17 @@ const PRICING_FAQS = [
 // ─── Comparison table data ────────────────────────────────────────────────────
 type CellVal = "check" | "dash" | string;
 
-const TABLE_ROWS: { feature: string; audit: CellVal; dispute: CellVal; resolve: CellVal }[] = [
-  { feature: "Upload and scan bill", audit: "check", dispute: "check", resolve: "check" },
-  { feature: "Error report with confidence scores", audit: "check", dispute: "check", resolve: "check" },
-  { feature: "Evidence for each flagged item", audit: "check", dispute: "check", resolve: "check" },
-  { feature: "CPT code cross-reference", audit: "check", dispute: "check", resolve: "check" },
-  { feature: "Insurer-specific dispute letter", audit: "dash", dispute: "check", resolve: "check" },
-  { feature: "Portal, fax & mail instructions", audit: "dash", dispute: "check", resolve: "check" },
-  { feature: "Deadline tracker", audit: "dash", dispute: "check", resolve: "check" },
-  { feature: "Email reminders", audit: "dash", dispute: "check", resolve: "check" },
-  { feature: "Auto-audit on new bills (membership)", audit: "dash", dispute: "✓ membership", resolve: "✓" },
-  { feature: "We file the dispute", audit: "dash", dispute: "dash", resolve: "check" },
-  { feature: "Insurer communication", audit: "dash", dispute: "dash", resolve: "check" },
-  { feature: "Second-level appeal", audit: "dash", dispute: "dash", resolve: "check" },
-  { feature: "External review guidance", audit: "dash", dispute: "dash", resolve: "check" },
-  { feature: "Upfront cost", audit: "$0", dispute: "$39 or $19/mo", resolve: "$0" },
-  { feature: "Fee if we recover", audit: "None", dispute: "None", resolve: "25% of savings" },
+const TABLE_ROWS: { feature: string; audit: CellVal; dispute: CellVal }[] = [
+  { feature: "Upload and scan bill", audit: "check", dispute: "check" },
+  { feature: "Error report with confidence scores", audit: "check", dispute: "check" },
+  { feature: "Evidence for each flagged item", audit: "check", dispute: "check" },
+  { feature: "CPT code cross-reference", audit: "check", dispute: "check" },
+  { feature: "Insurer-specific dispute letter", audit: "dash", dispute: "check" },
+  { feature: "Portal, fax & mail instructions", audit: "dash", dispute: "check" },
+  { feature: "Deadline tracker", audit: "dash", dispute: "check" },
+  { feature: "Email reminders", audit: "dash", dispute: "check" },
+  { feature: "Auto-audit on new bills (membership)", audit: "dash", dispute: "✓ membership" },
+  { feature: "Upfront cost", audit: "$0", dispute: "[PRICE] or [PRICE]/mo" },
 ];
 
 function TableCell({ val }: { val: CellVal }) {
@@ -258,13 +245,12 @@ export default function PricingPage() {
           >
             Pay for the letter.
             <br />
-            <em style={{ fontStyle: "italic" }}>Or pay nothing</em>
+            <em style={{ fontStyle: "italic" }}>Or audit free,</em>
             <br />
-            until we win.
+            forever.
           </h1>
           <p style={{ ...sans("15px", "#A89F96"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
-            Three tiers. Start free. Escalate anytime. Most people start with the free audit — no credit card, no
-            commitment.
+            Two tiers. Start free. Most people start with the free audit — no credit card, no commitment.
           </p>
         </motion.div>
       </section>
@@ -301,13 +287,18 @@ export default function PricingPage() {
         </motion.div>
       </section>
 
-      {/* ── 3 tier cards ── */}
+      {/* ── Tier cards ── */}
       <section style={{ paddingTop: "96px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
+            display: "flex",
+            flexDirection: "row",
+            justifyContent: "center",
+            alignItems: "stretch",
             gap: "16px",
+            maxWidth: "880px",
+            margin: "0 auto",
+            flexWrap: "wrap",
           }}
         >
           {/* AUDIT */}
@@ -321,6 +312,8 @@ export default function PricingPage() {
               padding: "32px",
               display: "flex",
               flexDirection: "column",
+              flex: "1 1 360px",
+              maxWidth: "420px",
             }}
           >
             <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Audit</div>
@@ -381,6 +374,8 @@ export default function PricingPage() {
               position: "relative",
               display: "flex",
               flexDirection: "column",
+              flex: "1 1 360px",
+              maxWidth: "420px",
             }}
           >
             <div
@@ -400,8 +395,8 @@ export default function PricingPage() {
               Most popular
             </div>
             <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Dispute</div>
-            <div style={{ ...serif("52px", { fontStyle: "italic", lineHeight: 1, marginBottom: "4px" }) }}>$39</div>
-            <div style={{ ...sans("12px", "#6B635C") }}>per letter, or $19/mo</div>
+            <div style={{ ...serif("52px", { fontStyle: "italic", lineHeight: 1, marginBottom: "4px" }) }}>[PRICE]</div>
+            <div style={{ ...sans("12px", "#6B635C") }}>per letter, or [PRICE]/mo</div>
             <div style={{ borderTop: "1px solid #242424", margin: "24px 0" }} />
             <div style={{ ...serif("18px", { fontStyle: "italic", color: "#A89F96", lineHeight: 1.4, marginBottom: "24px" }) }}>
               your weapon. ready to send.
@@ -414,7 +409,7 @@ export default function PricingPage() {
                 "› Portal link, fax number, and mailing address",
                 "› Deadline tracker",
                 "› Email reminders",
-                "› $19/mo: every new bill audited automatically",
+                "› Membership: every new bill audited automatically",
               ].map((f) => (
                 <div key={f} style={{ ...sans("13px", "#A89F96") }}>{f}</div>
               ))}
@@ -436,72 +431,6 @@ export default function PricingPage() {
             </Link>
           </motion.div>
 
-          {/* RESOLVE */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.3 }}
-            style={{
-              backgroundColor: "#111111",
-              border: "1.5px solid #C8A97E",
-              padding: "32px",
-              position: "relative",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <div
-              style={{
-                display: "inline-block",
-                backgroundColor: "#C8A97E",
-                color: "#0D0D0D",
-                fontSize: "9px",
-                letterSpacing: "0.15em",
-                textTransform: "uppercase",
-                padding: "4px 8px",
-                marginBottom: "12px",
-                fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-              }}
-            >
-              Full service
-            </div>
-            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Resolve</div>
-            <div style={{ ...serif("52px", { fontStyle: "italic", lineHeight: 1, marginBottom: "4px" }) }}>25%</div>
-            <div style={{ ...sans("12px", "#6B635C") }}>of savings recovered</div>
-            <div style={{ ...sans("12px", "#7A9E87"), marginTop: "4px" }}>$0 upfront — pay only if we recover</div>
-            <div style={{ borderTop: "1px solid #242424", margin: "24px 0" }} />
-            <div style={{ ...serif("18px", { fontStyle: "italic", color: "#A89F96", lineHeight: 1.4, marginBottom: "24px" }) }}>
-              we handle everything. you cash the difference.
-            </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
-              {[
-                "› Everything in Dispute, plus:",
-                "› We file the dispute on your behalf",
-                "› All insurer communication handled by us",
-                "› Follow-up until closed",
-                "› Second-level appeal if denied",
-                "› External review guidance if needed",
-                "› Pay 25% of savings — nothing if we recover nothing",
-              ].map((f) => (
-                <div key={f} style={{ ...sans("13px", "#A89F96") }}>{f}</div>
-              ))}
-            </div>
-            <Link href="/upload?tier=resolve" style={{ textDecoration: "none" }}>
-              <div
-                style={{
-                  ...sans("11px", "#0D0D0D"),
-                  backgroundColor: "#C8A97E",
-                  padding: "14px",
-                  textAlign: "center",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  cursor: "pointer",
-                }}
-              >
-                Let us handle it
-              </div>
-            </Link>
-          </motion.div>
         </div>
       </section>
 
@@ -522,7 +451,7 @@ export default function PricingPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "2fr 1fr 1fr 1fr",
+              gridTemplateColumns: "2fr 1fr 1fr",
               borderBottom: "1px solid #242424",
               backgroundColor: "#1A1A1A",
             }}
@@ -530,8 +459,7 @@ export default function PricingPage() {
             {[
               { h: "Feature", col: "#6B635C" },
               { h: "Audit — Free", col: "#A89F96" },
-              { h: "Dispute — $39/letter", col: "#C8A97E" },
-              { h: "Resolve — 25%", col: "#C8A97E" },
+              { h: "Dispute — [PRICE]/letter", col: "#C8A97E" },
             ].map(({ h, col }, i) => (
               <div
                 key={h}
@@ -551,7 +479,7 @@ export default function PricingPage() {
               key={row.feature}
               style={{
                 display: "grid",
-                gridTemplateColumns: "2fr 1fr 1fr 1fr",
+                gridTemplateColumns: "2fr 1fr 1fr",
                 borderBottom: i < TABLE_ROWS.length - 1 ? "1px solid #1C1C1C" : "none",
                 backgroundColor: i % 2 === 1 ? "#0D0D0D" : "transparent",
               }}
@@ -559,7 +487,7 @@ export default function PricingPage() {
               <div style={{ padding: "14px 20px" }}>
                 <span style={{ ...sans("13px", "#A89F96") }}>{row.feature}</span>
               </div>
-              {[row.audit, row.dispute, row.resolve].map((val, j) => (
+              {[row.audit, row.dispute].map((val, j) => (
                 <div
                   key={j}
                   style={{

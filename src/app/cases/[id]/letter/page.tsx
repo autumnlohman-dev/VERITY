@@ -482,14 +482,11 @@ function PatientInfoPanel({
     setSaving(true);
     setSaveError(null);
     const supabase = createClient();
+    // Beta: auth gate removed. `user` may be null; user_id filter is
+    // applied only when authenticated.
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) {
-      setSaving(false);
-      setSaveError("You need to be signed in to save patient info.");
-      return;
-    }
     const payload: PatientInfo = {
       name: form.name?.trim() || undefined,
       address: form.address?.trim() || undefined,
@@ -498,12 +495,12 @@ function PatientInfoPanel({
       member_id: form.member_id?.trim() || undefined,
       account_number: form.account_number?.trim() || undefined,
     };
-    // Defensive user_id filter in addition to RLS.
-    const { error } = await supabase
+    let updateQuery = supabase
       .from("cases")
       .update({ patient_info: payload })
-      .eq("id", caseId)
-      .eq("user_id", user.id);
+      .eq("id", caseId);
+    if (user) updateQuery = updateQuery.eq("user_id", user.id);
+    const { error } = await updateQuery;
     setSaving(false);
     if (error) {
       setSaveError(error.message);
@@ -841,25 +838,20 @@ export default function LetterPage({
   const load = useCallback(async () => {
     const supabase = createClient();
 
+    // Beta: auth gate removed. `user` may be null; user_id filter is
+    // applied only when authenticated.
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      setFetchError("You need to be signed in to view this case.");
-      setLoading(false);
-      return;
-    }
-
-    // Defensive user_id filter in addition to RLS.
-    const { data: caseData, error: caseErr } = await supabase
+    let caseQuery = supabase
       .from("cases")
       .select(
         "id, status, provider_name, insurance_type, amount_billed, amount_expected, errors_found, bill_data, created_at, patient_info"
       )
-      .eq("id", id)
-      .eq("user_id", user.id)
-      .maybeSingle();
+      .eq("id", id);
+    if (user) caseQuery = caseQuery.eq("user_id", user.id);
+    const { data: caseData, error: caseErr } = await caseQuery.maybeSingle();
 
     if (caseErr) {
       setFetchError(caseErr.message);

@@ -32,13 +32,11 @@ function parseAnswers(raw: unknown): Array<{ questionId: string; optionIndex: nu
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
+    // Beta: auth gate removed. `user` may be null; downstream user_id filters
+    // are skipped when it is.
     const {
       data: { user },
     } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     const body = (await request.json().catch(() => ({}))) as PostBody
     const caseId = typeof body.caseId === 'string' ? body.caseId : null
@@ -54,13 +52,13 @@ export async function POST(request: Request) {
       )
     }
 
-    // Defensive user_id filter in addition to RLS.
-    const { data: caseRow, error: caseErr } = await supabase
+    // Defensive user_id filter in addition to RLS — only when authenticated.
+    let caseQuery = supabase
       .from('cases')
       .select('id, bill_data, errors_found')
       .eq('id', caseId)
-      .eq('user_id', user.id)
-      .single()
+    if (user) caseQuery = caseQuery.eq('user_id', user.id)
+    const { data: caseRow, error: caseErr } = await caseQuery.single()
 
     if (caseErr || !caseRow) {
       return NextResponse.json({ error: 'Case not found' }, { status: 404 })
@@ -84,11 +82,12 @@ export async function POST(request: Request) {
         : {}
     const nextBillData = { ...existingBillData, em_review: review }
 
-    const { error: updateErr } = await supabase
+    let updateQuery = supabase
       .from('cases')
       .update({ bill_data: nextBillData })
       .eq('id', caseId)
-      .eq('user_id', user.id)
+    if (user) updateQuery = updateQuery.eq('user_id', user.id)
+    const { error: updateErr } = await updateQuery
 
     if (updateErr) {
       console.error('em-review save failed:', updateErr)

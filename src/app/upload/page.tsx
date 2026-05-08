@@ -977,12 +977,10 @@ const [error, setError] = useState<string | null>(null);
     try {
       const supabase = createClient()
 
+      // Beta: auth gate removed. `user` may be null; storage paths fall back
+      // to an "anon" prefix when there's no session.
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError("You need to be logged in to submit.")
-        setLoading(false)
-        return
-      }
+      const storagePrefix = user?.id ?? `anon/${crypto.randomUUID()}`
 
       const uploadTargets: { file: File; category: string }[] = [
         billFile ? { file: billFile, category: 'bill' } : null,
@@ -993,7 +991,7 @@ const [error, setError] = useState<string | null>(null);
       const uploadStamp = Date.now()
       await Promise.all(
         uploadTargets.map(async ({ file, category }) => {
-          const filePath = `${user.id}/${uploadStamp}-${category}-${file.name}`
+          const filePath = `${storagePrefix}/${uploadStamp}-${category}-${file.name}`
           const { error: uploadError } = await supabase.storage
             .from('bills')
             .upload(filePath, file)

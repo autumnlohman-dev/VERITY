@@ -14,13 +14,10 @@ const anthropic = new Anthropic({
 
 export async function POST(request: Request) {
   try {
-    // Verify user is authenticated
+    // Beta: auth gate removed. `user` may be null; downstream user_id
+    // filters are skipped when it is.
     const supabase = await createClient()
-const { data: { user } } = await supabase.auth.getUser()
-
-if (!user) {
-  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-}
+    const { data: { user } } = await supabase.auth.getUser()
 
     const { caseId, errors, caseData, emReview } = (await request.json()) as {
       caseId?: string
@@ -43,13 +40,13 @@ if (!user) {
       )
     }
 
-    // Verify this case belongs to the user
-    const { data: caseRecord } = await supabase
+    // Verify this case belongs to the user (when authenticated).
+    let caseQuery = supabase
       .from('cases')
       .select('*')
       .eq('id', caseId)
-      .eq('user_id', user.id)
-      .single()
+    if (user) caseQuery = caseQuery.eq('user_id', user.id)
+    const { data: caseRecord } = await caseQuery.single()
 
     if (!caseRecord) {
       return NextResponse.json({ error: 'Case not found' }, { status: 404 })
@@ -156,11 +153,12 @@ The letter should:
     // Update case status to letter_ready. If this fails the letter is still
     // saved and returned — but the case status will be stale, so report to
     // Sentry so we can reconcile.
-    const { error: statusErr } = await supabase
+    let statusUpdate = supabase
       .from('cases')
       .update({ status: 'letter_ready' })
       .eq('id', caseId)
-      .eq('user_id', user.id)
+    if (user) statusUpdate = statusUpdate.eq('user_id', user.id)
+    const { error: statusErr } = await statusUpdate
     if (statusErr) {
       console.error('Case status update failed:', statusErr)
       Sentry.captureException(statusErr, {

@@ -412,25 +412,20 @@ export default function CaseDetailPage({
     const supabase = createClient();
 
     (async () => {
+      // Beta: auth gate removed. `user` may be null; user_id filter is
+      // applied only when authenticated.
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (cancelled) return;
 
-      if (!user) {
-        setFetchError("You need to be signed in to view this case.");
-        setLoading(false);
-        return;
-      }
-
-      // Defensive user_id filter in addition to RLS.
-      const { data: caseData, error: caseErr } = await supabase
+      let caseQuery = supabase
         .from("cases")
         .select("*")
-        .eq("id", id)
-        .eq("user_id", user.id)
-        .maybeSingle();
+        .eq("id", id);
+      if (user) caseQuery = caseQuery.eq("user_id", user.id);
+      const { data: caseData, error: caseErr } = await caseQuery.maybeSingle();
 
       if (cancelled) return;
 

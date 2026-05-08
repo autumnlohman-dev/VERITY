@@ -4,11 +4,9 @@ import { NextResponse } from 'next/server'
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
+    // Beta: auth gate removed. `user` may be null; user_id is omitted from
+    // the insert when no session is present.
     const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     const {
       careType,
@@ -38,7 +36,7 @@ export async function POST(request: Request) {
     const { data: newCase, error } = await supabase
       .from('cases')
       .insert({
-        user_id: user.id,
+        ...(user ? { user_id: user.id } : {}),
         status: 'auditing',
         insurance_type: insuranceType,
         provider_name: normalizedProvider,

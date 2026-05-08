@@ -350,25 +350,22 @@ export default function DashboardPage() {
     const supabase = createClient();
 
     (async () => {
+      // Beta: auth gate removed. `user` may be null; if so we just render
+      // the dashboard with whatever cases RLS allows (typically none).
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (cancelled) return;
 
-      if (!user) {
-        setFetchError("You need to be signed in to view your dashboard.");
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
+      let casesQuery = supabase
         .from("cases")
         .select(
           "id, user_id, status, provider_name, insurance_type, amount_billed, amount_recovered, potential_savings, bill_data, created_at"
         )
-        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
+      if (user) casesQuery = casesQuery.eq("user_id", user.id);
+      const { data, error } = await casesQuery;
 
       if (cancelled) return;
 

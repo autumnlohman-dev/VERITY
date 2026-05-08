@@ -31,14 +31,9 @@ async function convertHeicToJpeg(file: File): Promise<File> {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user }
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Beta: auth gate removed. This route doesn't read or write per-user
+    // data, so no further changes are needed.
+    await createClient()
 
     const formData = await request.formData()
     const rawFile = formData.get('file')

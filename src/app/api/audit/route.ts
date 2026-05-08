@@ -22,13 +22,11 @@ function isLineItem(value: unknown): value is LineItem {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
+    // Beta: auth gate removed. `user` may be null; downstream user_id
+    // filters are skipped when it is.
     const {
       data: { user }
     } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     const body = await request.json()
     const { caseId, lineItems, insuranceType, userNotes } = body ?? {}
@@ -47,12 +45,12 @@ export async function POST(request: Request) {
       )
     }
 
-    const { data: caseRecord, error: caseError } = await supabase
+    let caseLookup = supabase
       .from('cases')
       .select('id, user_id, insurance_type, bill_data')
       .eq('id', caseId)
-      .eq('user_id', user.id)
-      .single()
+    if (user) caseLookup = caseLookup.eq('user_id', user.id)
+    const { data: caseRecord, error: caseError } = await caseLookup.single()
 
     if (caseError || !caseRecord) {
       return NextResponse.json({ error: 'Case not found' }, { status: 404 })
@@ -101,7 +99,7 @@ export async function POST(request: Request) {
 
     const nextStatus = errors.length > 0 ? 'error_found' : 'no_errors'
 
-    const { error: updateError } = await supabase
+    let caseUpdate = supabase
       .from('cases')
       .update({
         status: nextStatus,
@@ -110,7 +108,8 @@ export async function POST(request: Request) {
         potential_savings: potentialSavings
       })
       .eq('id', caseId)
-      .eq('user_id', user.id)
+    if (user) caseUpdate = caseUpdate.eq('user_id', user.id)
+    const { error: updateError } = await caseUpdate
 
     if (updateError) {
       console.error('Case update error:', updateError)
