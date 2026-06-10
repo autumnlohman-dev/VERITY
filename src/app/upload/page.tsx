@@ -115,10 +115,7 @@ function Nav() {
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface FileState {
-  name: string;
-  size: number;
-}
+type FileState = File;
 
 type GuestError = {
   cpt_code: string;
@@ -246,7 +243,7 @@ function DropZone({
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const f = files[0];
-    setFile({ name: f.name, size: f.size });
+    setFile(f);
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -1091,8 +1088,7 @@ const [error, setError] = useState<string | null>(null);
       // Get current user
       const { data: { user } } = await supabase.auth.getUser()
 
-      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
-      const file = fileInput?.files?.[0]
+      const file = billFile
 
       // ── Guest path: run a free, anonymous audit and show results inline ──
       if (!user) {
