@@ -4,18 +4,19 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown } from "lucide-react";
+import { startMembershipCheckout } from "@/lib/checkout";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: "var(--font-cormorant), Georgia, serif",
   fontSize: size,
-  color: "#F5F0E8",
+  color: "#221C14",
   lineHeight: 1,
   fontWeight: 400,
   ...extra,
 });
 
-const sans = (size: string, color = "#A89F96", extra?: React.CSSProperties): React.CSSProperties => ({
+const sans = (size: string, color = "#5F5648", extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
   fontSize: size,
   color,
@@ -47,7 +48,7 @@ function Nav() {
         left: 0,
         right: 0,
         zIndex: 50,
-        backgroundColor: scrolled ? "rgba(13,13,13,0.92)" : "transparent",
+        backgroundColor: scrolled ? "rgba(235,229,217,0.85)" : "transparent",
         backdropFilter: scrolled ? "blur(12px)" : "none",
         transition: "background-color 0.4s, backdrop-filter 0.4s",
         padding: "20px 64px",
@@ -57,8 +58,8 @@ function Nav() {
       }}
     >
       <Link href="/" style={{ textDecoration: "none" }}>
-        <span style={{ ...sans("12px", "#F5F0E8"), letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500 }}>
-          ClearClaim
+        <span style={{ ...sans("15px", "#221C14"), letterSpacing: "0.42em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.42em" }}>
+          Verity
         </span>
       </Link>
       <div className="hidden md:flex" style={{ gap: "40px" }}>
@@ -70,17 +71,17 @@ function Nav() {
           <Link
             key={link.href}
             href={link.href}
-            style={{ ...sans("11px", "#A89F96"), letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none", transition: "color 0.2s" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#A89F96")}
+            style={{ ...sans("11px", "#5F5648"), letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none", transition: "color 0.2s" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#221C14")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#5F5648")}
           >
             {link.lbl}
           </Link>
         ))}
       </div>
       <Link href="/upload" style={{ textDecoration: "none" }}>
-        <span style={{ ...sans("11px", "#0D0D0D"), backgroundColor: "#C8A97E", padding: "12px 24px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
-          Upload my bill free →
+        <span style={{ ...sans("11px", "#221C14"), backgroundColor: "#C8A97E", padding: "12px 24px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
+          Check my bill →
         </span>
       </Link>
     </nav>
@@ -91,8 +92,9 @@ function Nav() {
 function Footer() {
   return (
     <footer
+      className="r-grid-1"
       style={{
-        borderTop: "1px solid #242424",
+        borderTop: "1px solid #D8CFBE",
         padding: "64px",
         display: "grid",
         gridTemplateColumns: "1fr 1fr 1fr",
@@ -100,10 +102,10 @@ function Footer() {
       }}
     >
       <div>
-        <div style={{ ...sans("12px", "#F5F0E8"), letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: "8px" }}>ClearClaim</div>
-        <div style={{ ...sans("11px", "#6B635C"), marginBottom: "16px" }}>Medical bill advocacy.</div>
-        <div style={{ ...sans("11px", "#6B635C"), maxWidth: "260px", lineHeight: 1.6 }}>
-          ClearClaim is an administrative advocacy service. We are not a law firm and do not provide legal advice.
+        <div style={{ ...sans("12px", "#221C14"), letterSpacing: "0.34em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.34em", marginBottom: "8px" }}>Verity</div>
+        <div style={{ ...sans("11px", "#8A7F6E"), marginBottom: "16px" }}>Medical bill advocacy.</div>
+        <div style={{ ...sans("11px", "#8A7F6E"), maxWidth: "260px", lineHeight: 1.6 }}>
+          Verity is an administrative advocacy service. We are not a law firm and do not provide legal advice.
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -116,17 +118,22 @@ function Footer() {
           <Link
             key={link.href}
             href={link.href}
-            style={{ ...sans("11px", "#6B635C"), textDecoration: "none", transition: "color 0.2s" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#A89F96")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#6B635C")}
+            style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none", transition: "color 0.2s" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#5F5648")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#8A7F6E")}
           >
             {link.lbl}
           </Link>
         ))}
       </div>
       <div>
-        <div style={{ ...sans("11px", "#6B635C"), marginBottom: "4px" }}>© 2026 ClearClaim</div>
-        <div style={{ ...sans("11px", "#6B635C") }}>All rights reserved.</div>
+        <div style={{ ...sans("11px", "#8A7F6E"), marginBottom: "4px" }}>© 2026 Verity</div>
+        <div style={{ ...sans("11px", "#8A7F6E"), marginBottom: "16px" }}>All rights reserved.</div>
+        <div style={{ display: "flex", gap: "16px", marginBottom: "12px" }}>
+          <Link href="/privacy" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Privacy</Link>
+          <Link href="/terms" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Terms</Link>
+        </div>
+        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity audit method, scoring models, and datasets are proprietary &amp; confidential.</div>
       </div>
     </footer>
   );
@@ -136,7 +143,7 @@ function Footer() {
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div style={{ borderTop: "1px solid #242424" }}>
+    <div style={{ borderTop: "1px solid #D8CFBE" }}>
       <button
         onClick={() => setOpen(!open)}
         style={{
@@ -152,12 +159,12 @@ function FaqItem({ q, a }: { q: string; a: string }) {
           gap: "24px",
         }}
       >
-        <span style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: "20px", color: "#F5F0E8", fontWeight: 400 }}>
+        <span style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: "20px", color: "#221C14", fontWeight: 400 }}>
           {q}
         </span>
         <ChevronDown
           size={18}
-          color="#6B635C"
+          color="#8A7F6E"
           style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s" }}
         />
       </button>
@@ -171,7 +178,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
             transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
             style={{ overflow: "hidden" }}
           >
-            <p style={{ ...sans("14px", "#A89F96"), lineHeight: 1.75, paddingBottom: "24px" }}>{a}</p>
+            <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, paddingBottom: "24px" }}>{a}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -186,31 +193,43 @@ const PRICING_FAQS = [
     a: "Because you should know what's wrong before deciding how to fight it. The free Audit tier scans your bill and shows you every error — no credit card, no commitment. If we find nothing, you owe nothing and lose nothing.",
   },
   {
-    q: "Is the membership worth it?",
-    a: "If you see doctors more than 3–4 times a year, almost certainly. Every new bill you receive gets automatically audited. Most members catch at least one error every few months — usually worth far more than the subscription.",
+    q: "Should I pay per bill or join the membership?",
+    a: "If you have a single bill to fight, the $39 Single Dispute covers it — letter, appeal, and submission guide for that one bill. If you see doctors more than a few times a year, or you're managing care for a family or a parent, the $19/mo membership almost always pays for itself: every new bill gets audited automatically and you get unlimited dispute and escalation letters.",
+  },
+  {
+    q: "Can I upgrade mid-case?",
+    a: "Yes, at any time. Start free on Audit, move to a Single Dispute for one bill, or join the membership whenever you want ongoing coverage — you never have to re-upload or start over.",
+  },
+  {
+    q: "What does the membership actually do between bills?",
+    a: "It watches. Every new bill or EOB you upload — or that arrives once portal monitoring is connected — is audited automatically, and you're alerted to new claims and suspicious charges. Most members catch at least one error every few months, usually worth far more than the subscription.",
   },
 ];
 
 // ─── Comparison table data ────────────────────────────────────────────────────
 type CellVal = "check" | "dash" | string;
 
-const TABLE_ROWS: { feature: string; audit: CellVal; dispute: CellVal }[] = [
-  { feature: "Upload and scan bill", audit: "check", dispute: "check" },
-  { feature: "Error report with confidence scores", audit: "check", dispute: "check" },
-  { feature: "Evidence for each flagged item", audit: "check", dispute: "check" },
-  { feature: "CPT code cross-reference", audit: "check", dispute: "check" },
-  { feature: "Insurer-specific dispute letter", audit: "dash", dispute: "check" },
-  { feature: "Portal, fax & mail instructions", audit: "dash", dispute: "check" },
-  { feature: "Deadline tracker", audit: "dash", dispute: "check" },
-  { feature: "Email reminders", audit: "dash", dispute: "check" },
-  { feature: "Auto-audit on new bills (membership)", audit: "dash", dispute: "✓ membership" },
-  { feature: "Upfront cost", audit: "$0", dispute: "[PRICE] or [PRICE]/mo" },
+const TABLE_ROWS: { feature: string; audit: CellVal; dispute: CellVal; member: CellVal }[] = [
+  { feature: "Upload and scan bill", audit: "check", dispute: "check", member: "check" },
+  { feature: "Error report with confidence scores", audit: "check", dispute: "check", member: "check" },
+  { feature: "Evidence + regulatory citation per item", audit: "check", dispute: "check", member: "check" },
+  { feature: "CPT code cross-reference", audit: "check", dispute: "check", member: "check" },
+  { feature: "Insurer-specific dispute letter", audit: "dash", dispute: "check", member: "check" },
+  { feature: "Appeal letter if denied", audit: "dash", dispute: "check", member: "check" },
+  { feature: "Submission guide (portal, fax, mail)", audit: "dash", dispute: "check", member: "check" },
+  { feature: "Deadline tracker", audit: "dash", dispute: "check", member: "check" },
+  { feature: "Bills covered", audit: "Report only", dispute: "1 bill", member: "Unlimited" },
+  { feature: "Continuous monitoring of new bills", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Alerts on new & suspicious claims", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Regulator complaint letters (DOI, CMS, CFPB)", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Priority support", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Price", audit: "$0", dispute: "$39 one-time", member: "$19/mo · $149/yr" },
 ];
 
 function TableCell({ val }: { val: CellVal }) {
-  if (val === "check") return <span style={{ color: "#7A9E87", fontSize: "15px" }}>✓</span>;
-  if (val === "dash") return <span style={{ color: "#2A2A2A", fontSize: "15px" }}>—</span>;
-  return <span style={{ ...sans("12px", "#F5F0E8") }}>{val}</span>;
+  if (val === "check") return <span style={{ color: "#5E7E66", fontSize: "15px" }}>✓</span>;
+  if (val === "dash") return <span style={{ color: "#CFC6B4", fontSize: "15px" }}>—</span>;
+  return <span style={{ ...sans("12px", "#221C14") }}>{val}</span>;
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -223,7 +242,7 @@ export default function PricingPage() {
   };
 
   return (
-    <div style={{ background: "#0D0D0D", minHeight: "100vh" }}>
+    <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
       <Nav />
 
       {/* ── Hero ── */}
@@ -238,25 +257,26 @@ export default function PricingPage() {
             style={{
               fontFamily: "var(--font-cormorant), Georgia, serif",
               fontSize: "clamp(64px, 8vw, 96px)",
-              color: "#F5F0E8",
+              color: "#221C14",
               lineHeight: 0.92,
               fontWeight: 400,
             }}
           >
-            Pay for the letter.
+            Free to find.
             <br />
-            <em style={{ fontStyle: "italic" }}>Or audit free,</em>
+            <em style={{ fontStyle: "italic" }}>Cheap to fix.</em>
             <br />
-            forever.
+            Watched for good.
           </h1>
-          <p style={{ ...sans("15px", "#A89F96"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
-            Two tiers. Start free. Most people start with the free audit — no credit card, no commitment.
+          <p style={{ ...sans("15px", "#5F5648"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
+            The audit is always free. Pay $39 for the letter on one bill, or join the membership and we watch every bill
+            you get. No credit card to start.
           </p>
         </motion.div>
       </section>
 
       {/* ── "Most people start free" callout ── */}
-      <section style={{ paddingTop: "64px", paddingBottom: "64px", paddingLeft: "64px", paddingRight: "64px", backgroundColor: "#111111" }}>
+      <section style={{ paddingTop: "64px", paddingBottom: "64px", paddingLeft: "64px", paddingRight: "64px", backgroundColor: "#F4EFE6" }}>
         <motion.div
           {...fadeUp}
           style={{
@@ -272,7 +292,7 @@ export default function PricingPage() {
           <Link href="/upload?tier=audit" style={{ textDecoration: "none", flexShrink: 0 }}>
             <span
               style={{
-                ...sans("11px", "#0D0D0D"),
+                ...sans("11px", "#221C14"),
                 backgroundColor: "#C8A97E",
                 padding: "16px 32px",
                 letterSpacing: "0.2em",
@@ -287,18 +307,15 @@ export default function PricingPage() {
         </motion.div>
       </section>
 
-      {/* ── Tier cards ── */}
+      {/* ── 3 tier cards ── */}
       <section style={{ paddingTop: "96px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
         <div
+          className="r-grid-1"
           style={{
-            display: "flex",
-            flexDirection: "row",
-            justifyContent: "center",
-            alignItems: "stretch",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
             gap: "16px",
-            maxWidth: "880px",
-            margin: "0 auto",
-            flexWrap: "wrap",
+            alignItems: "stretch",
           }}
         >
           {/* AUDIT */}
@@ -307,20 +324,18 @@ export default function PricingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
             style={{
-              backgroundColor: "#111111",
-              border: "1px solid #242424",
+              backgroundColor: "#F4EFE6",
+              border: "1px solid #D8CFBE",
               padding: "32px",
               display: "flex",
               flexDirection: "column",
-              flex: "1 1 360px",
-              maxWidth: "420px",
             }}
           >
             <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Audit</div>
             <div style={{ ...serif("52px", { fontStyle: "italic", lineHeight: 1, marginBottom: "4px" }) }}>Free</div>
-            <div style={{ ...sans("12px", "#6B635C") }}>always</div>
-            <div style={{ borderTop: "1px solid #242424", margin: "24px 0" }} />
-            <div style={{ ...serif("18px", { fontStyle: "italic", color: "#A89F96", lineHeight: 1.4, marginBottom: "24px" }) }}>
+            <div style={{ ...sans("12px", "#8A7F6E") }}>always</div>
+            <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
+            <div style={{ ...serif("18px", { fontStyle: "italic", color: "#5F5648", lineHeight: 1.4, marginBottom: "24px" }) }}>
               see exactly what they got wrong.
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
@@ -331,7 +346,7 @@ export default function PricingPage() {
                 "› Evidence behind each flagged item",
                 "› No dispute filed — see it all first",
               ].map((f) => (
-                <div key={f} style={{ ...sans("13px", "#A89F96") }}>{f}</div>
+                <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
               ))}
             </div>
             <Link href="/upload?tier=audit" style={{ textDecoration: "none" }}>
@@ -349,7 +364,7 @@ export default function PricingPage() {
                 onMouseEnter={(e) => {
                   const el = e.currentTarget as HTMLDivElement;
                   el.style.backgroundColor = "#C8A97E";
-                  el.style.color = "#0D0D0D";
+                  el.style.color = "#221C14";
                 }}
                 onMouseLeave={(e) => {
                   const el = e.currentTarget as HTMLDivElement;
@@ -368,57 +383,38 @@ export default function PricingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.2 }}
             style={{
-              backgroundColor: "#111111",
-              border: "1px solid rgba(200,169,126,0.4)",
+              backgroundColor: "#F4EFE6",
+              border: "1px solid #D8CFBE",
               padding: "32px",
               position: "relative",
               display: "flex",
               flexDirection: "column",
-              flex: "1 1 360px",
-              maxWidth: "420px",
             }}
           >
-            <div
-              style={{
-                display: "inline-block",
-                backgroundColor: "rgba(200,169,126,0.15)",
-                color: "#C8A97E",
-                border: "1px solid rgba(200,169,126,0.3)",
-                fontSize: "9px",
-                letterSpacing: "0.15em",
-                textTransform: "uppercase",
-                padding: "4px 8px",
-                marginBottom: "12px",
-                fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
-              }}
-            >
-              Most popular
-            </div>
-            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Dispute</div>
-            <div style={{ ...serif("52px", { fontStyle: "italic", lineHeight: 1, marginBottom: "4px" }) }}>[PRICE]</div>
-            <div style={{ ...sans("12px", "#6B635C") }}>per letter, or [PRICE]/mo</div>
-            <div style={{ borderTop: "1px solid #242424", margin: "24px 0" }} />
-            <div style={{ ...serif("18px", { fontStyle: "italic", color: "#A89F96", lineHeight: 1.4, marginBottom: "24px" }) }}>
-              your weapon. ready to send.
+            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Single Dispute</div>
+            <div style={{ ...serif("52px", { fontStyle: "italic", lineHeight: 1, marginBottom: "4px" }) }}>$39</div>
+            <div style={{ ...sans("12px", "#8A7F6E") }}>one-time, for one bill</div>
+            <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
+            <div style={{ ...serif("18px", { fontStyle: "italic", color: "#5F5648", lineHeight: 1.4, marginBottom: "24px" }) }}>
+              one bill. ready to send.
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
               {[
                 "› Everything in Audit, plus:",
                 "› Insurer-specific prefilled dispute letter",
+                "› Appeal letter if your dispute is denied",
                 "› Step-by-step submission guide",
                 "› Portal link, fax number, and mailing address",
                 "› Deadline tracker",
-                "› Email reminders",
-                "› Membership: every new bill audited automatically",
               ].map((f) => (
-                <div key={f} style={{ ...sans("13px", "#A89F96") }}>{f}</div>
+                <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
               ))}
             </div>
             <Link href="/upload?tier=dispute" style={{ textDecoration: "none" }}>
               <div
                 style={{
-                  ...sans("11px", "#0D0D0D"),
-                  backgroundColor: "#C8A97E",
+                  ...sans("11px", "#C8A97E"),
+                  border: "1px solid #C8A97E",
                   padding: "14px",
                   textAlign: "center",
                   letterSpacing: "0.2em",
@@ -431,6 +427,69 @@ export default function PricingPage() {
             </Link>
           </motion.div>
 
+          {/* MEMBERSHIP */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.3 }}
+            style={{
+              backgroundColor: "#F4EFE6",
+              border: "1.5px solid #C8A97E",
+              padding: "32px",
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                display: "inline-block",
+                backgroundColor: "#C8A97E",
+                color: "#221C14",
+                fontSize: "9px",
+                letterSpacing: "0.15em",
+                textTransform: "uppercase",
+                padding: "4px 8px",
+                marginBottom: "12px",
+                fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+              }}
+            >
+              Most popular
+            </div>
+            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Membership</div>
+            <div style={{ ...serif("52px", { fontStyle: "italic", lineHeight: 1, marginBottom: "4px" }) }}>$19<span style={{ fontSize: "22px" }}>/mo</span></div>
+            <div style={{ ...sans("12px", "#8A7F6E") }}>or $149/yr — two months free</div>
+            <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
+            <div style={{ ...serif("18px", { fontStyle: "italic", color: "#5F5648", lineHeight: 1.4, marginBottom: "24px" }) }}>
+              your ongoing bill watchdog.
+            </div>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
+              {[
+                "› Everything in Single Dispute, unlimited:",
+                "› Unlimited audits and dispute letters",
+                "› Continuous monitoring — every new bill auto-audited",
+                "› Alerts on new claims and suspicious charges",
+                "› Escalation & regulator letters (appeal, DOI, CMS, CFPB)",
+                "› Priority support",
+              ].map((f) => (
+                <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
+              ))}
+            </div>
+            <div
+              onClick={() => startMembershipCheckout("monthly")}
+              style={{
+                ...sans("11px", "#221C14"),
+                backgroundColor: "#C8A97E",
+                padding: "14px",
+                textAlign: "center",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+              }}
+            >
+              Start membership
+            </div>
+          </motion.div>
         </div>
       </section>
 
@@ -442,8 +501,8 @@ export default function PricingPage() {
         <motion.div
           {...fadeUp}
           style={{
-            backgroundColor: "#111111",
-            border: "1px solid #242424",
+            backgroundColor: "#F4EFE6",
+            border: "1px solid #D8CFBE",
             overflow: "hidden",
           }}
         >
@@ -451,21 +510,22 @@ export default function PricingPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "2fr 1fr 1fr",
-              borderBottom: "1px solid #242424",
-              backgroundColor: "#1A1A1A",
+              gridTemplateColumns: "2fr 1fr 1fr 1fr",
+              borderBottom: "1px solid #D8CFBE",
+              backgroundColor: "#EFE9DD",
             }}
           >
             {[
-              { h: "Feature", col: "#6B635C" },
-              { h: "Audit — Free", col: "#A89F96" },
-              { h: "Dispute — [PRICE]/letter", col: "#C8A97E" },
+              { h: "Feature", col: "#8A7F6E" },
+              { h: "Audit — Free", col: "#5F5648" },
+              { h: "Single Dispute — $39", col: "#5F5648" },
+              { h: "Membership — $19/mo", col: "#C8A97E" },
             ].map(({ h, col }, i) => (
               <div
                 key={h}
                 style={{
                   padding: "16px 20px",
-                  borderLeft: i > 0 ? "1px solid #242424" : "none",
+                  borderLeft: i > 0 ? "1px solid #D8CFBE" : "none",
                 }}
               >
                 <span style={{ ...sans("11px", col), letterSpacing: "0.15em", textTransform: "uppercase" }}>{h}</span>
@@ -479,20 +539,20 @@ export default function PricingPage() {
               key={row.feature}
               style={{
                 display: "grid",
-                gridTemplateColumns: "2fr 1fr 1fr",
-                borderBottom: i < TABLE_ROWS.length - 1 ? "1px solid #1C1C1C" : "none",
-                backgroundColor: i % 2 === 1 ? "#0D0D0D" : "transparent",
+                gridTemplateColumns: "2fr 1fr 1fr 1fr",
+                borderBottom: i < TABLE_ROWS.length - 1 ? "1px solid #E2DACB" : "none",
+                backgroundColor: i % 2 === 1 ? "#221C14" : "transparent",
               }}
             >
               <div style={{ padding: "14px 20px" }}>
-                <span style={{ ...sans("13px", "#A89F96") }}>{row.feature}</span>
+                <span style={{ ...sans("13px", "#5F5648") }}>{row.feature}</span>
               </div>
-              {[row.audit, row.dispute].map((val, j) => (
+              {[row.audit, row.dispute, row.member].map((val, j) => (
                 <div
                   key={j}
                   style={{
                     padding: "14px 20px",
-                    borderLeft: "1px solid #1C1C1C",
+                    borderLeft: "1px solid #E2DACB",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -518,7 +578,7 @@ export default function PricingPage() {
           {PRICING_FAQS.map((faq) => (
             <FaqItem key={faq.q} q={faq.q} a={faq.a} />
           ))}
-          <div style={{ borderTop: "1px solid #242424" }} />
+          <div style={{ borderTop: "1px solid #D8CFBE" }} />
         </div>
       </section>
 

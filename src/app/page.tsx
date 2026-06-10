@@ -1,1165 +1,300 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Image from "next/image";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Plus, Lock, Shield, DollarSign, Scale } from "lucide-react";
+import { startMembershipCheckout } from "@/lib/checkout";
+import { ChevronDown } from "lucide-react";
+
+// ─── Style helpers ────────────────────────────────────────────────────────────
+const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
+  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontSize: size,
+  color: "#221C14",
+  lineHeight: 1,
+  fontWeight: 400,
+  ...extra,
+});
+
+const sans = (size: string, color = "#5F5648", extra?: React.CSSProperties): React.CSSProperties => ({
+  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontSize: size,
+  color,
+  ...extra,
+});
+
+const label = (color = "#C8A97E"): React.CSSProperties => ({
+  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontSize: "11px",
+  letterSpacing: "0.25em",
+  textTransform: "uppercase" as const,
+  color,
+});
 
 // ─── FAQs ─────────────────────────────────────────────────────────────────────
 const FAQS = [
   {
-    q: "Can you help if I already paid the bill?",
-    a: "Often, yes. Providers and insurers are required to correct billing errors even after payment, and most states give you at least a year to request a refund on an overbilled claim (federal timely filing windows vary by payer). Upload the bill and your payment record — we'll tell you whether the timing still works for a refund request.",
+    q: "What types of billing errors do you find?",
+    a: "The most common: upcoding (charging for a more expensive procedure than performed), duplicate billing, balance billing violations, charges above contracted rates, and unbundling (splitting one procedure into multiple charges). Most patients have at least two.",
   },
   {
-    q: "Can you review out of network emergency bills?",
-    a: "Yes — these are often the strongest cases. Emergency services are protected by the No Surprises Act, which requires in-network cost sharing regardless of provider network status. If you were balance-billed above in-network rates for an ER visit, the audit will flag it and the dispute letter will cite the applicable federal protection.",
+    q: "How long does it take?",
+    a: "Audit reports are ready within 24 hours of upload, and your dispute letter is generated instantly. Once you send it, most insurers and providers respond within 30 days, though complex cases or appeals can take longer.",
   },
   {
-    q: "Do you need my insurance portal login?",
-    a: "No. We never ask for portal or account credentials. Everything we need comes from documents you already have: the itemized bill, your Explanation of Benefits PDF from your insurer, and your insurance card. Uploads are encrypted in transit and at rest.",
+    q: "What do I need to upload?",
+    a: "Your itemized medical bill (not the summary — request the itemized version from your provider if you don't have it), your Explanation of Benefits from your insurer, and your insurance card. The EOB is optional but makes the audit more precise.",
   },
   {
-    q: "What happens if you find nothing wrong?",
-    a: "On the free Audit, you pay nothing either way. We'll tell you the bill checks out and explain what we reviewed (fee-schedule comparisons, NCCI edits, MUE limits, No Surprises Act coverage). If your audit is clean, you're done — no dispute letter needed.",
+    q: "What happens if my insurer denies the dispute?",
+    a: "Your audit report includes the evidence and regulatory citations behind every flagged charge, so you can escalate to a second-level appeal or an external review. Verity generates the follow-up letters you need at each step.",
   },
   {
-    q: "What states do you support?",
-    a: "All 50 states — federal protections like the No Surprises Act apply nationwide, and the audit and dispute letter are generated against federal and CMS rules that apply regardless of your state. Where state-specific protections give you stronger rights, the letter cites those too.",
+    q: "Is my medical data safe?",
+    a: "All documents are encrypted at rest and in transit using AES-256, and built with privacy and security best practices. We never sell or share your information with any third party.",
+  },
+  {
+    q: "Do you work with all insurance types?",
+    a: "We handle PPO, HMO, EPO, and Medicare Advantage plans. We also review self-pay bills over $500. Medicare and Medicaid disputes follow different pathways — we'll flag this during your audit.",
   },
 ];
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 function Nav() {
   const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const links = [
-    { label: "How it works", href: "/how-it-works" },
-    { label: "Pricing", href: "/pricing" },
-    { label: "FAQ", href: "#faq" },
-  ];
-
   return (
-    <>
-      <nav
-        className="fixed top-0 left-0 right-0 z-50 transition-colors duration-300"
-        style={{
-          backgroundColor: scrolled ? "rgba(245,240,232,0.92)" : "transparent",
-          backdropFilter: scrolled ? "blur(12px)" : "none",
-          borderBottom: scrolled ? "1px solid var(--border)" : "1px solid transparent",
-        }}
-      >
-        {/* Mobile: logo + hamburger */}
-        <div className="md:hidden flex items-center justify-between px-6 py-5">
-          <Link href="/" className="no-underline">
-            <span
-              className="font-[family-name:var(--font-dm-sans)] uppercase"
-              style={{
-                fontSize: "12px",
-                letterSpacing: "0.25em",
-                fontWeight: 500,
-                color: "var(--text-primary)",
-              }}
-            >
-              ClearClaim
-            </span>
-          </Link>
-          <button
-            aria-label="Menu"
-            onClick={() => setMobileOpen(true)}
-            style={{ color: "var(--text-primary)", background: "none", border: "none" }}
-          >
-            <Menu size={22} />
-          </button>
-        </div>
-
-        {/* Tablet (md only): hero is stacked, single-row layout is readable */}
-        <div className="hidden md:flex lg:hidden items-center justify-between px-12 py-5">
-          <Link href="/" className="no-underline">
-            <span
-              className="font-[family-name:var(--font-dm-sans)] uppercase"
-              style={{
-                fontSize: "12px",
-                letterSpacing: "0.25em",
-                fontWeight: 500,
-                color: "var(--text-primary)",
-              }}
-            >
-              ClearClaim
-            </span>
-          </Link>
-          <div className="flex items-center gap-10">
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
-                style={{
-                  fontSize: "11px",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  fontWeight: 400,
-                  color: "var(--text-muted)",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
-                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-          <Link href="/upload" className="no-underline">
-            <span
-              className="inline-block font-[family-name:var(--font-dm-sans)] uppercase"
-              style={{
-                fontSize: "11px",
-                letterSpacing: "0.2em",
-                fontWeight: 500,
-                color: "var(--bg)",
-                backgroundColor: "var(--text-primary)",
-                padding: "12px 24px",
-              }}
-            >
-              Upload my bill free →
-            </span>
-          </Link>
-        </div>
-
-        {/* Desktop (lg+): 3-col grid mirroring the hero split — logo + links live in the cream column, CTA floats over the image */}
-        <div
-          className="hidden lg:grid items-center py-5"
-          style={{ gridTemplateColumns: "48px 1fr 1fr" }}
-        >
-          <div />
-          <div className="flex items-center justify-between pl-16">
-            <Link href="/" className="no-underline">
-              <span
-                className="font-[family-name:var(--font-dm-sans)] uppercase"
-                style={{
-                  fontSize: "12px",
-                  letterSpacing: "0.25em",
-                  fontWeight: 500,
-                  color: "var(--text-primary)",
-                }}
-              >
-                ClearClaim
-              </span>
-            </Link>
-            <div className="flex items-center gap-10">
-              {links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
-                  style={{
-                    fontSize: "11px",
-                    letterSpacing: "0.2em",
-                    textTransform: "uppercase",
-                    fontWeight: 400,
-                    color: "var(--text-muted)",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center justify-end px-16">
-            <Link href="/upload" className="no-underline">
-              <span
-                className="inline-block font-[family-name:var(--font-dm-sans)] uppercase"
-                style={{
-                  fontSize: "11px",
-                  letterSpacing: "0.2em",
-                  fontWeight: 500,
-                  color: "var(--bg)",
-                  backgroundColor: "var(--text-primary)",
-                  padding: "12px 24px",
-                }}
-              >
-                Upload my bill free →
-              </span>
-            </Link>
-          </div>
-        </div>
-      </nav>
-
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="md:hidden fixed inset-0 z-[60] flex flex-col px-6 py-5"
-            style={{ backgroundColor: "var(--bg)" }}
-          >
-            <div className="flex items-center justify-between mb-20">
-              <span
-                className="font-[family-name:var(--font-dm-sans)] uppercase"
-                style={{
-                  fontSize: "12px",
-                  letterSpacing: "0.25em",
-                  fontWeight: 500,
-                  color: "var(--text-primary)",
-                }}
-              >
-                ClearClaim
-              </span>
-              <button
-                aria-label="Close menu"
-                onClick={() => setMobileOpen(false)}
-                style={{ color: "var(--text-primary)", background: "none", border: "none" }}
-              >
-                <X size={22} />
-              </button>
-            </div>
-            <div className="flex flex-col gap-8">
-              {links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileOpen(false)}
-                  className="font-[family-name:var(--font-cormorant)] no-underline"
-                  style={{
-                    fontSize: "36px",
-                    fontWeight: 300,
-                    color: "var(--text-primary)",
-                    lineHeight: 1.1,
-                  }}
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-            <Link
-              href="/upload"
-              onClick={() => setMobileOpen(false)}
-              className="mt-auto no-underline"
-            >
-              <div
-                className="w-full text-center font-[family-name:var(--font-dm-sans)] uppercase"
-                style={{
-                  fontSize: "12px",
-                  letterSpacing: "0.2em",
-                  fontWeight: 500,
-                  color: "var(--bg)",
-                  backgroundColor: "var(--text-primary)",
-                  padding: "18px",
-                }}
-              >
-                Upload my bill free →
-              </div>
-            </Link>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
-  );
-}
-
-// ─── Shared motion ────────────────────────────────────────────────────────────
-const fadeUp = {
-  initial: { opacity: 0, y: 24 },
-  whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, margin: "-80px" },
-  transition: { duration: 0.7, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] },
-};
-
-// ─── Hero ─────────────────────────────────────────────────────────────────────
-function Hero() {
-  return (
-    <section
-      className="relative"
+    <nav
       style={{
-        backgroundColor: "var(--bg)",
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        backgroundColor: scrolled ? "rgba(235,229,217,0.85)" : "transparent",
+        backdropFilter: scrolled ? "blur(12px)" : "none",
+        transition: "background-color 0.4s, backdrop-filter 0.4s",
+        padding: "20px 64px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
       }}
     >
-      {/* 2-col (text | image) */}
-      <div
-        className="grid grid-cols-1 lg:grid-cols-[1fr_1fr]"
-        style={{ minHeight: "82vh" }}
-      >
-        {/* Left column: text */}
-        <div className="relative flex flex-col justify-center px-6 md:px-12 lg:px-16 py-16 lg:py-0">
-          {/* amber eyebrow line */}
-          <div className="flex items-center gap-4 mb-10 lg:mb-14">
-            <div style={{ width: "40px", height: "1px", backgroundColor: "var(--amber)" }} />
-            <span
-              className="font-[family-name:var(--font-dm-sans)] uppercase"
-              style={{
-                fontSize: "10px",
-                letterSpacing: "0.3em",
-                color: "var(--amber)",
-                fontWeight: 400,
-              }}
-            >
-              Medical Billing Advocacy
-            </span>
-          </div>
-
-          <h1
-            className="font-[family-name:var(--font-cormorant)]"
-            style={{
-              fontSize: "clamp(54px, 8vw, 104px)",
-              fontWeight: 300,
-              lineHeight: 0.95,
-              letterSpacing: "-0.02em",
-              color: "var(--text-primary)",
-              marginBottom: "40px",
-            }}
-          >
-            Your bill
-            <br />
-            is probably
-            <br />
-            <em
-              style={{
-                fontStyle: "italic",
-                color: "var(--amber)",
-                fontWeight: 300,
-              }}
-            >
-              wrong.
-            </em>
-          </h1>
-
-          {/* subtext with amber left border */}
-          <div
-            className="mb-5 pl-5"
-            style={{ borderLeft: "1px solid var(--amber)", maxWidth: "420px" }}
-          >
-            <p
-              className="font-[family-name:var(--font-dm-sans)]"
-              style={{
-                fontSize: "15px",
-                lineHeight: 1.7,
-                color: "var(--text-muted)",
-                fontWeight: 300,
-              }}
-            >
-              Upload your itemized bill. We audit every charge, flag likely
-              billing errors, and show you exactly what you may be owed — before
-              you pay us anything.
-            </p>
-          </div>
-
-          <p
-            className="font-[family-name:var(--font-dm-sans)] mb-6"
-            style={{
-              fontSize: "12px",
-              lineHeight: 1.5,
-              color: "var(--text-faint)",
-              fontWeight: 400,
-              letterSpacing: "0.02em",
-            }}
-          >
-            Results in 24 hours. Takes 3 minutes to upload.
-          </p>
-
-          <div>
-            <Link href="/upload" className="no-underline">
-              <span
-                className="inline-block font-[family-name:var(--font-dm-sans)] uppercase transition-opacity hover:opacity-90"
-                style={{
-                  fontSize: "11px",
-                  letterSpacing: "0.25em",
-                  fontWeight: 500,
-                  color: "var(--bg)",
-                  backgroundColor: "var(--text-primary)",
-                  padding: "18px 32px",
-                }}
-              >
-                Upload my bill free
-              </span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Right column: image */}
-        <div className="relative min-h-[420px] lg:min-h-full">
-          <Image
-            src="/images/hero-main.png"
-            alt="Couple reviewing a medical bill"
-            fill
-            priority
-            quality={90}
-            sizes="50vw"
-            style={{ objectFit: "cover", objectPosition: "center" }}
-          />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Trust Bar ────────────────────────────────────────────────────────────────
-function TrustBar() {
-  const items: Array<{ icon: React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }>; text: string }> = [
-    { icon: Lock, text: "Bank-level encryption" },
-    { icon: Shield, text: "Your documents stay private" },
-    { icon: DollarSign, text: "Free to audit" },
-    { icon: Scale, text: "Advocacy service, not a law firm" },
-  ];
-
-  return (
-    <motion.section
-      {...fadeUp}
-      className="grid grid-cols-1 md:grid-cols-4"
-      style={{
-        backgroundColor: "var(--bg-dark)",
-        borderTop: "1px solid var(--border-dark)",
-      }}
-    >
-      {items.map(({ icon: Icon, text }, i) => (
-        <div
-          key={i}
-          className={[
-            "flex gap-3 items-center justify-center px-8 md:px-12 py-7 md:py-8",
-            i > 0 ? "border-t md:border-t-0 md:border-l" : "",
-          ].filter(Boolean).join(" ")}
-          style={{ borderColor: "var(--border-dark)" }}
-        >
-          <Icon size={16} strokeWidth={1.6} color="#F5F0E8" />
-          <span
-            className="font-[family-name:var(--font-dm-sans)]"
-            style={{
-              fontSize: "13px",
-              color: "#F5F0E8",
-              fontWeight: 400,
-              lineHeight: 1.4,
-              letterSpacing: "0.01em",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {text}
-          </span>
-        </div>
-      ))}
-    </motion.section>
-  );
-}
-
-// ─── Mock Audit Card ──────────────────────────────────────────────────────────
-function MockAuditCard() {
-  const findings = [
-    {
-      title: "Duplicate charge detected — CPT 99213 billed twice",
-      confidence: "HIGH",
-      savings: "$180",
-    },
-    {
-      title: "CPT code likely upcoded — 99285 vs expected 99283",
-      confidence: "MEDIUM",
-      savings: "$340",
-    },
-    {
-      title: "Balance bill may violate No Surprises Act",
-      confidence: "HIGH",
-      savings: "$1,200",
-    },
-  ];
-
-  const confidenceStyle = (c: string) => {
-    if (c === "HIGH") {
-      return {
-        color: "#C47C6A",
-        border: "1px solid rgba(196,124,106,0.4)",
-        backgroundColor: "rgba(196,124,106,0.08)",
-      };
-    }
-    return {
-      color: "var(--amber)",
-      border: "1px solid rgba(200,169,126,0.4)",
-      backgroundColor: "rgba(200,169,126,0.08)",
-    };
-  };
-
-  return (
-    <section
-      className="px-6 md:px-12 lg:px-16 py-20 lg:py-28"
-      style={{
-        backgroundColor: "var(--bg)",
-        borderTop: "1px solid var(--border)",
-      }}
-    >
-      <motion.div {...fadeUp} className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-10 lg:gap-20 items-start">
-        <div>
-          <div
-            className="font-[family-name:var(--font-dm-sans)] uppercase mb-6"
-            style={{
-              fontSize: "10px",
-              letterSpacing: "0.3em",
-              color: "var(--text-muted)",
-              fontWeight: 400,
-            }}
-          >
-            — Sample audit
-          </div>
-          <h2
-            className="font-[family-name:var(--font-cormorant)]"
-            style={{
-              fontSize: "clamp(36px, 4.5vw, 56px)",
-              fontWeight: 300,
-              lineHeight: 1.05,
-              letterSpacing: "-0.02em",
-              color: "var(--text-primary)",
-              maxWidth: "420px",
-            }}
-          >
-            Here&apos;s what{" "}
-            <em
-              style={{
-                fontStyle: "italic",
-                color: "var(--amber)",
-                fontWeight: 300,
-              }}
-            >
-              your audit
-            </em>{" "}
-            looks like.
-          </h2>
-          <p
-            className="font-[family-name:var(--font-dm-sans)] mt-6"
-            style={{
-              fontSize: "13px",
-              lineHeight: 1.7,
-              color: "var(--text-muted)",
-              fontWeight: 300,
-              maxWidth: "360px",
-            }}
-          >
-            Every finding comes with a confidence score, regulatory citation,
-            and dollar impact — so you know exactly what you&apos;re disputing
-            and why.
-          </p>
-        </div>
-
-        <div
+      <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "12px" }}>
+        <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block" }}>
+          <circle cx="32" cy="32" r="20" fill="none" stroke="#B8945C" strokeWidth="1.8" />
+          <text x="32" y="45" textAnchor="middle" fontFamily="var(--font-cormorant), Georgia, serif" fontSize="36" fontWeight={500} fill="#B8945C">V</text>
+        </svg>
+        <span
           style={{
-            backgroundColor: "var(--bg-dark)",
-            border: "1px solid var(--border-dark)",
-          }}
-        >
-          <div
-            className="flex items-center justify-between px-6 md:px-8 py-5"
-            style={{ borderBottom: "1px solid var(--border-dark)" }}
-          >
-            <div
-              className="font-[family-name:var(--font-dm-sans)] uppercase"
-              style={{
-                fontSize: "10px",
-                letterSpacing: "0.25em",
-                color: "var(--text-faint)",
-                fontWeight: 400,
-              }}
-            >
-              Audit findings
-            </div>
-            <div
-              className="font-[family-name:var(--font-dm-sans)] uppercase"
-              style={{
-                fontSize: "9px",
-                letterSpacing: "0.2em",
-                color: "var(--amber)",
-                fontWeight: 400,
-                fontStyle: "italic",
-              }}
-            >
-              Illustrative example
-            </div>
-          </div>
-
-          {findings.map((f, i) => (
-            <div
-              key={i}
-              className="px-6 md:px-8 py-6"
-              style={{
-                borderTop: i === 0 ? "none" : "1px solid var(--border-dark)",
-              }}
-            >
-              <div className="flex items-start justify-between gap-4 md:gap-6 flex-wrap">
-                <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-                  <div
-                    className="font-[family-name:var(--font-cormorant)]"
-                    style={{
-                      fontSize: "18px",
-                      fontWeight: 300,
-                      lineHeight: 1.3,
-                      color: "var(--bg)",
-                    }}
-                  >
-                    {f.title}
-                  </div>
-                  <div className="mt-3">
-                    <span
-                      className="font-[family-name:var(--font-dm-sans)] uppercase"
-                      style={{
-                        fontSize: "9px",
-                        letterSpacing: "0.2em",
-                        fontWeight: 400,
-                        padding: "2px 8px",
-                        ...confidenceStyle(f.confidence),
-                      }}
-                    >
-                      {f.confidence} confidence
-                    </span>
-                  </div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div
-                    className="font-[family-name:var(--font-cormorant)]"
-                    style={{
-                      fontSize: "28px",
-                      fontWeight: 300,
-                      fontStyle: "italic",
-                      color: "#7A9E87",
-                      lineHeight: 1,
-                    }}
-                  >
-                    {f.savings}
-                  </div>
-                  <div
-                    className="font-[family-name:var(--font-dm-sans)] uppercase mt-2"
-                    style={{
-                      fontSize: "9px",
-                      letterSpacing: "0.2em",
-                      color: "var(--text-faint)",
-                      fontWeight: 400,
-                    }}
-                  >
-                    Potential savings
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          <div
-            className="px-6 md:px-8 py-4"
-            style={{
-              borderTop: "1px solid var(--border-dark)",
-              backgroundColor: "rgba(0,0,0,0.15)",
-            }}
-          >
-            <div
-              className="font-[family-name:var(--font-dm-sans)]"
-              style={{
-                fontSize: "11px",
-                color: "var(--text-faint)",
-                fontWeight: 300,
-                lineHeight: 1.6,
-                fontStyle: "italic",
-                opacity: 0.85,
-              }}
-            >
-              Illustrative examples based on common billing dispute outcomes.
-              Your audit will reflect your specific bill.
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </section>
-  );
-}
-
-// ─── How It Works ─────────────────────────────────────────────────────────────
-function HowItWorks() {
-  const steps = [
-    {
-      num: "01",
-      title: "Upload",
-      body: "Upload your itemized bill or EOB. Takes about three minutes — photo or PDF both work.",
-    },
-    {
-      num: "02",
-      title: "We audit",
-      body: "Every charge checked against CMS rates and federal billing rules. Confidence scores on every finding. Results within 24 hours.",
-    },
-    {
-      num: "03",
-      title: "You decide",
-      body: "Get a prefilled dispute letter tailored to your bill, ready to send by certified mail with step-by-step filing instructions.",
-    },
-  ];
-
-  return (
-    <section
-      id="how-it-works"
-      className="px-6 md:px-12 lg:px-16 py-24 lg:py-32"
-      style={{
-        backgroundColor: "var(--bg)",
-        borderTop: "1px solid var(--border)",
-      }}
-    >
-      <motion.div {...fadeUp} className="max-w-2xl mb-16 lg:mb-24">
-        <div
-          className="font-[family-name:var(--font-dm-sans)] uppercase mb-6"
-          style={{
-            fontSize: "10px",
-            letterSpacing: "0.3em",
-            color: "var(--text-muted)",
-            fontWeight: 400,
-          }}
-        >
-          — How it works
-        </div>
-        <h2
-          className="font-[family-name:var(--font-cormorant)]"
-          style={{
-            fontSize: "clamp(40px, 5vw, 68px)",
+            ...sans("15px", "#221C14"),
+            letterSpacing: "0.42em",
+            textTransform: "uppercase",
             fontWeight: 300,
-            lineHeight: 1.02,
-            letterSpacing: "-0.02em",
-            color: "var(--text-primary)",
+            paddingLeft: "0.42em",
           }}
         >
-          Three steps.
+          Verity
+        </span>
+      </Link>
+
+      <div className="hidden md:flex" style={{ gap: "40px" }}>
+        {[
+          { label: "How it works", href: "/how-it-works" },
+          { label: "Pricing", href: "/pricing" },
+          { label: "FAQ", href: "#faq" },
+        ].map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            style={{
+              ...sans("11px", "#5F5648"),
+              letterSpacing: "0.15em",
+              textTransform: "uppercase",
+              textDecoration: "none",
+              transition: "color 0.2s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#221C14")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#5F5648")}
+          >
+            {link.label}
+          </Link>
+        ))}
+      </div>
+
+      <Link href="/upload" style={{ textDecoration: "none" }}>
+        <span
+          style={{
+            ...sans("11px", "#221C14"),
+            backgroundColor: "#C8A97E",
+            padding: "12px 24px",
+            letterSpacing: "0.2em",
+            textTransform: "uppercase",
+            fontWeight: 500,
+            display: "inline-block",
+          }}
+        >
+          Check my bill →
+        </span>
+      </Link>
+    </nav>
+  );
+}
+
+// ─── Footer ───────────────────────────────────────────────────────────────────
+function Footer() {
+  return (
+    <footer
+      className="r-grid-1"
+      style={{
+        borderTop: "1px solid #D8CFBE",
+        padding: "64px",
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 1fr",
+        gap: "48px",
+      }}
+    >
+      <div>
+        <div
+          style={{
+            ...sans("30px", "#221C14"),
+            letterSpacing: "0.34em",
+            textTransform: "uppercase",
+            fontWeight: 300,
+            paddingLeft: "0.34em",
+            lineHeight: 1,
+          }}
+        >
+          Verity
+        </div>
+        <div
+          style={{
+            ...sans("11px", "#8A7F6E"),
+            letterSpacing: "0.42em",
+            textTransform: "uppercase",
+            paddingLeft: "0.42em",
+            marginTop: "8px",
+            marginBottom: "20px",
+          }}
+        >
+          Advocacy
+        </div>
+        <div style={{ ...sans("12px", "#5F5648"), marginBottom: "16px", lineHeight: 1.6 }}>
+          Financial clarity. Human advocacy.
           <br />
-          One{" "}
-          <em
+          Smarter healthcare.
+        </div>
+        <div
+          style={{
+            ...sans("11px", "#8A7F6E"),
+            maxWidth: "260px",
+            lineHeight: 1.6,
+          }}
+        >
+          Verity is an administrative advocacy service. We are not a law
+          firm and do not provide legal advice.
+        </div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {[
+          { lbl: "How it works", href: "/how-it-works" },
+          { lbl: "Pricing", href: "/pricing" },
+          { lbl: "Dashboard", href: "/dashboard" },
+          { lbl: "FAQ", href: "#faq" },
+        ].map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
             style={{
-              fontStyle: "italic",
-              color: "var(--amber)",
-              fontWeight: 300,
+              ...sans("11px", "#8A7F6E"),
+              textDecoration: "none",
+              transition: "color 0.2s",
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#5F5648")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#8A7F6E")}
           >
-            outcome.
-          </em>
-        </h2>
-      </motion.div>
-
-      <div
-        className="grid grid-cols-1 md:grid-cols-3"
-        style={{ borderTop: "1px solid var(--border)" }}
-      >
-        {steps.map((step, i) => (
-          <motion.div
-            key={step.num}
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{
-              duration: 0.7,
-              ease: [0.25, 0.1, 0.25, 1],
-              delay: i * 0.1,
-            }}
-            className={`relative px-6 md:px-10 py-12 md:py-16 ${
-              i > 0 ? "border-t md:border-t-0 md:border-l" : ""
-            }`}
-            style={{ borderColor: "var(--border)" }}
-          >
-            <div
-              className="font-[family-name:var(--font-cormorant)] mb-8"
-              style={{
-                fontSize: "clamp(72px, 8vw, 112px)",
-                fontWeight: 300,
-                lineHeight: 1,
-                color: "#E5DDD5",
-                letterSpacing: "-0.02em",
-              }}
-            >
-              {step.num}
-            </div>
-            <div
-              className="font-[family-name:var(--font-dm-sans)] uppercase mb-4"
-              style={{
-                fontSize: "12px",
-                letterSpacing: "0.25em",
-                color: "var(--text-primary)",
-                fontWeight: 500,
-              }}
-            >
-              {step.title}
-            </div>
-            <p
-              className="font-[family-name:var(--font-dm-sans)]"
-              style={{
-                fontSize: "15px",
-                lineHeight: 1.75,
-                color: "var(--text-muted)",
-                fontWeight: 300,
-                maxWidth: "300px",
-              }}
-            >
-              {step.body}
-            </p>
-          </motion.div>
+            {link.lbl}
+          </Link>
         ))}
       </div>
-    </section>
+      <div>
+        <div style={{ ...sans("11px", "#8A7F6E"), marginBottom: "4px" }}>
+          © 2026 Verity
+        </div>
+        <div style={{ ...sans("11px", "#8A7F6E"), marginBottom: "16px" }}>All rights reserved.</div>
+        <div style={{ display: "flex", gap: "16px", marginBottom: "12px" }}>
+          <Link href="/privacy" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Privacy</Link>
+          <Link href="/terms" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Terms</Link>
+        </div>
+        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>
+          The Verity audit method, scoring models, and datasets are proprietary
+          and confidential.
+        </div>
+      </div>
+    </footer>
   );
 }
 
-// ─── Pricing Preview ──────────────────────────────────────────────────────────
-function PricingPreview() {
-  const tiers = [
-    {
-      name: "Audit",
-      price: "Free",
-      priceSuffix: "always",
-      tag: "Complete review of your bill with flagged errors, regulatory citations, and estimated dollar impact",
-      features: [
-        "Upload your bill",
-        "AI scans every charge",
-        "Error report with confidence scores",
-        "No dispute filed",
-      ],
-      cta: "See what's wrong — free",
-      href: "/upload?tier=audit",
-      accent: false,
-    },
-    {
-      name: "Dispute",
-      price: "$39",
-      priceSuffix: "per letter, or $19/mo",
-      tag: "Prefilled dispute letter tailored to your bill, ready to send by certified mail",
-      features: [
-        "Everything in Audit, plus:",
-        "Insurer-specific dispute letter",
-        "Step-by-step submission guide",
-        "Deadline tracker",
-        "Email reminders",
-      ],
-      cta: "Get my dispute letter",
-      href: "/upload?tier=dispute",
-      accent: true,
-    },
-  ];
+// ─── CountUp ──────────────────────────────────────────────────────────────────
+function useCountUp(target: number, duration = 1800) {
+  const [count, setCount] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const started = useRef(false);
 
-  return (
-    <section
-      className="px-6 md:px-12 lg:px-16 py-24 lg:py-32"
-      style={{
-        backgroundColor: "var(--bg)",
-        borderTop: "1px solid var(--border)",
-      }}
-    >
-      <motion.div {...fadeUp} className="mb-16 lg:mb-24 max-w-3xl">
-        <div
-          className="font-[family-name:var(--font-dm-sans)] uppercase mb-8"
-          style={{
-            fontSize: "10px",
-            letterSpacing: "0.3em",
-            color: "var(--text-muted)",
-            fontWeight: 400,
-          }}
-        >
-          — Pricing
-        </div>
-        <h2
-          className="font-[family-name:var(--font-cormorant)]"
-          style={{
-            fontSize: "clamp(40px, 5vw, 68px)",
-            fontWeight: 300,
-            lineHeight: 1.02,
-            letterSpacing: "-0.02em",
-            color: "var(--text-primary)",
-          }}
-        >
-          Start free. Pay{" "}
-          <em
-            style={{
-              fontStyle: "italic",
-              color: "var(--amber)",
-              fontWeight: 300,
-            }}
-          >
-            only if it works.
-          </em>
-        </h2>
-      </motion.div>
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !started.current) {
+          started.current = true;
+          const startTime = performance.now();
+          const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+          const tick = (now: number) => {
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            setCount(Math.round(easeOutCubic(progress) * target));
+            if (progress < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }
+      },
+      { threshold: 0.5 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [target, duration]);
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-0 max-w-4xl">
-        {tiers.map((tier, i) => (
-          <motion.div
-            key={tier.name}
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{
-              duration: 0.7,
-              ease: [0.25, 0.1, 0.25, 1],
-              delay: i * 0.1,
-            }}
-            className="relative flex flex-col p-8 lg:p-10"
-            style={{
-              backgroundColor: "var(--bg)",
-              border: tier.accent
-                ? "1px solid var(--amber)"
-                : "1px solid var(--border)",
-              marginLeft: i > 0 ? "-1px" : 0,
-              marginTop: 0,
-            }}
-          >
-            {tier.accent && (
-              <div
-                className="absolute font-[family-name:var(--font-dm-sans)] uppercase"
-                style={{
-                  top: "-10px",
-                  left: "32px",
-                  fontSize: "9px",
-                  letterSpacing: "0.3em",
-                  color: "var(--bg)",
-                  backgroundColor: "var(--amber)",
-                  padding: "4px 10px",
-                  fontWeight: 500,
-                }}
-              >
-                Most popular
-              </div>
-            )}
-
-            <div
-              className="font-[family-name:var(--font-dm-sans)] uppercase mb-6"
-              style={{
-                fontSize: "11px",
-                letterSpacing: "0.3em",
-                color: "var(--text-primary)",
-                fontWeight: 500,
-              }}
-            >
-              {tier.name}
-            </div>
-
-            <div className="mb-8">
-              <div
-                className="font-[family-name:var(--font-cormorant)]"
-                style={{
-                  fontSize: "clamp(56px, 6vw, 80px)",
-                  fontWeight: 300,
-                  lineHeight: 1,
-                  letterSpacing: "-0.02em",
-                  fontStyle: "italic",
-                  color: tier.accent ? "var(--amber)" : "var(--text-primary)",
-                }}
-              >
-                {tier.price}
-              </div>
-              <div
-                className="font-[family-name:var(--font-dm-sans)] mt-3"
-                style={{
-                  fontSize: "12px",
-                  color: "var(--text-muted)",
-                  fontWeight: 300,
-                }}
-              >
-                {tier.priceSuffix}
-              </div>
-            </div>
-
-            <div
-              style={{
-                borderTop: "1px solid var(--border)",
-                paddingTop: "24px",
-                marginBottom: "24px",
-              }}
-            >
-              <p
-                className="font-[family-name:var(--font-cormorant)]"
-                style={{
-                  fontSize: "20px",
-                  fontStyle: "italic",
-                  fontWeight: 300,
-                  color: "var(--text-primary)",
-                  lineHeight: 1.4,
-                }}
-              >
-                {tier.tag}.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 mb-10 flex-1">
-              {tier.features.map((f) => (
-                <div key={f} className="flex gap-3 items-start">
-                  <span
-                    className="font-[family-name:var(--font-dm-sans)]"
-                    style={{
-                      fontSize: "13px",
-                      color: "var(--amber)",
-                      fontWeight: 400,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    —
-                  </span>
-                  <span
-                    className="font-[family-name:var(--font-dm-sans)]"
-                    style={{
-                      fontSize: "13px",
-                      color: "var(--text-muted)",
-                      fontWeight: 300,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {f}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <Link href={tier.href} className="no-underline mt-auto">
-              <div
-                className="w-full text-center font-[family-name:var(--font-dm-sans)] uppercase transition-opacity hover:opacity-90"
-                style={{
-                  fontSize: "11px",
-                  letterSpacing: "0.25em",
-                  fontWeight: 500,
-                  padding: "16px",
-                  color: tier.accent ? "var(--bg)" : "var(--text-primary)",
-                  backgroundColor: tier.accent ? "var(--amber)" : "transparent",
-                  border: tier.accent
-                    ? "1px solid var(--amber)"
-                    : "1px solid var(--text-primary)",
-                }}
-              >
-                {tier.cta}
-              </div>
-            </Link>
-          </motion.div>
-        ))}
-      </div>
-    </section>
-  );
+  return { count, ref };
 }
 
-// ─── Testimonials ─────────────────────────────────────────────────────────────
-function Testimonials() {
-  const items = [
-    "ER bill reduced by over 70% after dispute. Found two procedures billed that were never performed. Resolved in under 30 days.",
-    "Insurance denied my claim. ClearClaim found a No Surprises Act violation. Recovered thousands in under a month.",
-  ];
-
+function StatItem({
+  value,
+  prefix,
+  suffix,
+  statLabel,
+}: {
+  value: number;
+  prefix: string;
+  suffix: string;
+  statLabel: string;
+}) {
+  const { count, ref } = useCountUp(value);
   return (
-    <section
-      className="px-6 md:px-12 lg:px-16 py-24 lg:py-32"
-      style={{
-        backgroundColor: "var(--bg)",
-        borderTop: "1px solid var(--border)",
-      }}
-    >
-      <motion.div {...fadeUp} className="mb-12 lg:mb-16 max-w-2xl">
-        <div
-          className="font-[family-name:var(--font-dm-sans)] uppercase mb-6"
-          style={{
-            fontSize: "10px",
-            letterSpacing: "0.3em",
-            color: "var(--text-muted)",
-            fontWeight: 400,
-          }}
-        >
-          — Sample outcomes
-        </div>
-        <h2
-          className="font-[family-name:var(--font-cormorant)]"
-          style={{
-            fontSize: "clamp(36px, 4.5vw, 56px)",
-            fontWeight: 300,
-            lineHeight: 1.05,
-            letterSpacing: "-0.02em",
-            color: "var(--text-primary)",
-          }}
-        >
-          What a typical{" "}
-          <em
-            style={{
-              fontStyle: "italic",
-              color: "var(--amber)",
-              fontWeight: 300,
-            }}
-          >
-            dispute looks like.
-          </em>
-        </h2>
-      </motion.div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
-        {items.map((text, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{
-              duration: 0.7,
-              ease: [0.25, 0.1, 0.25, 1],
-              delay: i * 0.1,
-            }}
-            className="p-8 lg:p-10 flex flex-col"
-            style={{
-              border: "1px solid var(--border)",
-              marginLeft: i > 0 ? "-1px" : 0,
-              marginTop: 0,
-              backgroundColor: "var(--bg)",
-            }}
-          >
-            <div
-              className="font-[family-name:var(--font-cormorant)] mb-6"
-              style={{
-                fontSize: "36px",
-                color: "var(--amber)",
-                fontWeight: 300,
-                lineHeight: 1,
-                fontStyle: "italic",
-              }}
-            >
-              &ldquo;
-            </div>
-            <p
-              className="font-[family-name:var(--font-cormorant)] flex-1"
-              style={{
-                fontSize: "clamp(18px, 1.8vw, 22px)",
-                fontWeight: 300,
-                color: "var(--text-primary)",
-                lineHeight: 1.5,
-                letterSpacing: "-0.005em",
-              }}
-            >
-              {text}
-            </p>
-            <div
-              className="font-[family-name:var(--font-dm-sans)] uppercase mt-8"
-              style={{
-                fontSize: "10px",
-                letterSpacing: "0.2em",
-                color: "var(--text-muted)",
-                fontWeight: 400,
-                fontStyle: "italic",
-                borderTop: "1px solid var(--border)",
-                paddingTop: "12px",
-              }}
-            >
-              Illustrative example
-            </div>
-          </motion.div>
-        ))}
+    <div ref={ref} style={{ textAlign: "center", padding: "0 32px" }}>
+      <div style={{ ...serif("64px"), lineHeight: 1 }}>
+        {prefix}
+        {count.toLocaleString()}
+        {suffix}
       </div>
-
-      <div
-        className="mt-8 max-w-3xl font-[family-name:var(--font-dm-sans)]"
-        style={{
-          fontSize: "11px",
-          color: "var(--text-muted)",
-          fontWeight: 300,
-          lineHeight: 1.7,
-          fontStyle: "italic",
-          opacity: 0.85,
-        }}
-      >
-        Illustrative examples based on common billing dispute outcomes. Individual
-        results vary depending on bill specifics, payer, and applicable state and
-        federal protections.
-      </div>
-    </section>
+      <div style={{ ...label("#8A7F6E"), marginTop: "12px" }}>{statLabel}</div>
+    </div>
   );
 }
 
@@ -1167,38 +302,41 @@ function Testimonials() {
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div style={{ borderTop: "1px solid var(--border-dark)" }}>
+    <div style={{ borderTop: "1px solid #D8CFBE" }}>
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between gap-6 text-left"
         style={{
-          padding: "28px 0",
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "24px 0",
           background: "none",
           border: "none",
           cursor: "pointer",
+          textAlign: "left",
+          gap: "24px",
         }}
       >
         <span
-          className="font-[family-name:var(--font-cormorant)]"
           style={{
-            fontSize: "clamp(20px, 2.2vw, 26px)",
-            color: "var(--bg)",
-            fontWeight: 300,
-            letterSpacing: "-0.01em",
-            lineHeight: 1.3,
+            fontFamily: "var(--font-cormorant), Georgia, serif",
+            fontSize: "20px",
+            color: "#221C14",
+            fontWeight: 400,
           }}
         >
           {q}
         </span>
-        <span
-          className="flex-shrink-0 transition-transform"
+        <ChevronDown
+          size={18}
+          color="#8A7F6E"
           style={{
-            color: "var(--amber)",
-            transform: open ? "rotate(45deg)" : "rotate(0deg)",
+            flexShrink: 0,
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.3s",
           }}
-        >
-          <Plus size={20} strokeWidth={1} />
-        </span>
+        />
       </button>
       <AnimatePresence initial={false}>
         {open && (
@@ -1211,14 +349,10 @@ function FaqItem({ q, a }: { q: string; a: string }) {
             style={{ overflow: "hidden" }}
           >
             <p
-              className="font-[family-name:var(--font-dm-sans)]"
               style={{
-                fontSize: "14px",
-                color: "var(--text-faint)",
-                fontWeight: 300,
-                lineHeight: 1.8,
-                paddingBottom: "28px",
-                maxWidth: "680px",
+                ...sans("14px", "#5F5648"),
+                lineHeight: 1.75,
+                paddingBottom: "24px",
               }}
             >
               {a}
@@ -1230,259 +364,1088 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   );
 }
 
-// ─── FAQ Section ──────────────────────────────────────────────────────────────
-function FaqSection() {
+// ─── Collapsible section ──────────────────────────────────────────────────────
+function SectionAccordion({
+  eyebrow,
+  title,
+  teaser,
+  bg,
+  children,
+}: {
+  eyebrow: string;
+  title: React.ReactNode;
+  teaser: string;
+  bg?: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
   return (
-    <section
-      id="faq"
-      className="px-6 md:px-12 lg:px-16 py-24 lg:py-32"
-      style={{ backgroundColor: "var(--bg-dark)" }}
-    >
-      <motion.div
-        {...fadeUp}
-        className="grid grid-cols-1 lg:grid-cols-[1fr_1.3fr] gap-12 lg:gap-20"
+    <section style={{ borderTop: "1px solid #D8CFBE", backgroundColor: bg || "transparent" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="r-pad"
+        style={{
+          width: "100%",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          textAlign: "left",
+          padding: "48px 64px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "32px",
+        }}
+        aria-expanded={open}
       >
-        <div>
-          <div
-            className="font-[family-name:var(--font-dm-sans)] uppercase mb-8"
-            style={{
-              fontSize: "10px",
-              letterSpacing: "0.3em",
-              color: "var(--text-faint)",
-              fontWeight: 400,
-            }}
-          >
-            — Questions
-          </div>
-          <h2
-            className="font-[family-name:var(--font-cormorant)]"
-            style={{
-              fontSize: "clamp(40px, 5vw, 64px)",
-              fontWeight: 300,
-              lineHeight: 1.02,
-              letterSpacing: "-0.02em",
-              color: "var(--bg)",
-            }}
-          >
-            Everything
-            <br />
-            you need
-            <br />
-            to{" "}
-            <em
-              style={{
-                fontStyle: "italic",
-                color: "var(--amber)",
-                fontWeight: 300,
-              }}
-            >
-              know.
-            </em>
-          </h2>
+        <div style={{ maxWidth: "760px" }}>
+          <div style={{ ...label(), marginBottom: "14px" }}>{eyebrow}</div>
+          <div style={{ ...serif("clamp(28px, 3.4vw, 44px)", { lineHeight: 1.06 }) }}>{title}</div>
+          {!open && (
+            <p style={{ ...sans("13px", "#8A7F6E"), marginTop: "12px", lineHeight: 1.6, maxWidth: "440px" }}>{teaser}</p>
+          )}
         </div>
-        <div>
-          {FAQS.map((faq) => (
-            <FaqItem key={faq.q} q={faq.q} a={faq.a} />
-          ))}
-          <div style={{ borderTop: "1px solid var(--border-dark)" }} />
-        </div>
-      </motion.div>
+        <ChevronDown
+          size={30}
+          color="#8A7F6E"
+          style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.35s ease" }}
+        />
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+            style={{ overflow: "hidden" }}
+          >
+            <div className="r-pad" style={{ padding: "8px 64px 80px" }}>{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
-  );
-}
-
-// ─── Footer ───────────────────────────────────────────────────────────────────
-function Footer() {
-  const productLinks = [
-    { lbl: "How it works", href: "/how-it-works" },
-    { lbl: "Pricing", href: "/pricing" },
-    { lbl: "Dashboard", href: "/dashboard" },
-    { lbl: "FAQ", href: "#faq" },
-  ];
-  const legalLinks = [
-    { lbl: "Privacy policy", href: "/privacy" },
-    { lbl: "Terms of service", href: "/terms" },
-  ];
-
-  return (
-    <footer
-      className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr_1fr_1fr] gap-12 px-6 md:px-12 lg:px-16 py-16 lg:py-20"
-      style={{
-        backgroundColor: "var(--bg-dark)",
-        borderTop: "1px solid var(--border-dark)",
-      }}
-    >
-      <div>
-        <div
-          className="font-[family-name:var(--font-dm-sans)] uppercase mb-3"
-          style={{
-            fontSize: "12px",
-            letterSpacing: "0.25em",
-            color: "var(--bg)",
-            fontWeight: 500,
-          }}
-        >
-          ClearClaim
-        </div>
-        <div
-          className="font-[family-name:var(--font-cormorant)]"
-          style={{
-            fontSize: "18px",
-            fontStyle: "italic",
-            color: "var(--amber)",
-            fontWeight: 300,
-            marginBottom: "16px",
-          }}
-        >
-          Medical bill advocacy.
-        </div>
-        <div
-          className="font-[family-name:var(--font-dm-sans)]"
-          style={{
-            fontSize: "11px",
-            color: "var(--text-faint)",
-            fontWeight: 300,
-            lineHeight: 1.7,
-            maxWidth: "300px",
-            opacity: 0.8,
-          }}
-        >
-          ClearClaim is an administrative advocacy service. We are not a law
-          firm and do not provide legal advice.
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <div
-          className="font-[family-name:var(--font-dm-sans)] uppercase mb-1"
-          style={{
-            fontSize: "10px",
-            letterSpacing: "0.25em",
-            color: "var(--bg)",
-            fontWeight: 500,
-            opacity: 0.85,
-          }}
-        >
-          Product
-        </div>
-        {productLinks.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
-            style={{
-              fontSize: "11px",
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              color: "var(--text-faint)",
-              fontWeight: 400,
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--bg)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-faint)")}
-          >
-            {link.lbl}
-          </Link>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <div
-          className="font-[family-name:var(--font-dm-sans)] uppercase mb-1"
-          style={{
-            fontSize: "10px",
-            letterSpacing: "0.25em",
-            color: "var(--bg)",
-            fontWeight: 500,
-            opacity: 0.85,
-          }}
-        >
-          Support
-        </div>
-        <a
-          href="mailto:support@clearclaim.co"
-          className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
-          style={{
-            fontSize: "13px",
-            color: "var(--amber)",
-            fontWeight: 300,
-          }}
-        >
-          support@clearclaim.co
-        </a>
-        <div
-          className="font-[family-name:var(--font-dm-sans)]"
-          style={{
-            fontSize: "11px",
-            color: "var(--text-faint)",
-            fontWeight: 300,
-            lineHeight: 1.6,
-            fontStyle: "italic",
-            opacity: 0.85,
-          }}
-        >
-          Support responses within 1 business day.
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 md:items-end">
-        <div
-          className="font-[family-name:var(--font-dm-sans)] uppercase mb-1"
-          style={{
-            fontSize: "10px",
-            letterSpacing: "0.25em",
-            color: "var(--bg)",
-            fontWeight: 500,
-            opacity: 0.85,
-          }}
-        >
-          Legal
-        </div>
-        {legalLinks.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className="no-underline transition-colors font-[family-name:var(--font-dm-sans)]"
-            style={{
-              fontSize: "11px",
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              color: "var(--text-faint)",
-              fontWeight: 400,
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--bg)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-faint)")}
-          >
-            {link.lbl}
-          </Link>
-        ))}
-        <div
-          className="font-[family-name:var(--font-dm-sans)] md:text-right mt-4"
-          style={{
-            fontSize: "11px",
-            color: "var(--text-faint)",
-            fontWeight: 300,
-            opacity: 0.7,
-          }}
-        >
-          © 2026 ClearClaim
-        </div>
-      </div>
-    </footer>
   );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function LandingPage() {
+
+  const fadeUp = {
+    initial: { opacity: 0, y: 30 },
+    whileInView: { opacity: 1, y: 0 } as { opacity: number; y: number },
+    viewport: { once: true },
+    transition: { duration: 0.7, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] },
+  };
+
   return (
-    <div style={{ backgroundColor: "var(--bg)", minHeight: "100vh" }}>
+    <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
       <Nav />
-      <Hero />
-      <TrustBar />
-      <MockAuditCard />
-      <HowItWorks />
-      <PricingPreview />
-      <Testimonials />
-      <FaqSection />
+
+      {/* ── Hero ── */}
+      <section
+        style={{
+          minHeight: "100svh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "120px 24px 72px",
+        }}
+      >
+        <h1 className="sr-only">
+          Clarity over confusion. Verity uses AI and expert advocacy to uncover
+          overcharges, decode complex billing, and restore financial clarity.
+        </h1>
+        <Image
+          src="/hero-campaign.png"
+          alt="Verity — Clarity over confusion. We investigate, analyze, and advocate so you keep more of what's yours."
+          width={1120}
+          height={1405}
+          priority
+          style={{
+            width: "auto",
+            height: "auto",
+            maxHeight: "82vh",
+            maxWidth: "min(560px, 92vw)",
+            boxShadow: "0 40px 90px rgba(60,46,32,0.16)",
+          }}
+        />
+        <div className="r-cta" style={{ display: "flex", gap: "16px", alignItems: "center", marginTop: "44px" }}>
+          <Link href="/upload" style={{ textDecoration: "none" }}>
+            <span
+              style={{
+                ...sans("11px", "#221C14"),
+                backgroundColor: "#C8A97E",
+                padding: "16px 32px",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                fontWeight: 500,
+                display: "inline-block",
+              }}
+            >
+              Check my bill — free
+            </span>
+          </Link>
+          <Link href="/how-it-works" style={{ textDecoration: "none" }}>
+            <span
+              style={{
+                ...sans("11px", "#221C14"),
+                border: "1px solid #C2B7A3",
+                padding: "16px 32px",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                display: "inline-block",
+              }}
+            >
+              See how it works
+            </span>
+          </Link>
+        </div>
+        <p style={{ ...sans("11px", "#8A7F6E"), letterSpacing: "0.14em", textTransform: "uppercase", marginTop: "20px" }}>
+          Free audit · no account needed
+        </p>
+      </section>
+
+      {/* ── Stats Bar ── */}
+      <motion.section
+        {...fadeUp}
+        style={{
+          borderTop: "1px solid #D8CFBE",
+          borderBottom: "1px solid #D8CFBE",
+          padding: "56px 64px",
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1px 1fr 1px 1fr",
+            alignItems: "center",
+          }}
+        >
+          {[
+            { value: 12400, prefix: "", suffix: "+", statLabel: "bills audited" },
+            { value: 1840, prefix: "$", suffix: "", statLabel: "average savings" },
+            { value: 91, prefix: "", suffix: "%", statLabel: "success rate" },
+          ].map((stat, i) => (
+            <React.Fragment key={stat.statLabel}>
+              {i > 0 && (
+                <div
+                  style={{
+                    width: "1px",
+                    height: "80px",
+                    backgroundColor: "#D8CFBE",
+                    margin: "0 auto",
+                  }}
+                />
+              )}
+              <StatItem {...stat} />
+            </React.Fragment>
+          ))}
+        </div>
+      </motion.section>
+
+      {/* ── Problem Section ── */}
+      <motion.section
+        {...fadeUp}
+        style={{ padding: "112px 64px" }}
+      >
+        <div style={{ maxWidth: "520px" }}>
+          <div style={{ ...label(), marginBottom: "24px" }}>The problem</div>
+          <h2
+            style={{
+              ...serif("52px", { lineHeight: 1.05, marginBottom: "24px" }),
+            }}
+          >
+            Medical billing is a
+            <br />
+            system designed to
+            <br />
+            confuse you.
+          </h2>
+          <p
+            style={{
+              ...sans("14px", "#5F5648"),
+              lineHeight: 1.75,
+              marginBottom: "32px",
+            }}
+          >
+            Providers upcode procedures. Insurers underpay. Duplicate charges
+            slip through. Most patients never know — because the bills are
+            designed to be unreadable.
+          </p>
+          <div
+            style={{
+              borderTop: "1px solid #D8CFBE",
+              paddingTop: "32px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "24px",
+            }}
+          >
+            {[
+              { num: "80%", stat: "of all medical bills contain at least one error" },
+              { num: "$1,300", stat: "average overcharge on a hospital bill" },
+              { num: "1 in 3", stat: "patients are balance billed illegally" },
+            ].map((item) => (
+              <div key={item.num}>
+                <div
+                  style={{
+                    ...serif("48px", {
+                      fontStyle: "italic",
+                      color: "#C8A97E",
+                      lineHeight: 1,
+                    }),
+                  }}
+                >
+                  {item.num}
+                </div>
+                <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "4px" }}>
+                  {item.stat}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </motion.section>
+
+      {/* ── What We Look For ── */}
+      <SectionAccordion
+        eyebrow="What we look for"
+        bg="#F1EBDF"
+        teaser="Most overcharges hide in the EOB, the contract, and the network — not just the codes. The eight errors we catch."
+        title={
+          <>
+            Most tools check coding.{" "}
+            <em style={{ fontStyle: "italic", color: "#C8A97E" }}>We check everything.</em>
+          </>
+        }
+      >
+        <div style={{ maxWidth: "1100px" }}>
+          <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, maxWidth: "520px", marginBottom: "56px" }}>
+            Most overcharges aren’t coding mistakes — they hide in the EOB, the
+            contract, and the network. Verity reads every layer. Eight of the
+            errors we catch:
+          </p>
+
+          <div className="r-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1px", backgroundColor: "#DDD3C2" }}>
+            {[
+              { n: "01", name: "Duplicate charges", evidence: "Same CPT · same day · billed ×2", note: "Identical services billed more than once." },
+              { n: "02", name: "Upcoding", evidence: "99215 billed → 99213 documented", note: "A higher-intensity code than the visit supports." },
+              { n: "03", name: "Unbundling", evidence: "One panel split into 6 line items", note: "Bundled services broken apart to bill more." },
+              { n: "04", name: "Balance billing", evidence: "Out-of-network charge · NSA claim", note: "Illegal under the No Surprises Act." },
+              { n: "05", name: "EOB mismatch", evidence: "Allowed $350 · billed $600", note: "Provider bills past the insurer-allowed rate." },
+              { n: "06", name: "Excess units", evidence: "4 units billed · MUE max 1", note: "More units than medically possible per day." },
+              { n: "07", name: "Deductible errors", evidence: "Deductible met · charged again", note: "Cost-sharing applied after it was satisfied." },
+              { n: "08", name: "Network errors", evidence: "In-network facility · OON reading", note: "Hidden out-of-network charges inside one visit." },
+            ].map((item) => (
+              <div key={item.n} style={{ backgroundColor: "#F1EBDF", padding: "32px 28px 36px" }}>
+                <div style={{ ...sans("11px", "#B3A28A"), letterSpacing: "0.2em", marginBottom: "20px" }}>{item.n}</div>
+                <div style={{ ...serif("23px", { marginBottom: "16px", lineHeight: 1.1 }) }}>{item.name}</div>
+                <div
+                  style={{
+                    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                    fontSize: "12px",
+                    color: "#2A2520",
+                    borderLeft: "2px solid #C8A97E",
+                    paddingLeft: "12px",
+                    lineHeight: 1.5,
+                    marginBottom: "16px",
+                    minHeight: "36px",
+                  }}
+                >
+                  {item.evidence}
+                </div>
+                <div style={{ ...sans("12px", "#8A7F6E"), lineHeight: 1.6 }}>{item.note}</div>
+              </div>
+            ))}
+          </div>
+
+          <p style={{ ...sans("12px", "#8A7F6E"), letterSpacing: "0.08em", textTransform: "uppercase", marginTop: "40px" }}>
+            Every finding is backed by the exact federal rule or contract clause it violates.
+          </p>
+        </div>
+      </SectionAccordion>
+
+      {/* ── The Verity Method ── */}
+      <SectionAccordion
+        eyebrow="The Verity method"
+        teaser="The engine behind every audit. Four steps, one pass."
+        title={
+          <>
+            Four steps. One pass.{" "}
+            <em style={{ fontStyle: "italic", color: "#C8A97E" }}>A method no one else has.</em>
+          </>
+        }
+      >
+        <div style={{ maxWidth: "1100px" }}>
+          <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, maxWidth: "560px", marginBottom: "56px" }}>
+            The engine behind every audit. Most tools read a claim. Verity reads
+            your documents the way an investigator would, then proves it against
+            the law.
+          </p>
+
+          <div className="r-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1px", backgroundColor: "#D8CFBE" }}>
+            {[
+              { r: "I", name: "Multimodal extraction", body: "We turn a phone photo of a bill or EOB into every CPT code, charge, date, and modifier — flagging anything the image left uncertain." },
+              { r: "II", name: "Simultaneous audit", body: "NCCI, MUE, and Medicare fee-schedule rules are checked in a single pass — fewer false positives, and nothing slips between datasets." },
+              { r: "III", name: "E&M integrity scoring", body: "A weighted model judges whether the visit level billed is actually supported — catching the upcoding that coding-only checkers miss." },
+              { r: "IV", name: "Citation-linked disputes", body: "Every violation is mapped to the exact regulation it breaks and written into a dispute letter, citation embedded, ready to send." },
+            ].map((c) => (
+              <div key={c.r} style={{ backgroundColor: "#EBE5D9", padding: "36px 28px 40px" }}>
+                <div style={{ ...serif("34px", { color: "#C8A97E", lineHeight: 1, marginBottom: "20px" }) }}>{c.r}</div>
+                <div style={{ ...serif("23px", { marginBottom: "14px", lineHeight: 1.15 }) }}>{c.name}</div>
+                <div style={{ ...sans("12.5px", "#5F5648"), lineHeight: 1.65 }}>{c.body}</div>
+              </div>
+            ))}
+          </div>
+
+          <p style={{ ...sans("11px", "#8A7F6E"), letterSpacing: "0.06em", lineHeight: 1.7, marginTop: "40px", maxWidth: "640px" }}>
+            Verity’s consumer-side audit method, scoring models, and datasets are
+            proprietary and confidential.
+          </p>
+        </div>
+      </SectionAccordion>
+
+      {/* ── How It Works ── */}
+      <SectionAccordion
+        eyebrow="How it works"
+        teaser="Upload your bill, we find every error, then you choose what happens next."
+        title={
+          <>
+            Three steps.{" "}
+            <em style={{ fontStyle: "italic", color: "#C8A97E" }}>One outcome.</em>
+          </>
+        }
+      >
+        <div style={{ maxWidth: "1100px" }}>
+        {[
+          {
+            num: "01",
+            title: "Upload your bill.",
+            body: "Drop your itemized medical bill, EOB, and insurance card. Takes three minutes.",
+            time: "3 min",
+          },
+          {
+            num: "02",
+            title: "We find every error.",
+            body: "Our system cross-references every CPT code and charge against your insurer's contracted rates. Every error gets flagged with evidence.",
+            time: "24 hours",
+          },
+          {
+            num: "03",
+            title: "You choose what happens next.",
+            body: "See the audit free. Get a prefilled dispute letter. Or let us file and close the dispute entirely.",
+            time: "Your call",
+          },
+        ].map((step, i) => (
+          <motion.div
+            key={step.num}
+            className="r-step"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{
+              duration: 0.7,
+              ease: [0.25, 0.1, 0.25, 1],
+              delay: i * 0.1,
+            }}
+            style={{
+              borderTop: "1px solid #D8CFBE",
+              padding: "40px 0",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+            }}
+          >
+            <div
+              style={{
+                ...serif("80px", {
+                  fontStyle: "italic",
+                  color: "#EFE9DD",
+                  lineHeight: 1,
+                  width: "120px",
+                  flexShrink: 0,
+                }),
+              }}
+            >
+              {step.num}
+            </div>
+            <div style={{ flex: 1, padding: "0 40px" }}>
+              <div
+                style={{
+                  ...serif("28px", { lineHeight: 1.1, marginBottom: "12px" }),
+                }}
+              >
+                {step.title}
+              </div>
+              <p
+                style={{
+                  ...sans("14px", "#5F5648"),
+                  lineHeight: 1.75,
+                  maxWidth: "420px",
+                }}
+              >
+                {step.body}
+              </p>
+            </div>
+            <div style={{ ...label("#8A7F6E"), fontSize: "10px" }}>
+              {step.time}
+            </div>
+          </motion.div>
+        ))}
+        <div style={{ borderTop: "1px solid #D8CFBE" }} />
+        </div>
+      </SectionAccordion>
+
+      {/* ── Anatomy of a Recovery ── */}
+      <SectionAccordion
+        eyebrow="Anatomy of a recovery"
+        teaser="A single ER bill, read line by line — every dollar tied to the rule behind it."
+        title={
+          <>
+            One ER visit. Four errors.{" "}
+            <em style={{ fontStyle: "italic", color: "#C8A97E" }}>$1,340 back.</em>
+          </>
+        }
+      >
+        <div style={{ maxWidth: "1100px" }}>
+          <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, maxWidth: "560px", marginBottom: "48px" }}>
+            A single emergency-room bill, read line by line. Here is exactly what
+            Verity found — and the rule behind every dollar.
+          </p>
+
+          {/* ledger */}
+          <div
+            className="r-grid-2"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              borderTop: "1px solid #D8CFBE",
+              borderBottom: "1px solid #D8CFBE",
+              marginBottom: "56px",
+            }}
+          >
+            {[
+              { k: "Original bill", v: "$4,827", gold: false },
+              { k: "Errors found", v: "4", gold: false },
+              { k: "What you actually owed", v: "$3,487", gold: false },
+              { k: "Recovered", v: "$1,340", gold: true },
+            ].map((m, i) => (
+              <div key={m.k} style={{ padding: "32px 28px", borderLeft: i > 0 ? "1px solid #D8CFBE" : "none" }}>
+                <div style={{ ...sans("11px", "#8A7F6E"), letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "12px" }}>{m.k}</div>
+                <div style={{ ...serif("40px", { color: m.gold ? "#C8A97E" : "#221C14", lineHeight: 1 }) }}>{m.v}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* findings */}
+          {[
+            { code: "99285", desc: "ED Visit — Level 5", err: "Upcoded · documentation supports Level 3", rule: "CMS E/M documentation guidelines", amt: "$820" },
+            { code: "36415", desc: "Routine venipuncture", err: "Unbundled · included in the E&M code", rule: "NCCI procedure-to-procedure edit", amt: "$180" },
+            { code: "93005", desc: "Electrocardiogram", err: "Billed above your plan’s contracted rate", rule: "Plan fee schedule · 42 CFR §414", amt: "$175" },
+            { code: "85025", desc: "Complete blood count", err: "Billed above your plan’s contracted rate", rule: "Plan fee schedule", amt: "$165" },
+          ].map((f) => (
+            <div
+              key={f.code}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "100px 1.4fr 1.6fr 120px",
+                gap: "24px",
+                alignItems: "baseline",
+                borderTop: "1px solid #E2DACB",
+                padding: "24px 0",
+              }}
+            >
+              <div style={{ fontFamily: "var(--font-dm-sans), system-ui, sans-serif", fontSize: "13px", color: "#8A7F6E", letterSpacing: "0.05em" }}>{f.code}</div>
+              <div style={{ ...serif("22px", { color: "#221C14", lineHeight: 1.2 }) }}>{f.desc}</div>
+              <div>
+                <div style={{ ...sans("13px", "#2A2520"), lineHeight: 1.5 }}>{f.err}</div>
+                <div style={{ ...sans("11px", "#B3A28A"), letterSpacing: "0.05em", marginTop: "4px" }}>{f.rule}</div>
+              </div>
+              <div style={{ ...serif("24px", { color: "#C8A97E" }), textAlign: "right" }}>{f.amt}</div>
+            </div>
+          ))}
+          <div style={{ borderTop: "1px solid #D8CFBE" }} />
+
+          <p style={{ ...sans("11px", "#8A7F6E"), letterSpacing: "0.06em", marginTop: "24px", fontStyle: "italic" }}>
+            Representative audit based on a common ER billing pattern. Your results depend on your own bill.
+          </p>
+        </div>
+      </SectionAccordion>
+
+      {/* ── How Verity Compares ── */}
+      <SectionAccordion
+        eyebrow="How Verity compares"
+        bg="#F1EBDF"
+        teaser="Coding-only checkers stop after a few CPT errors. See the full comparison."
+        title={
+          <>
+            Everyone else stops{" "}
+            <em style={{ fontStyle: "italic", color: "#C8A97E" }}>where we begin.</em>
+          </>
+        }
+      >
+        <div style={{ maxWidth: "1100px" }}>
+          <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, maxWidth: "520px", marginBottom: "48px" }}>
+            Coding-only checkers read a claim and flag a few CPT errors. Verity
+            reads your documents, every ruleset, and the law behind each charge.
+          </p>
+
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: "680px" }}>
+              {/* header */}
+              <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1.1fr", borderBottom: "1px solid #C9BFAC" }}>
+                {["", "On your own", "Coding-only tools", "Verity"].map((h, i) => (
+                  <div key={i} style={{ padding: "0 16px 16px" }}>
+                    <span style={{ ...sans("11px", i === 3 ? "#C8A97E" : "#8A7F6E"), letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: i === 3 ? 500 : 400 }}>{h}</span>
+                  </div>
+                ))}
+              </div>
+              {[
+                { f: "Reads a photo or PDF of your bill", a: "you", b: "no", v: "yes" },
+                { f: "CPT coding checks (NCCI, MUE)", a: "no", b: "yes", v: "yes" },
+                { f: "Medicare fee-schedule overcharges", a: "no", b: "some", v: "yes" },
+                { f: "EOB and insurance-contract errors", a: "no", b: "no", v: "yes" },
+                { f: "Upcoding / E&M integrity", a: "no", b: "some", v: "yes" },
+                { f: "Balance billing & out-of-network (NSA)", a: "no", b: "no", v: "yes" },
+                { f: "Cites the exact federal rule", a: "no", b: "no", v: "yes" },
+                { f: "Writes the dispute & appeal letters", a: "no", b: "no", v: "yes" },
+                { f: "Watches every future bill", a: "no", b: "no", v: "yes" },
+              ].map((row, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1.1fr", borderBottom: "1px solid #E2DACB", alignItems: "center" }}>
+                  <div style={{ padding: "18px 16px" }}><span style={{ ...sans("13px", "#2A2520") }}>{row.f}</span></div>
+                  {[row.a, row.b, row.v].map((cell, ci) => {
+                    const isVerity = ci === 2;
+                    const mark = cell === "yes" ? "✓" : cell === "some" ? "partial" : cell === "you" ? "manual" : "—";
+                    const color = cell === "yes" ? (isVerity ? "#C8A97E" : "#5E7E66") : cell === "no" ? "#C2B7A3" : "#8A7F6E";
+                    return (
+                      <div key={ci} style={{ padding: "18px 16px", backgroundColor: isVerity ? "rgba(200,169,126,0.08)" : "transparent" }}>
+                        <span style={{ ...sans(mark.length > 1 ? "11px" : "16px", color), letterSpacing: mark.length > 1 ? "0.08em" : "0", textTransform: "uppercase", fontWeight: cell === "yes" && isVerity ? 600 : 400 }}>{mark}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </SectionAccordion>
+
+      {/* ── Continuous Monitoring ── */}
+      <motion.section {...fadeUp} style={{ borderTop: "1px solid #D8CFBE", padding: "112px 64px" }}>
+        <div style={{ maxWidth: "1100px", margin: "0 auto", display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: "64px", alignItems: "center" }} className="r-grid-1">
+          <div>
+            <div style={{ ...label(), marginBottom: "24px" }}>Always on</div>
+            <h2 style={{ ...serif("52px", { lineHeight: 1.05, marginBottom: "20px" }) }}>
+              One bill, fixed.
+              <br />
+              <em style={{ fontStyle: "italic", color: "#C8A97E" }}>Then we keep watching.</em>
+            </h2>
+            <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.8, maxWidth: "440px", marginBottom: "32px" }}>
+              Most overcharges arrive after you&apos;ve stopped looking. With a
+              Verity membership, every new bill and EOB you receive is audited the
+              moment it lands — and you&apos;re alerted the instant something looks
+              wrong. You never have to catch it yourself again.
+            </p>
+            <Link href="/upload?tier=membership" style={{ textDecoration: "none" }}>
+              <span
+                style={{
+                  ...sans("11px", "#221C14"),
+                  backgroundColor: "#C8A97E",
+                  padding: "16px 32px",
+                  letterSpacing: "0.2em",
+                  textTransform: "uppercase",
+                  fontWeight: 500,
+                  display: "inline-block",
+                }}
+              >
+                Start membership — $19/mo
+              </span>
+            </Link>
+          </div>
+
+          {/* monitoring feed */}
+          <div style={{ borderLeft: "1px solid #D8CFBE", paddingLeft: "40px" }}>
+            {[
+              { d: "Apr 14", t: "New bill detected", s: "City Medical Center · $3,600", flag: true },
+              { d: "Apr 10", t: "Audit complete", s: "1 error · $165 recoverable", flag: true },
+              { d: "Mar 28", t: "EOB reconciled", s: "Matches your plan — no action", flag: false },
+              { d: "Mar 12", t: "Recovered", s: "$2,840 credited to your account", flag: false },
+            ].map((row, i) => (
+              <div key={i} style={{ display: "flex", gap: "16px", alignItems: "flex-start", paddingBottom: i < 3 ? "28px" : 0 }}>
+                <div style={{ ...sans("11px", "#B3A28A"), letterSpacing: "0.08em", width: "48px", flexShrink: 0, paddingTop: "3px" }}>{row.d}</div>
+                <div style={{ width: "7px", height: "7px", borderRadius: "50%", backgroundColor: row.flag ? "#C8A97E" : "#5E7E66", marginTop: "6px", flexShrink: 0 }} />
+                <div>
+                  <div style={{ ...serif("19px", { lineHeight: 1.2 }) }}>{row.t}</div>
+                  <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "2px" }}>{row.s}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </motion.section>
+
+      {/* ── Brand band ── */}
+      <section
+        style={{
+          position: "relative",
+          height: "84vh",
+          minHeight: "520px",
+          overflow: "hidden",
+          borderTop: "1px solid #D8CFBE",
+        }}
+      >
+        <Image
+          src="/verity-portrait.png"
+          alt="Verity"
+          fill
+          sizes="100vw"
+          style={{ objectFit: "cover", objectPosition: "center 42%" }}
+        />
+      </section>
+
+      {/* ── Pricing ── */}
+      <section style={{ padding: "112px 64px" }}>
+        <motion.div {...fadeUp}>
+          <div style={{ ...label(), marginBottom: "24px" }}>Pricing</div>
+          <h2
+            style={{
+              ...serif("48px", { lineHeight: 1.05, marginBottom: "16px" }),
+            }}
+          >
+            Start free.
+            <br />
+            Pay when you act.
+          </h2>
+          <p style={{ ...sans("14px", "#8A7F6E"), marginBottom: "64px" }}>
+            Three tiers. Each one goes further.
+          </p>
+        </motion.div>
+
+        <div
+          className="r-grid-1"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: "16px",
+          }}
+        >
+          {/* Audit */}
+          <motion.div
+            {...fadeUp}
+            style={{
+              backgroundColor: "#F4EFE6",
+              border: "1px solid #D8CFBE",
+              padding: "32px",
+            }}
+          >
+            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>
+              Audit
+            </div>
+            <div
+              style={{
+                ...serif("52px", {
+                  fontStyle: "italic",
+                  lineHeight: 1,
+                  marginBottom: "4px",
+                }),
+              }}
+            >
+              Free
+            </div>
+            <div style={{ ...sans("12px", "#8A7F6E") }}>always</div>
+            <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
+            <div
+              style={{
+                ...serif("18px", {
+                  fontStyle: "italic",
+                  color: "#5F5648",
+                  lineHeight: 1.4,
+                  marginBottom: "24px",
+                }),
+              }}
+            >
+              see exactly what they got wrong.
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+                marginBottom: "32px",
+              }}
+            >
+              {[
+                "Upload your bill",
+                "AI scans every charge",
+                "Error report with confidence scores",
+                "No dispute filed",
+              ].map((f) => (
+                <div
+                  key={f}
+                  style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}
+                >
+                  <span style={{ ...sans("13px", "#8A7F6E") }}>›</span>
+                  <span style={{ ...sans("13px", "#5F5648") }}>{f}</span>
+                </div>
+              ))}
+            </div>
+            <Link href="/upload?tier=audit" style={{ textDecoration: "none" }}>
+              <div
+                style={{
+                  ...sans("11px", "#C8A97E"),
+                  border: "1px solid #C8A97E",
+                  padding: "14px",
+                  textAlign: "center",
+                  letterSpacing: "0.2em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                  transition: "background-color 0.2s, color 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  const el = e.currentTarget as HTMLDivElement;
+                  el.style.backgroundColor = "#C8A97E";
+                  el.style.color = "#221C14";
+                }}
+                onMouseLeave={(e) => {
+                  const el = e.currentTarget as HTMLDivElement;
+                  el.style.backgroundColor = "transparent";
+                  el.style.color = "#C8A97E";
+                }}
+              >
+                See what&apos;s wrong — free
+              </div>
+            </Link>
+          </motion.div>
+
+          {/* Single Dispute */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
+            style={{
+              backgroundColor: "#F4EFE6",
+              border: "1px solid #D8CFBE",
+              padding: "32px",
+              position: "relative",
+            }}
+          >
+            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>
+              Single Dispute
+            </div>
+            <div
+              style={{
+                ...serif("52px", {
+                  fontStyle: "italic",
+                  lineHeight: 1,
+                  marginBottom: "4px",
+                }),
+              }}
+            >
+              $39
+            </div>
+            <div style={{ ...sans("12px", "#8A7F6E") }}>
+              one-time, for one bill
+            </div>
+            <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
+            <div
+              style={{
+                ...serif("18px", {
+                  fontStyle: "italic",
+                  color: "#5F5648",
+                  lineHeight: 1.4,
+                  marginBottom: "24px",
+                }),
+              }}
+            >
+              one bill. ready to send.
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+                marginBottom: "32px",
+              }}
+            >
+              {[
+                "Everything in Audit, plus:",
+                "Insurer-specific prefilled dispute letter",
+                "Appeal letter if denied",
+                "Step-by-step submission guide",
+                "Deadline tracker",
+              ].map((f) => (
+                <div
+                  key={f}
+                  style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}
+                >
+                  <span style={{ ...sans("13px", "#8A7F6E") }}>›</span>
+                  <span style={{ ...sans("13px", "#5F5648") }}>{f}</span>
+                </div>
+              ))}
+            </div>
+            <Link href="/upload?tier=dispute" style={{ textDecoration: "none" }}>
+              <div
+                style={{
+                  ...sans("11px", "#C8A97E"),
+                  border: "1px solid #C8A97E",
+                  padding: "14px",
+                  textAlign: "center",
+                  letterSpacing: "0.2em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                }}
+              >
+                Get my dispute letter
+              </div>
+            </Link>
+          </motion.div>
+
+          {/* Membership */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.2 }}
+            style={{
+              backgroundColor: "#F4EFE6",
+              border: "1.5px solid #C8A97E",
+              padding: "32px",
+              position: "relative",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                top: "16px",
+                right: "16px",
+                ...sans("9px", "#221C14"),
+                backgroundColor: "#C8A97E",
+                padding: "4px 8px",
+                letterSpacing: "0.15em",
+                textTransform: "uppercase",
+              }}
+            >
+              Most popular
+            </div>
+            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>
+              Membership
+            </div>
+            <div
+              style={{
+                ...serif("52px", {
+                  fontStyle: "italic",
+                  lineHeight: 1,
+                  marginBottom: "4px",
+                }),
+              }}
+            >
+              $19<span style={{ fontSize: "22px" }}>/mo</span>
+            </div>
+            <div style={{ ...sans("12px", "#8A7F6E") }}>
+              or $149/yr — two months free
+            </div>
+            <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
+            <div
+              style={{
+                ...serif("18px", {
+                  fontStyle: "italic",
+                  color: "#5F5648",
+                  lineHeight: 1.4,
+                  marginBottom: "24px",
+                }),
+              }}
+            >
+              your ongoing bill watchdog.
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+                marginBottom: "32px",
+              }}
+            >
+              {[
+                "Unlimited audits and dispute letters",
+                "Every new bill audited automatically",
+                "Alerts on new and suspicious charges",
+                "Appeal & regulator letters (DOI, CMS, CFPB)",
+                "Priority support",
+              ].map((f) => (
+                <div
+                  key={f}
+                  style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}
+                >
+                  <span style={{ ...sans("13px", "#8A7F6E") }}>›</span>
+                  <span style={{ ...sans("13px", "#5F5648") }}>{f}</span>
+                </div>
+              ))}
+            </div>
+            <div
+              onClick={() => startMembershipCheckout("monthly")}
+              style={{
+                ...sans("11px", "#221C14"),
+                backgroundColor: "#C8A97E",
+                padding: "14px",
+                textAlign: "center",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+              }}
+            >
+              Start membership
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── Trust & Legal ── */}
+      <section style={{ backgroundColor: "#F4EFE6", padding: "96px 64px" }}>
+        <motion.div
+          {...fadeUp}
+          style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: "80px" }}
+        >
+          <div>
+            <div style={{ ...label(), marginBottom: "24px" }}>
+              How we&apos;re authorized to help
+            </div>
+            <h2
+              style={{
+                ...serif("40px", { lineHeight: 1.1, marginBottom: "32px" }),
+              }}
+            >
+              Medical bill advocacy
+              <br />
+              is a recognized profession.
+            </h2>
+            <p
+              style={{
+                ...sans("14px", "#5F5648"),
+                lineHeight: 1.75,
+              }}
+            >
+              Verity is an administrative advocacy service — not a law firm.
+              Medical billing advocates are a recognized professional category
+              authorized to review bills, identify errors, and file disputes on
+              patients&apos; behalf with signed authorization.
+            </p>
+            <p
+              style={{
+                ...sans("14px", "#5F5648"),
+                lineHeight: 1.75,
+                marginTop: "16px",
+              }}
+            >
+              Disputing a medical bill is your federally protected right under
+              the No Surprises Act and applicable state patient protection laws.
+              Verity arms you with the evidence, citations, and ready-to-send
+              letters to exercise that right — so you&apos;re not navigating it alone.
+            </p>
+            <p style={{ ...sans("12px", "#8A7F6E"), marginTop: "32px" }}>
+              Verity is not a law firm and does not provide legal advice. If
+              your case requires legal action, we refer to appropriate counsel.
+            </p>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "28px",
+              justifyContent: "center",
+            }}
+          >
+            {[
+              {
+                icon: "shield",
+                text: "Disputes filed under your signed patient authorization",
+              },
+              {
+                icon: "filecheck",
+                text: "Federally protected under the No Surprises Act",
+              },
+              { icon: "lock", text: "Privacy-first document handling" },
+            ].map((badge) => (
+              <div
+                key={badge.icon}
+                style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}
+              >
+                <div
+                  style={{
+                    color: "#C8A97E",
+                    flexShrink: 0,
+                    marginTop: "2px",
+                  }}
+                >
+                  {badge.icon === "shield" && (
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    >
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                  )}
+                  {badge.icon === "filecheck" && (
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    >
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <polyline points="9 15 11 17 15 13" />
+                    </svg>
+                  )}
+                  {badge.icon === "lock" && (
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  )}
+                </div>
+                <span style={{ ...sans("13px", "#5F5648") }}>{badge.text}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section id="faq" style={{ padding: "112px 64px" }}>
+        <motion.div {...fadeUp}>
+          <div style={{ ...label(), marginBottom: "24px" }}>Questions</div>
+          <h2
+            style={{
+              ...serif("48px", { lineHeight: 1.05, marginBottom: "64px" }),
+            }}
+          >
+            Everything you need to know.
+          </h2>
+        </motion.div>
+        <div style={{ maxWidth: "720px" }}>
+          {FAQS.map((faq) => (
+            <FaqItem key={faq.q} q={faq.q} a={faq.a} />
+          ))}
+          <div style={{ borderTop: "1px solid #D8CFBE" }} />
+        </div>
+      </section>
+
       <Footer />
     </div>
   );

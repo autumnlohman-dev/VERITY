@@ -49,3 +49,6 @@ cms-data/
 # env files (redundant with .env* above, listed explicitly for safety)
 .env.local
 .env*.local
+# internal strategy / IP documents — keep out of the app repo
+*.docx
+~$*
