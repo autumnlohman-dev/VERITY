@@ -115,10 +115,10 @@ function Nav() {
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface FileState {
-  name: string;
-  size: number;
-}
+// Hold the actual File object so it survives across steps and reaches the
+// backend. (The DropZones for step 1 unmount on later steps, so we cannot
+// recover the file from a DOM <input> at submit time.)
+type FileState = File;
 
 type GuestError = {
   cpt_code: string;
@@ -245,8 +245,7 @@ function DropZone({
 
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const f = files[0];
-    setFile({ name: f.name, size: f.size });
+    setFile(files[0]);
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -1091,8 +1090,9 @@ const [error, setError] = useState<string | null>(null);
       // Get current user
       const { data: { user } } = await supabase.auth.getUser()
 
-      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
-      const file = fileInput?.files?.[0]
+      // Use the bill File tracked in state — the step-1 DropZones are unmounted
+      // by this point, so we cannot read it back from a DOM <input>.
+      const file = billFile
 
       // ── Guest path: run a free, anonymous audit and show results inline ──
       if (!user) {
