@@ -9,13 +9,13 @@ import { ChevronDown } from "lucide-react";
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: "var(--font-cormorant), Georgia, serif",
   fontSize: size,
-  color: "#F5F0E8",
+  color: "#221C14",
   lineHeight: 1,
   fontWeight: 400,
   ...extra,
 });
 
-const sans = (size: string, color = "#A89F96", extra?: React.CSSProperties): React.CSSProperties => ({
+const sans = (size: string, color = "#5F5648", extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
   fontSize: size,
   color,
@@ -47,7 +47,7 @@ function Nav() {
         left: 0,
         right: 0,
         zIndex: 50,
-        backgroundColor: scrolled ? "rgba(13,13,13,0.92)" : "transparent",
+        backgroundColor: scrolled ? "rgba(235,229,217,0.85)" : "transparent",
         backdropFilter: scrolled ? "blur(12px)" : "none",
         transition: "background-color 0.4s, backdrop-filter 0.4s",
         padding: "20px 64px",
@@ -57,8 +57,8 @@ function Nav() {
       }}
     >
       <Link href="/" style={{ textDecoration: "none" }}>
-        <span style={{ ...sans("12px", "#F5F0E8"), letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500 }}>
-          ClearClaim
+        <span style={{ ...sans("15px", "#221C14"), letterSpacing: "0.42em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.42em" }}>
+          Verity
         </span>
       </Link>
       <div className="hidden md:flex" style={{ gap: "40px" }}>
@@ -70,17 +70,17 @@ function Nav() {
           <Link
             key={link.href}
             href={link.href}
-            style={{ ...sans("11px", "#A89F96"), letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none", transition: "color 0.2s" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#A89F96")}
+            style={{ ...sans("11px", "#5F5648"), letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none", transition: "color 0.2s" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#221C14")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#5F5648")}
           >
             {link.lbl}
           </Link>
         ))}
       </div>
       <Link href="/upload" style={{ textDecoration: "none" }}>
-        <span style={{ ...sans("11px", "#0D0D0D"), backgroundColor: "#C8A97E", padding: "12px 24px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
-          Upload my bill free →
+        <span style={{ ...sans("11px", "#221C14"), backgroundColor: "#C8A97E", padding: "12px 24px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
+          Check my bill →
         </span>
       </Link>
     </nav>
@@ -91,8 +91,9 @@ function Nav() {
 function Footer() {
   return (
     <footer
+      className="r-grid-1"
       style={{
-        borderTop: "1px solid #242424",
+        borderTop: "1px solid #D8CFBE",
         padding: "64px",
         display: "grid",
         gridTemplateColumns: "1fr 1fr 1fr",
@@ -100,10 +101,10 @@ function Footer() {
       }}
     >
       <div>
-        <div style={{ ...sans("12px", "#F5F0E8"), letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: "8px" }}>ClearClaim</div>
-        <div style={{ ...sans("11px", "#6B635C"), marginBottom: "16px" }}>Medical bill advocacy.</div>
-        <div style={{ ...sans("11px", "#6B635C"), maxWidth: "260px", lineHeight: 1.6 }}>
-          ClearClaim is an administrative advocacy service. We are not a law firm and do not provide legal advice.
+        <div style={{ ...sans("12px", "#221C14"), letterSpacing: "0.34em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.34em", marginBottom: "8px" }}>Verity</div>
+        <div style={{ ...sans("11px", "#8A7F6E"), marginBottom: "16px" }}>Medical bill advocacy.</div>
+        <div style={{ ...sans("11px", "#8A7F6E"), maxWidth: "260px", lineHeight: 1.6 }}>
+          Verity is an administrative advocacy service. We are not a law firm and do not provide legal advice.
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -116,17 +117,22 @@ function Footer() {
           <Link
             key={link.href}
             href={link.href}
-            style={{ ...sans("11px", "#6B635C"), textDecoration: "none", transition: "color 0.2s" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#A89F96")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#6B635C")}
+            style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none", transition: "color 0.2s" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#5F5648")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#8A7F6E")}
           >
             {link.lbl}
           </Link>
         ))}
       </div>
       <div>
-        <div style={{ ...sans("11px", "#6B635C"), marginBottom: "4px" }}>© 2026 ClearClaim</div>
-        <div style={{ ...sans("11px", "#6B635C") }}>All rights reserved.</div>
+        <div style={{ ...sans("11px", "#8A7F6E"), marginBottom: "4px" }}>© 2026 Verity</div>
+        <div style={{ ...sans("11px", "#8A7F6E"), marginBottom: "16px" }}>All rights reserved.</div>
+        <div style={{ display: "flex", gap: "16px", marginBottom: "12px" }}>
+          <Link href="/privacy" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Privacy</Link>
+          <Link href="/terms" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Terms</Link>
+        </div>
+        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity audit method, scoring models, and datasets are proprietary &amp; confidential.</div>
       </div>
     </footer>
   );
@@ -140,7 +146,7 @@ const FAQS = [
   },
   {
     q: "How long does it take?",
-    a: "Audit reports are ready within 24 hours of upload. Dispute letters are generated instantly. If you're on the Resolve tier, most disputes close in 14–21 days. Complex cases or second-level appeals may take 45–60 days.",
+    a: "Audit reports are ready within 24 hours of upload, and your dispute letter is generated instantly. Once you send it, most insurers and providers respond within 30 days, though complex cases or appeals can take longer.",
   },
   {
     q: "What do I need to upload?",
@@ -148,11 +154,11 @@ const FAQS = [
   },
   {
     q: "What happens if my insurer denies the dispute?",
-    a: "On the Dispute tier, you can upgrade to Resolve and we take over. On the Resolve tier, we escalate to a second-level appeal, then external review if needed. We track every deadline and handle every follow-up.",
+    a: "Your audit report includes the evidence and regulatory citations behind every flagged charge, so you can escalate to a second-level appeal or an external review. Verity generates the follow-up letters you need at each step.",
   },
   {
     q: "Is my medical data safe?",
-    a: "All documents are encrypted at rest and in transit using AES-256. We operate under HIPAA-compliant data handling protocols. We never sell or share your information with any third party.",
+    a: "All documents are encrypted at rest and in transit using AES-256, and built with privacy and security best practices. We never sell or share your information with any third party.",
   },
   {
     q: "Do you work with all insurance types?",
@@ -164,7 +170,7 @@ const FAQS = [
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div style={{ borderTop: "1px solid #242424" }}>
+    <div style={{ borderTop: "1px solid #D8CFBE" }}>
       <button
         onClick={() => setOpen(!open)}
         style={{
@@ -184,7 +190,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
           style={{
             fontFamily: "var(--font-cormorant), Georgia, serif",
             fontSize: "20px",
-            color: "#F5F0E8",
+            color: "#221C14",
             fontWeight: 400,
           }}
         >
@@ -192,7 +198,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
         </span>
         <ChevronDown
           size={18}
-          color="#6B635C"
+          color="#8A7F6E"
           style={{
             flexShrink: 0,
             transform: open ? "rotate(180deg)" : "rotate(0deg)",
@@ -210,7 +216,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
             transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
             style={{ overflow: "hidden" }}
           >
-            <p style={{ ...sans("14px", "#A89F96"), lineHeight: 1.75, paddingBottom: "24px" }}>{a}</p>
+            <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, paddingBottom: "24px" }}>{a}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -241,20 +247,20 @@ const STEPS = [
   {
     n: 4,
     title: "You choose what happens next.",
-    body: "Stay on the free Audit tier and see what's wrong. Upgrade to Dispute for a prefilled letter you send yourself. Or choose Resolve and let us handle everything end to end.",
+    body: "Stay on the free audit and see exactly what's wrong, pay $39 for a single dispute on one bill, or join the $19/mo membership and have every bill you ever get audited and disputed.",
     time: "Your call",
   },
   {
     n: 5,
-    title: "We file on your behalf.",
-    body: "On the Resolve tier, we file your dispute directly with the insurer using your signed Patient Authorization. We handle all correspondence, track every statutory deadline, and follow up until it closes.",
-    time: "14–21 days",
+    title: "You send your dispute.",
+    body: "You get an insurer-specific letter plus a step-by-step submission guide — portal link, fax number, and mailing address — and a deadline tracker so nothing slips.",
+    time: "Same day",
   },
   {
     n: 6,
-    title: "You get paid.",
-    body: "When the dispute is resolved, your account is credited or a refund is issued. Our fee is 25% of what we recover. If we recover nothing, you owe nothing.",
-    time: "On resolution",
+    title: "You recover what you're owed.",
+    body: "The provider or insurer corrects the charge and issues a refund or adjusts your balance. Most respond within 30 days, and Verity generates the appeal or regulator letter if you need to escalate.",
+    time: "~30 days",
   },
 ];
 
@@ -277,7 +283,7 @@ export default function HowItWorksPage() {
   };
 
   return (
-    <div style={{ background: "#0D0D0D", minHeight: "100vh" }}>
+    <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
       <Nav />
 
       {/* ── Hero ── */}
@@ -292,7 +298,7 @@ export default function HowItWorksPage() {
             style={{
               fontFamily: "var(--font-cormorant), Georgia, serif",
               fontSize: "clamp(72px, 8vw, 96px)",
-              color: "#F5F0E8",
+              color: "#221C14",
               lineHeight: 0.92,
               fontWeight: 400,
               marginBottom: 0,
@@ -302,9 +308,9 @@ export default function HowItWorksPage() {
             <br />
             <em style={{ fontStyle: "italic" }}>You keep the money.</em>
           </h1>
-          <p style={{ ...sans("15px", "#A89F96"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
-            ClearClaim is a medical bill advocacy service. We review your bill, find errors, and — if you choose —
-            file and manage the dispute until it&apos;s resolved.
+          <p style={{ ...sans("15px", "#5F5648"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
+            Verity is a medical bill advocacy tool. We review your bill, find the errors, and — if you choose —
+            hand you a ready-to-send dispute letter with the evidence to back it up.
           </p>
         </motion.div>
       </section>
@@ -328,7 +334,7 @@ export default function HowItWorksPage() {
             viewport={{ once: true }}
             transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: i * 0.05 }}
             style={{
-              borderTop: "1px solid #242424",
+              borderTop: "1px solid #D8CFBE",
               padding: "48px 0",
               display: "flex",
               gap: "48px",
@@ -340,7 +346,7 @@ export default function HowItWorksPage() {
               style={{
                 fontFamily: "var(--font-cormorant), Georgia, serif",
                 fontSize: "72px",
-                color: "#1C1C1C",
+                color: "#E2DACB",
                 fontStyle: "italic",
                 fontWeight: 400,
                 lineHeight: 1,
@@ -353,12 +359,12 @@ export default function HowItWorksPage() {
             {/* Content */}
             <div style={{ flex: 1 }}>
               <div style={{ ...serif("28px", { lineHeight: 1.1, marginBottom: "16px" }) }}>{step.title}</div>
-              <p style={{ ...sans("14px", "#A89F96"), lineHeight: 1.75, maxWidth: "560px" }}>{step.body}</p>
+              <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, maxWidth: "560px" }}>{step.body}</p>
             </div>
             {/* Time tag */}
             <div
               style={{
-                ...sans("10px", "#6B635C"),
+                ...sans("10px", "#8A7F6E"),
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
                 minWidth: "80px",
@@ -370,13 +376,13 @@ export default function HowItWorksPage() {
             </div>
           </motion.div>
         ))}
-        <div style={{ borderTop: "1px solid #242424" }} />
+        <div style={{ borderTop: "1px solid #D8CFBE" }} />
       </section>
 
       {/* ── Timeline graphic ── */}
       <section
         style={{
-          backgroundColor: "#111111",
+          backgroundColor: "#F4EFE6",
           paddingTop: "96px",
           paddingBottom: "96px",
           paddingLeft: "64px",
@@ -404,7 +410,7 @@ export default function HowItWorksPage() {
                   {/* Date */}
                   <div
                     style={{
-                      ...sans("10px", "#6B635C"),
+                      ...sans("10px", "#8A7F6E"),
                       letterSpacing: "0.15em",
                       textTransform: "uppercase",
                       marginBottom: "16px",
@@ -418,8 +424,8 @@ export default function HowItWorksPage() {
                       width: "40px",
                       height: "40px",
                       borderRadius: "50%",
-                      backgroundColor: "#111111",
-                      border: `1px solid ${m.active ? "#C8A97E" : m.done ? "#7A9E87" : "#2A2A2A"}`,
+                      backgroundColor: "#F4EFE6",
+                      border: `1px solid ${m.active ? "#C8A97E" : m.done ? "#5E7E66" : "#CFC6B4"}`,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -431,14 +437,14 @@ export default function HowItWorksPage() {
                         width: "8px",
                         height: "8px",
                         borderRadius: "50%",
-                        backgroundColor: m.active ? "#C8A97E" : m.done ? "#7A9E87" : "#2A2A2A",
+                        backgroundColor: m.active ? "#C8A97E" : m.done ? "#5E7E66" : "#CFC6B4",
                       }}
                     />
                   </div>
                   {/* Label */}
                   <div
                     style={{
-                      ...sans("12px", "#A89F96"),
+                      ...sans("12px", "#5F5648"),
                       lineHeight: 1.5,
                       textAlign: "center",
                       maxWidth: "120px",
@@ -454,7 +460,7 @@ export default function HowItWorksPage() {
                     style={{
                       flex: 1,
                       height: "1px",
-                      borderTop: "1px dashed #2A2A2A",
+                      borderTop: "1px dashed #CFC6B4",
                       marginTop: "56px",
                       flexShrink: 0,
                     }}
@@ -477,21 +483,21 @@ export default function HowItWorksPage() {
           </h2>
         </motion.div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "64px" }}>
+        <div className="r-grid-1" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "64px" }}>
           {/* What we are */}
           <motion.div {...fadeUp}>
             <div style={{ ...serif("22px", { lineHeight: 1.2, marginBottom: "24px" }) }}>What we are.</div>
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               {[
-                "An administrative medical bill advocacy service",
-                "Authorized to act on your behalf under a signed Patient Authorization Form",
-                "Recognized in all 50 states as a legitimate professional category",
-                "Experts in CPT codes, insurance contracts, and dispute procedures",
+                "A medical bill advocacy platform for patients",
+                "Software that finds billing errors and writes your dispute and appeal letters",
+                "Grounded in federal rules — NCCI, MUE, PFS, and the No Surprises Act",
+                "Built on CPT codes, insurance contracts, and dispute procedures",
                 "Covered under your patient rights to dispute charges",
               ].map((item) => (
                 <div key={item} style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
                   <span style={{ ...sans("14px", "#C8A97E"), marginTop: "2px", flexShrink: 0 }}>›</span>
-                  <span style={{ ...sans("14px", "#A89F96"), lineHeight: 1.7 }}>{item}</span>
+                  <span style={{ ...sans("14px", "#5F5648"), lineHeight: 1.7 }}>{item}</span>
                 </div>
               ))}
             </div>
@@ -513,12 +519,12 @@ export default function HowItWorksPage() {
                 "Affiliated with any insurer or hospital",
               ].map((item) => (
                 <div key={item} style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-                  <span style={{ ...sans("14px", "#3A3530"), marginTop: "2px", flexShrink: 0 }}>›</span>
-                  <span style={{ ...sans("14px", "#A89F96"), lineHeight: 1.7 }}>{item}</span>
+                  <span style={{ ...sans("14px", "#C9BFAC"), marginTop: "2px", flexShrink: 0 }}>›</span>
+                  <span style={{ ...sans("14px", "#5F5648"), lineHeight: 1.7 }}>{item}</span>
                 </div>
               ))}
             </div>
-            <p style={{ ...sans("12px", "#6B635C"), fontStyle: "italic", marginTop: "32px", lineHeight: 1.65 }}>
+            <p style={{ ...sans("12px", "#8A7F6E"), fontStyle: "italic", marginTop: "32px", lineHeight: 1.65 }}>
               If your case involves fraud, malpractice, or requires legal action, we&apos;ll tell you — and refer you
               to appropriate legal counsel. We don&apos;t handle cases beyond our scope.
             </p>
@@ -529,7 +535,7 @@ export default function HowItWorksPage() {
       {/* ── Federal rights ── */}
       <section
         style={{
-          backgroundColor: "#111111",
+          backgroundColor: "#F4EFE6",
           paddingTop: "96px",
           paddingBottom: "96px",
           paddingLeft: "64px",
@@ -543,20 +549,20 @@ export default function HowItWorksPage() {
             <br />
             is your legal right.
           </h2>
-          <p style={{ ...sans("14px", "#A89F96"), maxWidth: "640px", lineHeight: 1.75 }}>
+          <p style={{ ...sans("14px", "#5F5648"), maxWidth: "640px", lineHeight: 1.75 }}>
             Under the No Surprises Act (effective January 2022), patients have federally protected rights to dispute
             surprise medical bills. You have the right to request an itemized bill from any provider, the right to
             dispute charges above the contracted rate, and the right to an independent external review if your insurer
             denies your claim.
           </p>
-          <p style={{ ...sans("14px", "#A89F96"), maxWidth: "640px", lineHeight: 1.75, marginTop: "16px" }}>
-            ClearClaim handles this entire process on your behalf. We know the deadlines, the forms, and the escalation
-            pathways. You don&apos;t have to navigate it alone.
+          <p style={{ ...sans("14px", "#5F5648"), maxWidth: "640px", lineHeight: 1.75, marginTop: "16px" }}>
+            Verity makes this process simple: we find the errors, cite the exact rules, and generate the letters —
+            with the deadlines and escalation pathways built in. You don&apos;t have to navigate it alone.
           </p>
           <Link href="/upload" style={{ textDecoration: "none" }}>
             <span
               style={{
-                ...sans("11px", "#0D0D0D"),
+                ...sans("11px", "#221C14"),
                 backgroundColor: "#C8A97E",
                 padding: "16px 32px",
                 letterSpacing: "0.2em",
@@ -566,7 +572,7 @@ export default function HowItWorksPage() {
                 marginTop: "40px",
               }}
             >
-              Upload my bill free
+              Check my bill — free
             </span>
           </Link>
         </motion.div>
@@ -584,7 +590,7 @@ export default function HowItWorksPage() {
           {FAQS.map((faq) => (
             <FaqItem key={faq.q} q={faq.q} a={faq.a} />
           ))}
-          <div style={{ borderTop: "1px solid #242424" }} />
+          <div style={{ borderTop: "1px solid #D8CFBE" }} />
         </div>
       </section>
 
