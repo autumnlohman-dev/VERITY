@@ -5,8 +5,10 @@ import type { DragEvent, ChangeEvent } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, CheckCircle, Camera } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import * as Sentry from "@sentry/nextjs";
+import { hasEmFlag } from "@/lib/emReview";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -111,6 +113,61 @@ function Nav() {
         </span>
       </Link>
     </nav>
+  );
+}
+
+// ─── Trust strip (below nav on upload page) ───────────────────────────────────
+function TrustStrip() {
+  const items = [
+    "Bank-level encryption in transit and at rest",
+    "Documents never sold or shared",
+    "No upfront payment for audit",
+    "Administrative advocacy service — not a law firm",
+  ];
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", backgroundColor: "#EBE5D9", borderTop: "1px solid #D8CFBE", borderBottom: "1px solid #D8CFBE" }}>
+      {items.map((text, i) => (
+        <div key={i} style={{ display: "flex", gap: "10px", alignItems: "flex-start", padding: "18px 20px", borderLeft: i > 0 ? "1px solid #D8CFBE" : "none" }}>
+          <span style={{ ...sans("12px", "#C8A97E"), lineHeight: 1.6, flexShrink: 0 }}>—</span>
+          <span style={{ ...sans("11px", "#8A7F6E"), lineHeight: 1.55, letterSpacing: "0.02em" }}>{text}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── After-upload explainer ───────────────────────────────────────────────────
+function AfterUploadExplainer() {
+  const steps = [
+    "We extract line items and CPT codes from your bill.",
+    "Each charge is audited against CMS fee schedules and NCCI edits.",
+    "You get a full error report — free, before you pay for anything.",
+  ];
+  return (
+    <div style={{ backgroundColor: "#F5F0E6", border: "1px solid #D8CFBE", borderLeft: "3px solid #C8A97E", padding: "20px 24px", marginTop: "24px" }}>
+      <div style={{ ...label("#8A7F6E"), marginBottom: "12px" }}>What happens after you upload</div>
+      <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
+        {steps.map((s, i) => (
+          <li key={i} style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "6px 0" }}>
+            <span style={{ ...sans("12px", "#C8A97E"), lineHeight: 1.6, flexShrink: 0, fontStyle: "italic", minWidth: "18px" }}>{i + 1}.</span>
+            <span style={{ ...sans("13px", "#5F5648"), lineHeight: 1.65 }}>{s}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+// ─── Support footer ────────────────────────────────────────────────────────────
+function SupportFooter() {
+  return (
+    <div style={{ borderTop: "1px solid #D8CFBE", padding: "24px 0", marginTop: "48px", textAlign: "center" }}>
+      <div style={{ ...sans("12px", "#8A7F6E"), lineHeight: 1.7 }}>
+        Need help? Email{" "}
+        <a href="mailto:support@verity.co" style={{ color: "#C8A97E", textDecoration: "none" }}>support@verity.co</a>
+        {" "}— responses within 1 business day.
+      </div>
+    </div>
   );
 }
 
@@ -290,7 +347,7 @@ function DropZone({
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.jpg,.jpeg,.png"
+        accept=".pdf,.jpg,.jpeg,.png,.heic,.HEIC,.heif,image/heic,image/heif"
         style={{ display: "none" }}
         onChange={(e: ChangeEvent<HTMLInputElement>) => handleFiles(e.target.files)}
       />
@@ -404,9 +461,11 @@ function UploadPageInner() {
   const [gfe, setGfe] = useState<string | null>(null);
   const [userNotes, setUserNotes] = useState<string>("");
   const [submitted, setSubmitted] = useState(false);
-const [loading, setLoading] = useState(false);
-const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>("Submit for audit →");
+  const [error, setError] = useState<string | null>(null);
   const [guestResults, setGuestResults] = useState<GuestAudit | null>(null);
+  const router = useRouter();
 
   const tierLabel =
     tier === "audit"
@@ -555,6 +614,7 @@ const [error, setError] = useState<string | null>(null);
 
   return (
     <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
+      <TrustStrip />
       {/* Top bar */}
       <div
         style={{
@@ -654,6 +714,8 @@ const [error, setError] = useState<string | null>(null);
                 Don&apos;t have your EOB? You can still proceed — the audit will
                 be less precise.
               </p>
+
+              <AfterUploadExplainer />
 
               <button
                 onClick={() => billFile && setStep(2)}
@@ -1078,30 +1140,27 @@ const [error, setError] = useState<string | null>(null);
 )}
 <button
   onClick={async () => {
-    if (!tier || !billFile) return
+    if (!tier || !billFile || !insuranceType) return
     setLoading(true)
     setError(null)
+    setLoadingMessage("Creating your case...")
 
     try {
       const supabase = createClient()
-
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser()
 
-      const file = billFile
-
-      // ── Guest path: run a free, anonymous audit and show results inline ──
+      // ── Guest path: anonymous audit, results shown inline ──────────────────
       if (!user) {
-        if (!file) {
+        if (!billFile) {
           setError("Please upload your bill to run the audit.")
           setLoading(false)
           return
         }
-        const fileBase64 = await fileToBase64(file)
+        const fileBase64 = await fileToBase64(billFile)
         const res = await fetch('/api/audit-guest', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileBase64, fileName: file.name, insuranceType }),
+          body: JSON.stringify({ fileBase64, fileName: billFile.name, insuranceType }),
         })
         const result = await res.json()
         if (!res.ok) {
@@ -1114,69 +1173,167 @@ const [error, setError] = useState<string | null>(null);
         return
       }
 
-      // ── Signed-in path: save the case so it persists + generates letters ──
-      // Upload bill file to Supabase Storage
+      // ── Signed-in path: full pipeline ──────────────────────────────────────
+      const storagePrefix = user.id
+      const uploadTargets: { file: File; category: string }[] = [
+        billFile ? { file: billFile, category: 'bill' } : null,
+        eobFile  ? { file: eobFile,  category: 'eob'  } : null,
+        cardFile ? { file: cardFile, category: 'card' } : null,
+      ].filter((x): x is { file: File; category: string } => x !== null)
 
-      let billPath: string | null = null
-      if (file) {
-        const filePath = `${user.id}/${Date.now()}-${file.name}`
-        const { error: uploadError } = await supabase.storage
-          .from('bills')
-          .upload(filePath, file)
-
-        if (uploadError) {
-          console.error('Upload error:', uploadError)
-          // Continue anyway — file upload failure shouldn't block case creation
-        } else {
-          billPath = filePath
-        }
-      }
-
-      // Create the case in the database
-      const response = await fetch('/api/cases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          careType,
-          insuranceType,
-          gfe,
-          tier,
-          userNotes,
-          amountBilled: 0,
-          billPath,
+      const uploadStamp = Date.now()
+      await Promise.all(
+        uploadTargets.map(async ({ file, category }) => {
+          const filePath = `${storagePrefix}/${uploadStamp}-${category}-${file.name}`
+          const { error: uploadError } = await supabase.storage.from('bills').upload(filePath, file)
+          if (uploadError) {
+            console.error(`Upload error (${category}):`, uploadError)
+            Sentry.captureException(uploadError, { tags: { location: "upload-page", category } })
+          }
         })
-      })
+      )
 
-      const data = await response.json()
+      setLoadingMessage("Reading your bill...")
 
-      if (!response.ok) {
-        setError(data.error || "Something went wrong. Please try again.")
+      const extractForm = new FormData()
+      extractForm.append('file', billFile)
+      const extractRes = await fetch('/api/extract-line-items', { method: 'POST', body: extractForm })
+      const extractJson = await extractRes.json()
+      if (!extractRes.ok) {
+        setError(extractJson.error || "We couldn't read your bill. Please try a clearer scan.")
         setLoading(false)
         return
       }
 
-      // Run the proprietary extraction + audit pipeline on the uploaded document.
-      if (billPath && data.caseId) {
-        try {
-          await fetch('/api/extract', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ caseId: data.caseId }),
+      const lineItems = (extractJson.lineItems ?? []) as Array<{
+        cpt_code: string; description: string; date_of_service: string
+        units: number; billed_amount: number; modifiers: string[]
+      }>
+      const billMetadata = (extractJson.billMetadata ?? {}) as {
+        provider_name?: string; provider_npi?: string; provider_address?: string
+        bill_date?: string; patient_name?: string; patient_address_street?: string
+        patient_address_city?: string; patient_address_state?: string
+        patient_address_zip?: string; account_number?: string
+      }
+      const extractWarnings = (extractJson.warnings ?? []) as Array<{ code: string; reason: string }>
+
+      if (lineItems.length === 0) {
+        if (extractWarnings.length > 0) {
+          setError(`We found ${extractWarnings.length} charge line${extractWarnings.length === 1 ? '' : 's'} but the CPT codes look misread (e.g., "${extractWarnings[0].code}"). Please upload a clearer scan.`)
+        } else {
+          setError("We couldn't find itemized charges on this bill. Please upload an itemized version (not a summary).")
+        }
+        setLoading(false)
+        return
+      }
+
+      const providerName = typeof billMetadata.provider_name === 'string' && billMetadata.provider_name.trim()
+        ? billMetadata.provider_name.trim() : null
+
+      const street = billMetadata.patient_address_street?.trim() ?? ''
+      const city = billMetadata.patient_address_city?.trim() ?? ''
+      const state = billMetadata.patient_address_state?.trim() ?? ''
+      const zip = billMetadata.patient_address_zip?.trim() ?? ''
+      const cityStateZip = [[city, state].filter(Boolean).join(', '), zip].filter(Boolean).join(' ').trim()
+      const combinedAddress = [street, cityStateZip].filter(Boolean).join('\n')
+
+      const patientInfo: Record<string, string> = {}
+      if (billMetadata.patient_name?.trim()) patientInfo.name = billMetadata.patient_name.trim()
+      if (combinedAddress) patientInfo.address = combinedAddress
+      if (billMetadata.account_number?.trim()) patientInfo.account_number = billMetadata.account_number.trim()
+
+      const caseRes = await fetch('/api/cases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          careType, insuranceType, gfe, tier, userNotes, providerName,
+          amountBilled: lineItems.reduce((s, li) => s + li.billed_amount, 0),
+          patientInfo: Object.keys(patientInfo).length > 0 ? patientInfo : undefined,
+        })
+      })
+      const caseJson = await caseRes.json()
+      if (!caseRes.ok || !caseJson.caseId) {
+        setError(caseJson.error || "Something went wrong. Please try again.")
+        setLoading(false)
+        return
+      }
+      const caseId: string = caseJson.caseId
+
+      setLoadingMessage("Running audit...")
+
+      const insuranceMap: Record<string, string> = {
+        "Commercial (PPO/HMO)": "commercial",
+        "Medicare Advantage": "medicare",
+        "Original Medicare": "medicare",
+        "Medicaid": "medicaid",
+        "Self-pay / uninsured": "self-pay",
+      }
+      const apiInsurance = insuranceMap[insuranceType] ?? "other"
+
+      const auditRes = await fetch('/api/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caseId, insuranceType: apiInsurance, lineItems })
+      })
+      const auditJson = await auditRes.json()
+      if (!auditRes.ok) {
+        setError(auditJson.error || "Audit failed. Please try again.")
+        setLoading(false)
+        return
+      }
+
+      const auditErrors = (auditJson.errors ?? []) as Array<{ cpt_code?: string }>
+      const emFlagPresent = hasEmFlag(auditErrors)
+      let letterGenerationFailed = false
+
+      if (auditJson.errorCount > 0 && !emFlagPresent) {
+        setLoadingMessage("Generating your dispute letter...")
+
+        const totalBilled = lineItems.reduce((s, li) => s + li.billed_amount, 0)
+        const firstDate = lineItems[0]?.date_of_service ?? new Date().toISOString().split('T')[0]
+        const totalExpected = (auditJson.errors as Array<{ expected_amount: number }>)
+          .reduce((s, e) => s + Number(e.expected_amount || 0), 0)
+
+        const letterRes = await fetch('/api/generate-letter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            caseId, errors: auditJson.errors,
+            caseData: {
+              provider_name: providerName ?? 'Provider on file',
+              insurance_type: insuranceType,
+              amount_billed: totalBilled,
+              amount_expected: totalExpected,
+              date_of_service: firstDate,
+              userNotes,
+            }
           })
-        } catch (extractErr) {
-          // The case is created; the audit can be retried from the dashboard.
-          console.error('Extraction error:', extractErr)
+        })
+        if (!letterRes.ok) {
+          const letterJson = await letterRes.json().catch(() => ({}))
+          console.error('Letter generation failed:', letterJson)
+          Sentry.captureMessage("Letter generation failed at upload flow", {
+            level: "error",
+            tags: { location: "upload-page" },
+            extra: { status: letterRes.status, body: letterJson },
+          })
+          letterGenerationFailed = true
         }
       }
 
-      setSubmitted(true)
+      if (letterGenerationFailed) {
+        router.push(`/cases/${caseId}/letter?genFailed=1`)
+      } else {
+        router.push(`/cases/${caseId}`)
+      }
+      return
 
     } catch (err) {
       console.error(err)
+      Sentry.captureException(err, { tags: { location: "upload-page", stage: "submit" } })
       setError("Something went wrong. Please try again.")
+      setLoading(false)
     }
-
-    setLoading(false)
   }}
   disabled={!tier || loading}
   style={{
@@ -1193,11 +1350,12 @@ const [error, setError] = useState<string | null>(null);
     transition: "background-color 0.2s",
   }}
 >
-  {loading ? "Submitting..." : "Submit for audit →"}
+  {loading ? loadingMessage : "Submit for audit →"}
 </button>
             </motion.div>
           )}
         </AnimatePresence>
+        <SupportFooter />
       </div>
     </div>
   );

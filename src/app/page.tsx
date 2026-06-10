@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { startMembershipCheckout } from "@/lib/checkout";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -61,8 +61,15 @@ const FAQS = [
 ];
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
+const NAV_LINKS = [
+  { label: "How it works", href: "/how-it-works" },
+  { label: "Pricing", href: "/pricing" },
+  { label: "FAQ", href: "#faq" },
+];
+
 function Nav() {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -70,80 +77,116 @@ function Nav() {
   }, []);
 
   return (
-    <nav
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 50,
-        backgroundColor: scrolled ? "rgba(235,229,217,0.85)" : "transparent",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
-        transition: "background-color 0.4s, backdrop-filter 0.4s",
-        padding: "20px 64px",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}
-    >
-      <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "12px" }}>
-        <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block" }}>
-          <circle cx="32" cy="32" r="20" fill="none" stroke="#B8945C" strokeWidth="1.8" />
-          <text x="32" y="45" textAnchor="middle" fontFamily="var(--font-cormorant), Georgia, serif" fontSize="36" fontWeight={500} fill="#B8945C">V</text>
-        </svg>
-        <span
-          style={{
-            ...sans("15px", "#221C14"),
-            letterSpacing: "0.42em",
-            textTransform: "uppercase",
-            fontWeight: 300,
-            paddingLeft: "0.42em",
-          }}
-        >
-          Verity
-        </span>
-      </Link>
+    <>
+      <nav
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 50,
+          backgroundColor: scrolled ? "rgba(235,229,217,0.92)" : "transparent",
+          backdropFilter: scrolled ? "blur(12px)" : "none",
+          transition: "background-color 0.4s, backdrop-filter 0.4s",
+          padding: "20px 32px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "12px" }}>
+          <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block" }}>
+            <circle cx="32" cy="32" r="20" fill="none" stroke="#B8945C" strokeWidth="1.8" />
+            <text x="32" y="45" textAnchor="middle" fontFamily="var(--font-cormorant), Georgia, serif" fontSize="36" fontWeight={500} fill="#B8945C">V</text>
+          </svg>
+          <span style={{ ...sans("15px", "#221C14"), letterSpacing: "0.42em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.42em" }}>
+            Verity
+          </span>
+        </Link>
 
-      <div className="hidden md:flex" style={{ gap: "40px" }}>
-        {[
-          { label: "How it works", href: "/how-it-works" },
-          { label: "Pricing", href: "/pricing" },
-          { label: "FAQ", href: "#faq" },
-        ].map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            style={{
-              ...sans("11px", "#5F5648"),
-              letterSpacing: "0.15em",
-              textTransform: "uppercase",
-              textDecoration: "none",
-              transition: "color 0.2s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#221C14")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#5F5648")}
-          >
-            {link.label}
+        <div className="hidden md:flex" style={{ gap: "40px" }}>
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              style={{ ...sans("11px", "#5F5648"), letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none", transition: "color 0.2s" }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#221C14")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "#5F5648")}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <Link href="/upload" className="hidden md:inline-block" style={{ textDecoration: "none" }}>
+            <span style={{ ...sans("11px", "#221C14"), backgroundColor: "#C8A97E", padding: "12px 24px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
+              Check my bill →
+            </span>
           </Link>
-        ))}
-      </div>
+          <button
+            aria-label="Open menu"
+            className="md:hidden"
+            onClick={() => setMobileOpen(true)}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", color: "#221C14" }}
+          >
+            <Menu size={22} />
+          </button>
+        </div>
+      </nav>
 
-      <Link href="/upload" style={{ textDecoration: "none" }}>
-        <span
-          style={{
-            ...sans("11px", "#221C14"),
-            backgroundColor: "#C8A97E",
-            padding: "12px 24px",
-            letterSpacing: "0.2em",
-            textTransform: "uppercase",
-            fontWeight: 500,
-            display: "inline-block",
-          }}
-        >
-          Check my bill →
-        </span>
-      </Link>
-    </nav>
+      {/* Mobile drawer */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0, x: "100%" }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: "100%" }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            style={{
+              position: "fixed", inset: 0, zIndex: 100,
+              backgroundColor: "#EBE5D9",
+              display: "flex", flexDirection: "column",
+              padding: "24px 32px 48px",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "48px" }}>
+              <Link href="/" onClick={() => setMobileOpen(false)} style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "10px" }}>
+                <svg width="22" height="22" viewBox="0 0 64 64" aria-hidden="true">
+                  <circle cx="32" cy="32" r="20" fill="none" stroke="#B8945C" strokeWidth="1.8" />
+                  <text x="32" y="45" textAnchor="middle" fontFamily="var(--font-cormorant), Georgia, serif" fontSize="36" fontWeight={500} fill="#B8945C">V</text>
+                </svg>
+                <span style={{ ...sans("13px", "#221C14"), letterSpacing: "0.42em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.42em" }}>Verity</span>
+              </Link>
+              <button
+                aria-label="Close menu"
+                onClick={() => setMobileOpen(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#221C14" }}
+              >
+                <X size={22} />
+              </button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "32px", flex: 1 }}>
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  style={{ ...serif("40px", { color: "#221C14", textDecoration: "none", lineHeight: 1 }) }}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+            <Link href="/upload" onClick={() => setMobileOpen(false)} style={{ textDecoration: "none" }}>
+              <span style={{ ...sans("12px", "#221C14"), backgroundColor: "#C8A97E", padding: "16px 32px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "block", textAlign: "center" }}>
+                Check my bill — free →
+              </span>
+            </Link>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
