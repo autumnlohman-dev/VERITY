@@ -16,9 +16,9 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "ClearClaim — Medical Billing Resolution",
+  title: "Verity — Medical Bill Advocacy",
   description:
-    "ClearClaim audits every line item against your insurance contract — then files, escalates, and resolves every dispute for you.",
+    "Verity audits every line item on your medical bill against published billing rules, finds the errors, and gives you dispute letters ready to send.",
 };
 
 export default function RootLayout({
