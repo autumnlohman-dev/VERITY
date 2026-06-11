@@ -475,8 +475,15 @@ export default function CaseDetailPage({
       // (FHS computed separately after user answers intake questions)
       try {
         const billData = caseData.bill_data as Record<string, unknown> | null;
+        // Prefer the cross-document set computed server-side (bill + EOB) by the
+        // audit pipeline; fall back to building a single-document set from the
+        // stored bill line items.
+        const persisted = billData?.normalizedCbs as NormalizedCBSSet | undefined;
         const lineItems = (billData?.lineItems as Array<Record<string, unknown>>) || [];
-        if (lineItems.length > 0) {
+        if (persisted && Array.isArray(persisted.documents) && persisted.documents.length > 0) {
+          setCbsSet(persisted);
+          setDeadlines(calculateDeadlines(persisted));
+        } else if (lineItems.length > 0) {
           const docId = `bill_${caseData.id}`;
           const cbsDoc = billExtractionToCBS(
             {
@@ -819,6 +826,55 @@ export default function CaseDetailPage({
               {/* Deadline Tracker */}
               {deadlines.length > 0 && (
                 <DeadlineTracker deadlines={deadlines} />
+              )}
+
+              {/* Cross-document discrepancies (bill vs. EOB) */}
+              {cbsSet && cbsSet.crossDocumentDiscrepancies.length > 0 && (
+                <div style={{ marginBottom: "48px" }}>
+                  <div style={{ ...label("#6B635C"), marginBottom: "16px" }}>
+                    Cross-document findings · bill vs. EOB
+                  </div>
+                  {cbsSet.crossDocumentDiscrepancies.map((d) => {
+                    const sev =
+                      d.severity === "critical" || d.severity === "high" ? "#C47C6A" : "#C8A97E";
+                    return (
+                      <div
+                        key={d.discrepancyId}
+                        style={{
+                          backgroundColor: "#111111",
+                          border: "1px solid #242424",
+                          borderLeft: `3px solid ${sev}`,
+                          padding: "20px 24px",
+                          marginBottom: "12px",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "16px", flexWrap: "wrap" }}>
+                          <div style={{ ...serif("20px", { color: sev, lineHeight: 1.2 }), textTransform: "capitalize" }}>
+                            {d.type.replace(/_/g, " ")}
+                          </div>
+                          {d.estimatedDollarImpact > 0 && (
+                            <div style={{ ...serif("22px", { color: sev }) }}>
+                              {formatCurrency(d.estimatedDollarImpact)}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ ...sans("10px", sev), letterSpacing: "0.15em", textTransform: "uppercase", marginTop: "4px" }}>
+                          {d.severity} · {Math.round(d.confidenceScore * 100)}% confidence
+                        </div>
+                        <p style={{ ...sans("13px", "#A89F96"), marginTop: "10px", lineHeight: 1.65 }}>
+                          {d.description}
+                        </p>
+                        {d.applicableRegulations.length > 0 && (
+                          <div style={{ ...sans("11px", "#6B635C"), marginTop: "10px", lineHeight: 1.55 }}>
+                            {d.applicableRegulations.map((reg, ri) => (
+                              <div key={ri} style={{ marginTop: ri === 0 ? 0 : "4px" }}>· {reg}</div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
 
               {/* Financial Timeline (only when we have dated events) */}

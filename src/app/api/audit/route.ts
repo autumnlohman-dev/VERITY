@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { runAudit, type LineItem } from '@/lib/errorDetection'
 import { analyzeDisputedProcedures } from '@/lib/patientDisputes'
 import { normalizeInsuranceType } from '@/lib/insuranceMapping'
+import { billExtractionToCBS, extractEOBToCBS, isExtractableExt } from '@/lib/cbs/extractor'
+import { normalizeCBSSet } from '@/lib/cbs/normalizer'
+import type { CanonicalBillingSchema, NormalizedCBSSet } from '@/lib/cbs/schema'
 import { NextResponse } from 'next/server'
 
 // Anthropic generation runs longer than Vercel's 10s Hobby / 15s Pro default.
@@ -29,7 +32,7 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser()
 
     const body = await request.json()
-    const { caseId, lineItems, insuranceType, userNotes } = body ?? {}
+    const { caseId, lineItems, insuranceType, userNotes, eobFileBase64, eobFileName } = body ?? {}
 
     if (!caseId || typeof caseId !== 'string') {
       return NextResponse.json({ error: 'Missing caseId' }, { status: 400 })
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
 
     let caseLookup = supabase
       .from('cases')
-      .select('id, user_id, insurance_type, bill_data')
+      .select('id, user_id, insurance_type, provider_name, bill_data')
       .eq('id', caseId)
     if (user) caseLookup = caseLookup.eq('user_id', user.id)
     const { data: caseRecord, error: caseError } = await caseLookup.single()
@@ -99,13 +102,64 @@ export async function POST(request: Request) {
 
     const nextStatus = errors.length > 0 ? 'error_found' : 'no_errors'
 
+    // ── CBS cross-document layer ────────────────────────────────────────────
+    // Normalize the bill into the Canonical Billing Schema and, when an EOB was
+    // uploaded, extract it via the multimodal API and run the cross-document
+    // comparison. The result is persisted on the case so the results page can
+    // render cross-document discrepancies and the financial timeline.
+    const billCbs = billExtractionToCBS(
+      {
+        lineItems: normalizedItems.map((li) => ({
+          cpt_code: li.cpt_code,
+          description: li.description ?? '',
+          date_of_service: li.date_of_service,
+          units: li.units,
+          billed_amount: li.billed_amount,
+          modifiers: li.modifiers,
+        })),
+        billMetadata: {
+          provider_name: caseRecord.provider_name ?? '',
+          provider_npi: '',
+          bill_date: normalizedItems[0]?.date_of_service ?? '',
+          patient_name: '',
+          account_number: String(caseId),
+        },
+      },
+      `bill_${caseId}`
+    )
+
+    let eobCbs: CanonicalBillingSchema | null = null
+    const eobExt = String(eobFileName ?? '').split('.').pop()?.toLowerCase() ?? ''
+    if (typeof eobFileBase64 === 'string' && eobFileBase64 && isExtractableExt(eobExt)) {
+      try {
+        eobCbs = await extractEOBToCBS(eobFileBase64, eobExt, `eob_${caseId}`)
+        // Pin the bill and EOB to a shared episode so the normalizer compares them.
+        const sharedEpisode =
+          billCbs.serviceEpisodeId || eobCbs.serviceEpisodeId || billCbs.claimNumber || `episode_${caseId}`
+        billCbs.serviceEpisodeId = sharedEpisode
+        eobCbs.serviceEpisodeId = sharedEpisode
+        if (!eobCbs.dateOfService) eobCbs.dateOfService = billCbs.dateOfService
+      } catch (eobErr) {
+        console.error('EOB extraction error:', eobErr)
+        eobCbs = null
+      }
+    }
+
+    const normalizedCbs: NormalizedCBSSet = normalizeCBSSet(eobCbs ? [billCbs, eobCbs] : [billCbs])
+
+    const existingBillData =
+      caseRecord.bill_data && typeof caseRecord.bill_data === 'object'
+        ? (caseRecord.bill_data as Record<string, unknown>)
+        : {}
+
     let caseUpdate = supabase
       .from('cases')
       .update({
         status: nextStatus,
         errors_found: errors,
         amount_expected: totalExpected,
-        potential_savings: potentialSavings
+        potential_savings: potentialSavings,
+        bill_data: { ...existingBillData, lineItems: normalizedItems, normalizedCbs }
       })
       .eq('id', caseId)
     if (user) caseUpdate = caseUpdate.eq('user_id', user.id)
@@ -126,7 +180,11 @@ export async function POST(request: Request) {
       errors,
       errorCount: errors.length,
       potentialSavings,
-      insuranceType: resolvedInsurance
+      insuranceType: resolvedInsurance,
+      hasEob: !!eobCbs,
+      crossDocumentDiscrepancies: normalizedCbs.crossDocumentDiscrepancies,
+      timeline: normalizedCbs.timeline,
+      normalizedCbs
     })
   } catch (error) {
     if (error instanceof Anthropic.APIError) {

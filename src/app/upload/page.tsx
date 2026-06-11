@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload, CheckCircle, Camera } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import type { CBSDiscrepancy } from "@/lib/cbs/schema";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -150,6 +151,8 @@ type GuestAudit = {
   errorCount: number;
   totalBilled: number;
   potentialSavings: number;
+  hasEob?: boolean;
+  crossDocumentDiscrepancies?: CBSDiscrepancy[];
 };
 
 function fileToBase64(file: File): Promise<string> {
@@ -481,6 +484,47 @@ const [error, setError] = useState<string | null>(null);
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {r.crossDocumentDiscrepancies && r.crossDocumentDiscrepancies.length > 0 && (
+            <div style={{ marginTop: "48px" }}>
+              <div style={{ ...label(), marginBottom: "16px" }}>
+                Bill vs. EOB · {r.crossDocumentDiscrepancies.length} cross-document{" "}
+                {r.crossDocumentDiscrepancies.length === 1 ? "discrepancy" : "discrepancies"}
+              </div>
+              <div style={{ borderTop: "1px solid #D8CFBE" }}>
+                {r.crossDocumentDiscrepancies.map((d) => {
+                  const sevColor =
+                    d.severity === "critical" || d.severity === "high" ? "#B0604C" : "#C8A97E";
+                  return (
+                    <div
+                      key={d.discrepancyId}
+                      style={{ borderBottom: "1px solid #E2DACB", padding: "24px 0" }}
+                    >
+                      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "16px" }}>
+                        <div style={{ ...serif("20px", { lineHeight: 1.2 }), textTransform: "capitalize" }}>
+                          {d.type.replace(/_/g, " ")}
+                        </div>
+                        {d.estimatedDollarImpact > 0 && (
+                          <div style={{ ...serif("22px", { color: sevColor }) }}>
+                            ${Math.round(d.estimatedDollarImpact).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ ...sans("11px", sevColor), textTransform: "uppercase", letterSpacing: "0.1em", marginTop: "4px" }}>
+                        {d.severity} · {Math.round(d.confidenceScore * 100)}% confidence
+                      </div>
+                      <p style={{ ...sans("13px", "#2A2520"), marginTop: "8px", lineHeight: 1.6 }}>{d.description}</p>
+                      {d.applicableRegulations?.length > 0 && (
+                        <div style={{ ...sans("11px", "#B3A28A"), marginTop: "6px", lineHeight: 1.5 }}>
+                          {d.applicableRegulations[0]}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -1116,10 +1160,19 @@ const [error, setError] = useState<string | null>(null);
           return
         }
         const fileBase64 = await fileToBase64(file)
+        // Include the EOB when provided so the backend can run the cross-document
+        // (bill vs EOB) comparison. Omitted cleanly when no EOB was uploaded.
+        const eobFileBase64 = eobFile ? await fileToBase64(eobFile) : undefined
         const res = await fetch('/api/audit-guest', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fileBase64, fileName: file.name, insuranceType }),
+          body: JSON.stringify({
+            fileBase64,
+            fileName: file.name,
+            insuranceType,
+            eobFileBase64,
+            eobFileName: eobFile?.name,
+          }),
         })
         const result = await res.json()
         if (!res.ok) {
@@ -1174,12 +1227,14 @@ const [error, setError] = useState<string | null>(null);
       }
 
       // Run the proprietary extraction + audit pipeline on the uploaded document.
+      // Forward the EOB (when present) so the cross-document comparison runs.
       if (billPath && data.caseId) {
         try {
+          const eobFileBase64 = eobFile ? await fileToBase64(eobFile) : undefined
           await fetch('/api/extract', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ caseId: data.caseId }),
+            body: JSON.stringify({ caseId: data.caseId, eobFileBase64, eobFileName: eobFile?.name }),
           })
         } catch (extractErr) {
           // The case is created; the audit can be retried from the dashboard.
