@@ -65,11 +65,21 @@ export default function PrivacyPage() {
       <div style={{ maxWidth: "760px", margin: "0 auto", padding: "160px 32px 96px" }}>
         <div style={{ ...sans("11px", "#C8A97E"), letterSpacing: "0.25em", textTransform: "uppercase", marginBottom: "20px" }}>Privacy</div>
         <h1 style={{ ...serif("52px", { lineHeight: 1.05, marginBottom: "20px" }) }}>Privacy Policy</h1>
-        <p style={{ ...sans("13px", "#8A7F6E"), marginBottom: "48px" }}>Last updated: June 10, 2026</p>
+        <p style={{ ...sans("13px", "#8A7F6E"), marginBottom: "48px" }}>Last updated: June 11, 2026</p>
 
         <Section heading="Who we are">
-          <p>Verity is a medical-bill advocacy service. We help you review your medical bills and Explanation of Benefits (EOB) statements, identify likely billing and coding errors, and — if you choose — generate dispute letters. This policy explains what information we handle, why, and the choices you have.</p>
-          <p>Verity is operated from the United States. We are not a law firm, an insurer, or a healthcare provider.</p>
+          <p>Verity, operated by Clear Claim Advocacy, is a consumer medical-bill audit service. We help you review your medical bills and Explanation of Benefits (EOB) statements, identify likely billing and coding errors, and — if you choose — generate dispute letters. This policy explains what information we handle, why, and the choices you have.</p>
+          <p>Verity is operated from the United States. We are not a law firm, an insurer, or a healthcare provider, and we do not provide legal, medical, or financial advice.</p>
+        </Section>
+
+        <Section heading="Beta service — please read">
+          <p><strong>Verity is currently offered as a beta service.</strong> That means the product is still under active development, and the way we handle data during the beta period is described here so you can make an informed choice before you upload anything.</p>
+          <p>During beta, we may use the documents you upload and the results we generate — in de-identified or aggregated form where practical — to test, debug, evaluate, and improve our audit logic, detection rules, scoring models, and outcome predictions. We do <strong>not</strong> sell this data, and we do <strong>not</strong> use your medical documents to advertise to you. Where we use information to improve the service, we work to minimize and de-identify it.</p>
+          <p>Because the service is in beta, features, retention practices, and this policy may change as the product matures. Automated audit results may be incomplete or contain errors (see below), and you should review them before acting. If you would prefer your data not be used to improve the service, contact us at the address below and we will honor that request.</p>
+        </Section>
+
+        <Section heading="Automated and AI-generated analysis">
+          <p>Verity's audits are produced by automated systems and AI models, not by a human reviewer checking every line. <strong>AI-generated analysis can be incomplete or wrong</strong> — it may miss errors, flag items that are actually correct, or misread a document. Any recovery estimates, win-probability figures, settlement ranges, and risk scores we show are <strong>estimates, not guarantees</strong> of any outcome. You are responsible for reviewing results before relying on or acting on them.</p>
         </Section>
 
         <Section heading="Information we handle">
@@ -114,7 +124,7 @@ export default function PrivacyPage() {
         </Section>
 
         <Section heading="Contact">
-          <p>Questions about your privacy or this policy? Email us at <strong>[privacy@yourdomain.com]</strong>.</p>
+          <p>Questions about your privacy or this policy? Email us at <strong>privacy@clearclaim.co</strong>.</p>
         </Section>
 
         <div style={{ borderTop: "1px solid #D8CFBE", marginTop: "32px", paddingTop: "24px", display: "flex", gap: "20px" }}>

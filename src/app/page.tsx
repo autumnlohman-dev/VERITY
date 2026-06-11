@@ -683,7 +683,7 @@ export default function LandingPage() {
             <div style={{ backgroundColor: "#F1EBDF", padding: "32px 28px 36px" }}>
               <div style={{ ...sans("11px", "#B3A28A"), letterSpacing: "0.2em", marginBottom: "20px" }}>09</div>
               <div style={{ ...serif("23px", { marginBottom: "16px", lineHeight: 1.1 }) }}>Recovery Probability Score</div>
-              <div style={{ ...sans("12.5px", "#5F5648"), lineHeight: 1.65 }}>For every error we find, our AI tells you the exact likelihood you&apos;ll win that dispute, trained on real outcomes.</div>
+              <div style={{ ...sans("12.5px", "#5F5648"), lineHeight: 1.65 }}>For every error we find, our AI estimates your likelihood of winning that dispute. Estimates start from published industry baselines and sharpen as real VERITY dispute outcomes accumulate — and each prediction shows how many real outcomes it&apos;s based on.</div>
             </div>
             <div style={{ backgroundColor: "#F1EBDF", padding: "32px 28px 36px" }}>
               <div style={{ ...sans("11px", "#B3A28A"), letterSpacing: "0.2em", marginBottom: "20px" }}>10</div>
