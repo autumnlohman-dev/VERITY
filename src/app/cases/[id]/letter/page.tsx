@@ -5,6 +5,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/client";
+import { disputeUnlocked } from "@/lib/entitlements";
+import { startSingleDisputeCheckout, startMembershipCheckout } from "@/lib/checkout";
 import {
   buildSubstitutionMap,
   getMissingFields,
@@ -807,6 +809,118 @@ function MissingFieldsModal({
   );
 }
 
+// ─── Paywall (dispute package requires purchase or membership) ───────────────
+function LetterPaywall({
+  caseId,
+  confirming,
+  onRefresh,
+}: {
+  caseId: string;
+  confirming: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <div
+      style={{
+        background: "#0D0D0D",
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        paddingTop: "160px",
+        paddingLeft: "24px",
+        paddingRight: "24px",
+        textAlign: "center",
+      }}
+    >
+      <style>{`
+        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .dot-pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
+      `}</style>
+
+      {confirming ? (
+        <>
+          <div
+            className="dot-pulse"
+            style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#C8A97E", marginBottom: "24px" }}
+          />
+          <div style={{ ...serif("40px", { lineHeight: 1.1, maxWidth: "460px" }) }}>
+            Confirming your payment.
+          </div>
+          <p style={{ ...sans("14px", "#A89F96"), marginTop: "16px", maxWidth: "420px", lineHeight: 1.65 }}>
+            This takes a few seconds. Your dispute package will unlock automatically.
+          </p>
+          <button
+            onClick={onRefresh}
+            style={{
+              ...sans("11px", "#0D0D0D"),
+              backgroundColor: "#C8A97E",
+              padding: "12px 24px",
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              fontWeight: 500,
+              border: "none",
+              cursor: "pointer",
+              marginTop: "32px",
+            }}
+          >
+            Refresh now
+          </button>
+        </>
+      ) : (
+        <>
+          <div style={{ ...label("#C8A97E"), marginBottom: "20px" }}>Dispute package locked</div>
+          <div style={{ ...serif("44px", { lineHeight: 1.08, maxWidth: "560px" }) }}>
+            Your audit is free. The dispute package is the paid part.
+          </div>
+          <p style={{ ...sans("14px", "#A89F96"), marginTop: "20px", maxWidth: "480px", lineHeight: 1.7 }}>
+            The full evidentiary package — insurer-specific dispute letter, regulatory citations,
+            submission guide, and deadline tracking — unlocks with a Single Dispute purchase for this
+            bill, or with a membership that covers every bill.
+          </p>
+          <div style={{ display: "flex", gap: "12px", marginTop: "36px", flexWrap: "wrap", justifyContent: "center" }}>
+            <button
+              onClick={() => startSingleDisputeCheckout(caseId)}
+              style={{
+                ...sans("11px", "#0D0D0D"),
+                backgroundColor: "#C8A97E",
+                padding: "16px 32px",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                fontWeight: 500,
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Unlock this dispute — $39
+            </button>
+            <button
+              onClick={() => startMembershipCheckout("monthly")}
+              style={{
+                ...sans("11px", "#C8A97E"),
+                background: "transparent",
+                border: "1px solid #C8A97E",
+                padding: "16px 32px",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+              }}
+            >
+              Or join membership — $19/mo
+            </button>
+          </div>
+          <Link
+            href={`/cases/${caseId}`}
+            style={{ ...sans("12px", "#6B635C"), textDecoration: "none", marginTop: "32px", letterSpacing: "0.1em" }}
+          >
+            ← Back to case
+          </Link>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function LetterPage({
   params,
@@ -818,6 +932,11 @@ export default function LetterPage({
   const [loading, setLoading] = useState(true);
   const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
   const [letter, setLetter] = useState<LetterRow | null>(null);
+  const [unlocked, setUnlocked] = useState(false);
+  const [paidPending, setPaidPending] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("paid") === "1";
+  });
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [genFailed, setGenFailed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -865,6 +984,19 @@ export default function LetterPage({
     }
     setCaseRow(caseData as CaseRow);
 
+    // Entitlement: viewing and downloading the dispute package requires an
+    // active membership or a paid Single Dispute for this case. The audit
+    // (error report) itself is free and lives elsewhere.
+    let entitled = false;
+    if (user) {
+      try {
+        entitled = await disputeUnlocked(supabase, user.id, id);
+      } catch {
+        entitled = false;
+      }
+    }
+    setUnlocked(entitled);
+
     // Letter query is scoped by case_id; ownership was just verified above.
     const { data: letterData, error: letterErr } = await supabase
       .from("dispute_letters")
@@ -889,6 +1021,35 @@ export default function LetterPage({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  // After returning from Stripe Checkout (?paid=1), the webhook that flips the
+  // entitlement may lag a second or two. Re-check a few times before giving up
+  // and showing the paywall, and clean the query param once we're unlocked.
+  useEffect(() => {
+    if (unlocked) {
+      // Clearing the post-payment flag once unlocked is a one-shot transition,
+      // not a render loop — the guard above stops it from re-firing.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (paidPending) setPaidPending(false);
+      if (typeof window !== "undefined" && window.location.search.includes("paid=1")) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("paid");
+        window.history.replaceState({}, "", url.toString());
+      }
+      return;
+    }
+    if (!paidPending) return;
+    let tries = 0;
+    const iv = setInterval(() => {
+      tries += 1;
+      void load();
+      if (tries >= 5) {
+        clearInterval(iv);
+        setPaidPending(false);
+      }
+    }, 2000);
+    return () => clearInterval(iv);
+  }, [paidPending, unlocked, load]);
 
   const handleRetry = useCallback(async () => {
     if (!caseRow) return;
@@ -997,6 +1158,17 @@ export default function LetterPage({
           ← Back to case
         </Link>
       </div>
+    );
+  }
+
+  // ─── Locked: the dispute package requires a purchase or membership ──────────
+  if (!unlocked) {
+    return (
+      <LetterPaywall
+        caseId={caseRow.id}
+        confirming={paidPending}
+        onRefresh={() => void load()}
+      />
     );
   }
 
@@ -1340,12 +1512,12 @@ export default function LetterPage({
           padding: "32px",
         }}
       >
-        <h3 style={{ ...serif("28px", { lineHeight: 1.2 }) }}>Rather not handle this yourself?</h3>
+        <h3 style={{ ...serif("28px", { lineHeight: 1.2 }) }}>Watch every future bill?</h3>
         <p style={{ ...sans("14px", "#A89F96"), lineHeight: 1.75, marginTop: "12px" }}>
-          Upgrade to Resolve — we file this letter, handle all insurer communication, and escalate to second-level
-          appeal if denied. You pay 25% of what we recover. Nothing if we don&apos;t.
+          With a membership, every new bill or EOB you upload is audited automatically, you get unlimited
+          dispute and escalation letters, and we track deadlines so nothing slips. $19/mo or $149/yr.
         </p>
-        <Link href="/upload?tier=resolve" style={{ textDecoration: "none" }}>
+        <Link href="/pricing" style={{ textDecoration: "none" }}>
           <span
             style={{
               ...sans("11px", "#0D0D0D"),
@@ -1361,7 +1533,7 @@ export default function LetterPage({
             onMouseEnter={(e) => ((e.currentTarget as HTMLSpanElement).style.opacity = "0.85")}
             onMouseLeave={(e) => ((e.currentTarget as HTMLSpanElement).style.opacity = "1")}
           >
-            Let ClearClaim handle it →
+            See membership →
           </span>
         </Link>
       </motion.div>

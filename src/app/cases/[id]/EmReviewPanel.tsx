@@ -137,6 +137,13 @@ export default function EmReviewPanel({
         }),
       });
 
+      if (letterRes.status === 402) {
+        // The dispute package is gated behind a purchase or membership. Send
+        // the user to the letter page, which renders the paywall + checkout.
+        window.location.href = `/cases/${caseId}/letter`;
+        return;
+      }
+
       if (!letterRes.ok) {
         const letterJson = await letterRes.json().catch(() => ({}));
         const errMsg =

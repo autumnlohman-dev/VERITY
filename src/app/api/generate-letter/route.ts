@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { renderEmReviewForPrompt, type EmReview } from '@/lib/emReview'
+import { disputeUnlocked } from '@/lib/entitlements'
 
 // Anthropic generation runs longer than Vercel's 10s Hobby / 15s Pro default.
 export const maxDuration = 60
@@ -14,10 +15,18 @@ const anthropic = new Anthropic({
 
 export async function POST(request: Request) {
   try {
-    // Beta: auth gate removed. `user` may be null; downstream user_id
-    // filters are skipped when it is.
+    // The dispute letter is the paid "evidentiary package": generation requires
+    // an authenticated user who either holds an active membership or has paid
+    // the Single Dispute for this case. (The free bill audit is a separate
+    // route and stays open to everyone.)
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Please sign in to generate a dispute letter.', code: 'auth_required' },
+        { status: 401 }
+      )
+    }
 
     const { caseId, errors, caseData, emReview } = (await request.json()) as {
       caseId?: string
@@ -40,16 +49,28 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verify this case belongs to the user (when authenticated).
-    let caseQuery = supabase
+    // Verify this case belongs to the user.
+    const { data: caseRecord } = await supabase
       .from('cases')
       .select('*')
       .eq('id', caseId)
-    if (user) caseQuery = caseQuery.eq('user_id', user.id)
-    const { data: caseRecord } = await caseQuery.single()
+      .eq('user_id', user.id)
+      .single()
 
     if (!caseRecord) {
       return NextResponse.json({ error: 'Case not found' }, { status: 404 })
+    }
+
+    // Entitlement gate: members generate unlimited letters; everyone else must
+    // have paid the Single Dispute for this specific case.
+    if (!(await disputeUnlocked(supabase, user.id, caseId))) {
+      return NextResponse.json(
+        {
+          error: 'Generating the dispute package requires an active purchase or membership.',
+          code: 'payment_required',
+        },
+        { status: 402 }
+      )
     }
 
     const userNotes: string =
