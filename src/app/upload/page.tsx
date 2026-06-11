@@ -82,7 +82,7 @@ function Nav() {
               lineHeight: 1,
             }}
           >
-            Clear Claim Advocacy
+            Med Claim
           </span>
         </span>
       </Link>

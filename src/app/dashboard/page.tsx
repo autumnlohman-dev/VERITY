@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
+import { DigitalTwinView } from "@/components/DigitalTwinView";
 
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: "var(--font-cormorant), Georgia, serif",
@@ -420,6 +421,20 @@ export default function DashboardPage() {
           paddingBottom: "96px",
         }}
       >
+        {/* v8: Healthcare Financial Digital Twin (Component P) */}
+        <DigitalTwinView
+          cases={cases.map((c) => ({
+            caseId: String(c.id),
+            providerName: c.provider_name ?? undefined,
+            insuranceType: c.insurance_type ?? undefined,
+            createdAt: c.created_at,
+            totalBilled: Number(c.amount_billed ?? 0),
+            potentialSavings: Number(c.potential_savings ?? 0),
+            errorCount: Number(c.potential_savings ?? 0) > 0 ? 1 : 0,
+            status: c.status,
+          }))}
+        />
+
         {/* Header row */}
         <div
           style={{

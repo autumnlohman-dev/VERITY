@@ -7,6 +7,21 @@ import { createClient } from "@/lib/supabase/client";
 import type { BillingError } from "@/lib/errorDetection";
 import { getEmFlaggedCodes, hasEmFlag, type EmReview } from "@/lib/emReview";
 import EmReviewPanel from "./EmReviewPanel";
+import { FinancialHarmScoreDisplay, FHSIntakeForm } from "@/components/FinancialHarmScore";
+import { DeadlineTracker } from "@/components/DeadlineTracker";
+import { FinancialTimeline } from "@/components/FinancialTimeline";
+import { OutcomeFollowUp } from "@/components/OutcomeFollowUp";
+import { calculateFinancialHarmScore, type FHSUserInputs } from "@/lib/scores/financialHarmScore";
+import { calculateDeadlines } from "@/lib/deadlines/calculator";
+import { normalizeCBSSet } from "@/lib/cbs/normalizer";
+import { billExtractionToCBS } from "@/lib/cbs/extractor";
+import type { NormalizedCBSSet } from "@/lib/cbs/schema";
+import type { DeadlineResult } from "@/lib/deadlines/calculator";
+import type { FinancialHarmScore } from "@/lib/scores/financialHarmScore";
+import { saveOutcome, createPendingOutcome } from "@/lib/outcomes/store";
+import { predictAll, type FinancialOutcomePrediction } from "@/lib/predictions/outcomePrediction";
+import { generateWorkflow, getWorkflowForCase, saveWorkflow, recordActionUpdate, checkTermination, type AdvocacyWorkflow, type AdvocacyAction } from "@/lib/agent/advocacyAgent";
+import { OutcomePredictionPanel, AdvocacyWorkflowPanel } from "@/components/AdvocacyPanels";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -66,7 +81,7 @@ function Nav() {
             Verity™
           </span>
           <span style={{ ...sans("8px", "#A89F96"), letterSpacing: "0.18em", textTransform: "uppercase", lineHeight: 1 }}>
-            Clear Claim Advocacy
+            Med Claim
           </span>
         </span>
       </Link>
@@ -412,6 +427,15 @@ export default function CaseDetailPage({
   const [letter, setLetter] = useState<LetterRow | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  // VERITY v2 — CBS, FHS, deadlines
+  const [cbsSet, setCbsSet] = useState<NormalizedCBSSet | null>(null);
+  const [deadlines, setDeadlines] = useState<DeadlineResult[]>([]);
+  const [fhs, setFhs] = useState<FinancialHarmScore | null>(null);
+  const [fhsInputs, setFhsInputs] = useState<FHSUserInputs | null>(null);
+  const [outcomeId] = useState(() => (typeof window === 'undefined' ? 'pending' : crypto.randomUUID()));
+  const [predictions, setPredictions] = useState<FinancialOutcomePrediction[]>([]);
+  const [workflow, setWorkflow] = useState<AdvocacyWorkflow | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     const supabase = createClient();
@@ -447,6 +471,41 @@ export default function CaseDetailPage({
 
       setCaseRow(caseData as CaseRow);
 
+      // Build CBS from available case data and compute deadlines
+      // (FHS computed separately after user answers intake questions)
+      try {
+        const billData = caseData.bill_data as Record<string, unknown> | null;
+        const lineItems = (billData?.lineItems as Array<Record<string, unknown>>) || [];
+        if (lineItems.length > 0) {
+          const docId = `bill_${caseData.id}`;
+          const cbsDoc = billExtractionToCBS(
+            {
+              lineItems: lineItems.map(li => ({
+                cpt_code: String(li.cpt_code || ''),
+                description: String(li.description || ''),
+                date_of_service: String(li.date_of_service || ''),
+                units: Number(li.units) || 1,
+                billed_amount: Number(li.billed_amount) || 0,
+                modifiers: Array.isArray(li.modifiers) ? li.modifiers.map(String) : [],
+              })),
+              billMetadata: {
+                provider_name: String(caseData.provider_name || ''),
+                provider_npi: '',
+                bill_date: String(billData?.date_of_service || ''),
+                patient_name: '',
+                account_number: String(caseData.id || ''),
+              },
+            },
+            docId
+          );
+          const normalized = normalizeCBSSet([cbsDoc]);
+          setCbsSet(normalized);
+          setDeadlines(calculateDeadlines(normalized));
+        }
+      } catch {
+        // CBS build is non-blocking — if it fails, page still works
+      }
+
       // Letter query is scoped by case_id; ownership was just verified above.
       const { data: letterData } = await supabase
         .from("dispute_letters")
@@ -472,6 +531,57 @@ export default function CaseDetailPage({
   if (fetchError || !caseRow) return <NotFoundState message={fetchError ?? "Unknown error"} />;
 
   const errors = caseRow.errors_found ?? [];
+
+  // FHS computation handler (called after intake form answers)
+  const handleFHSIntake = (inputs: FHSUserInputs) => {
+    setFhsInputs(inputs);
+    if (cbsSet) {
+      const computed = calculateFinancialHarmScore(cbsSet, deadlines, inputs);
+      setFhs(computed);
+      // v8: Financial Outcome Prediction (Component O)
+      const preds = predictAll(cbsSet, {
+        hasActiveCollection: inputs.hasActiveCollectionActivity,
+        hasCreditReporting: inputs.hasCreditReportingImpact,
+      });
+      setPredictions(preds);
+      // v8: Advocacy Agent workflow (Component N) — existing or freshly planned
+      const existing = getWorkflowForCase(String(caseRow.id));
+      if (existing) {
+        setWorkflow(existing);
+      } else if (cbsSet.crossDocumentDiscrepancies.length > 0) {
+        const wf = generateWorkflow(String(caseRow.id), cbsSet, deadlines, preds, false);
+        saveWorkflow(wf);
+        setWorkflow(wf);
+      }
+      // Create pending outcome record for this case
+      const topDisc = cbsSet.crossDocumentDiscrepancies[0];
+      const outcome = createPendingOutcome({
+        outcomeId,
+        discrepancyType: topDisc?.type || errors[0]?.error_type || 'overcharge',
+        discrepancySeverity: topDisc?.severity || 'medium',
+        dollarAmountDisputed: computed.totalDollarAtRisk || Number(caseRow.potential_savings || 0),
+        payerName: caseRow.insurance_type || undefined,
+        providerName: caseRow.provider_name || undefined,
+        regulationsCited: cbsSet.crossDocumentDiscrepancies.flatMap(d => d.applicableRegulations).slice(0, 3),
+      });
+      saveOutcome(outcome);
+    }
+  };
+
+  const handleAuthorizeWorkflow = () => {
+    if (!workflow) return;
+    const authorized = { ...workflow, consumerAuthorized: true };
+    saveWorkflow(authorized);
+    setWorkflow(authorized);
+  };
+
+  const handleActionUpdate = (actionId: string, status: AdvocacyAction["status"]) => {
+    if (!workflow) return;
+    let updated = recordActionUpdate(workflow, actionId, { status });
+    updated = checkTermination(updated);
+    saveWorkflow(updated);
+    setWorkflow(updated);
+  };
   const tierLabel = caseRow.bill_data?.tier
     ? caseRow.bill_data.tier.charAt(0).toUpperCase() + caseRow.bill_data.tier.slice(1)
     : null;
@@ -590,10 +700,10 @@ export default function CaseDetailPage({
             }}
           >
             <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
-              Your dispute letter is ready.
+              Your dispute package is ready.
             </div>
             <p style={{ ...sans("13px", "#A89F96") }}>
-              Prefilled with every error found in your bill and ready to send.
+              Dispute letter, regulatory citations, and financial calculations — prefilled and ready to send.
             </p>
             <Link href={`/cases/${caseRow.id}/letter`} style={{ textDecoration: "none" }}>
               <span
@@ -606,7 +716,7 @@ export default function CaseDetailPage({
                   display: "inline-block",
                 }}
               >
-                View your letter →
+                View your dispute package →
               </span>
             </Link>
           </div>
@@ -681,6 +791,48 @@ export default function CaseDetailPage({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
         >
+          {/* ── VERITY v2: FHS intake → score, deadlines, timeline ── */}
+          {(errors.length > 0 || (cbsSet && cbsSet.totalDiscrepancies > 0)) && (
+            <>
+              {/* Financial Harm Score */}
+              {fhs ? (
+                <FinancialHarmScoreDisplay fhs={fhs} />
+              ) : (
+                <FHSIntakeForm onSubmit={handleFHSIntake} />
+              )}
+
+              {/* v8: Outcome Prediction (Component O) */}
+              {fhs && predictions.length > 0 && (
+                <OutcomePredictionPanel predictions={predictions} />
+              )}
+
+              {/* v8: Autonomous Advocacy Agent (Component N) */}
+              {fhs && (
+                <AdvocacyWorkflowPanel
+                  workflow={workflow}
+                  onAuthorize={handleAuthorizeWorkflow}
+                  onActionUpdate={handleActionUpdate}
+                />
+              )}
+
+              {/* Deadline Tracker */}
+              {deadlines.length > 0 && (
+                <DeadlineTracker deadlines={deadlines} />
+              )}
+
+              {/* Financial Timeline (only when we have dated events) */}
+              {cbsSet && cbsSet.timeline.length > 0 && (
+                <FinancialTimeline
+                  events={cbsSet.timeline}
+                  totalDocuments={cbsSet.documents.length}
+                  totalInconsistencies={cbsSet.documents.reduce(
+                    (sum, d) => sum + d.temporalInconsistencies.length, 0
+                  )}
+                />
+              )}
+            </>
+          )}
+
           {/* E&M review: questionnaire if unanswered, outcome callout if answered */}
           {hasEmFlag(errors) &&
             (caseRow.bill_data?.em_review ? (
@@ -943,6 +1095,14 @@ export default function CaseDetailPage({
                 estimated from audit
               </div>
             </div>
+          )}
+
+          {/* Outcome follow-up (tracks dispute resolution for ML training) */}
+          {fhsInputs && (
+            <OutcomeFollowUp
+              outcomeId={outcomeId}
+              dollarAmountDisputed={fhs?.totalDollarAtRisk || savings}
+            />
           )}
         </motion.div>
       </div>

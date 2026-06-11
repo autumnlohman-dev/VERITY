@@ -1,0 +1,236 @@
+'use client'
+
+import React, { useState } from 'react'
+import type { FinancialHarmScore } from '@/lib/scores/financialHarmScore'
+
+const TIER_COLORS = {
+  low: { bg: 'rgba(122,158,135,0.12)', border: '#7A9E87', text: '#7A9E87', gauge: '#7A9E87' },
+  moderate: { bg: 'rgba(200,169,126,0.12)', border: '#C8A97E', text: '#C8A97E', gauge: '#C8A97E' },
+  high: { bg: 'rgba(196,124,106,0.12)', border: '#C47C6A', text: '#C47C6A', gauge: '#C47C6A' },
+  severe: { bg: 'rgba(200,60,60,0.12)', border: '#C83C3C', text: '#C83C3C', gauge: '#C83C3C' },
+}
+
+const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
+  fontFamily: 'var(--font-dm-sans), system-ui, sans-serif',
+  fontSize: size,
+  color,
+  ...extra,
+})
+
+const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
+  fontFamily: 'var(--font-cormorant), Georgia, serif',
+  fontSize: size,
+  color: '#F5F0E8',
+  lineHeight: 1,
+  fontWeight: 400,
+  ...extra,
+})
+
+interface FHSDisplayProps {
+  fhs: FinancialHarmScore
+}
+
+export function FinancialHarmScoreDisplay({ fhs }: FHSDisplayProps) {
+  const [showBreakdown, setShowBreakdown] = useState(false)
+  const colors = TIER_COLORS[fhs.tier]
+  const pct = Math.min(100, (fhs.score / 1000) * 100)
+
+  return (
+    <div style={{
+      border: `1px solid ${colors.border}`,
+      backgroundColor: colors.bg,
+      padding: '32px',
+      marginBottom: '32px',
+    }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <div style={{ ...sans('11px', '#A89F96'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '8px' }}>
+            Financial Harm Score
+          </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px' }}>
+            <span style={{ ...serif('72px'), color: colors.text }}>{fhs.score}</span>
+            <span style={{ ...sans('12px', colors.text), letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600 }}>
+              {fhs.tierLabel}
+            </span>
+          </div>
+          <div style={{ ...sans('14px', '#A89F96'), marginTop: '4px' }}>{fhs.tierDescription}</div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ ...sans('11px', '#A89F96'), letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '4px' }}>Total at Risk</div>
+          <div style={{ ...serif('32px'), color: colors.text }}>${fhs.totalDollarAtRisk.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+        </div>
+      </div>
+
+      {/* Gauge bar */}
+      <div style={{ marginBottom: '28px' }}>
+        <div style={{ height: '6px', backgroundColor: '#1C1C1C', borderRadius: '3px', overflow: 'hidden' }}>
+          <div style={{
+            height: '100%',
+            width: `${pct}%`,
+            backgroundColor: colors.gauge,
+            borderRadius: '3px',
+            transition: 'width 0.8s ease',
+          }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+          <span style={{ ...sans('10px', '#5F5648') }}>0 — Low</span>
+          <span style={{ ...sans('10px', '#5F5648') }}>1000 — Severe</span>
+        </div>
+      </div>
+
+      {/* Top risks */}
+      {fhs.topRisks.length > 0 && (
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ ...sans('11px', '#A89F96'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '12px' }}>Top Risks</div>
+          {fhs.topRisks.map((risk, i) => (
+            <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '8px', alignItems: 'flex-start' }}>
+              <span style={{ color: colors.text, flexShrink: 0, marginTop: '2px' }}>•</span>
+              <span style={{ ...sans('14px', '#F5F0E8') }}>{risk}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recommended actions */}
+      {fhs.recommendedActions.length > 0 && (
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ ...sans('11px', '#A89F96'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '12px' }}>Recommended Actions</div>
+          {fhs.recommendedActions.map((action, i) => (
+            <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '8px', alignItems: 'flex-start' }}>
+              <span style={{ ...sans('12px', colors.text), fontWeight: 600, flexShrink: 0, minWidth: '20px' }}>{i + 1}.</span>
+              <span style={{ ...sans('14px', '#F5F0E8') }}>{action}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Score breakdown toggle */}
+      <button
+        onClick={() => setShowBreakdown(!showBreakdown)}
+        style={{
+          ...sans('11px', '#A89F96'),
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          letterSpacing: '0.15em',
+          textTransform: 'uppercase',
+          padding: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+        }}
+      >
+        {showBreakdown ? '▲' : '▼'} Score breakdown
+      </button>
+
+      {showBreakdown && (
+        <div style={{ marginTop: '16px', borderTop: '1px solid #1C1C1C', paddingTop: '16px' }}>
+          {fhs.components.map((comp, i) => (
+            <div key={i} style={{ marginBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ ...sans('12px', '#F5F0E8') }}>{comp.name}</span>
+                <span style={{ ...sans('12px', '#A89F96') }}>{comp.weight}% weight → {comp.normalizedScore}/100</span>
+              </div>
+              <div style={{ height: '3px', backgroundColor: '#1C1C1C', borderRadius: '2px', marginBottom: '4px' }}>
+                <div style={{ height: '100%', width: `${comp.normalizedScore}%`, backgroundColor: colors.gauge, borderRadius: '2px' }} />
+              </div>
+              <div style={{ ...sans('11px', '#5F5648') }}>{comp.description}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Quick intake form for FHS inputs ─────────────────────────────────────────
+
+interface IntakeFormProps {
+  onSubmit: (inputs: { hasActiveCollectionActivity: boolean; hasCreditReportingImpact: boolean; hasInsuranceDenial: boolean }) => void
+}
+
+export function FHSIntakeForm({ onSubmit }: IntakeFormProps) {
+  const [collection, setCollection] = useState<boolean | null>(null)
+  const [credit, setCredit] = useState<boolean | null>(null)
+  const [denial, setDenial] = useState<boolean | null>(null)
+
+  const allAnswered = collection !== null && credit !== null && denial !== null
+
+  const BtnPair = ({ label, value, onChange }: { label: string; value: boolean | null; onChange: (v: boolean) => void }) => (
+    <div style={{ marginBottom: '20px' }}>
+      <div style={{ ...sans('14px', '#F5F0E8'), marginBottom: '10px' }}>{label}</div>
+      <div style={{ display: 'flex', gap: '12px' }}>
+        {[{ label: 'Yes', val: true }, { label: 'No', val: false }].map(opt => (
+          <button
+            key={String(opt.val)}
+            onClick={() => onChange(opt.val)}
+            style={{
+              ...sans('13px', value === opt.val ? '#0D0D0D' : '#A89F96'),
+              backgroundColor: value === opt.val ? '#C8A97E' : 'transparent',
+              border: `1px solid ${value === opt.val ? '#C8A97E' : '#2A2A2A'}`,
+              padding: '10px 28px',
+              cursor: 'pointer',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              fontWeight: value === opt.val ? 600 : 400,
+              transition: 'all 0.15s',
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ border: '1px solid #2A2A2A', padding: '28px', marginBottom: '32px', backgroundColor: '#111111' }}>
+      <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '6px' }}>
+        3 quick questions
+      </div>
+      <div style={{ ...sans('16px', '#F5F0E8'), marginBottom: '24px' }}>
+        Help us calculate your full financial risk score
+      </div>
+
+      <BtnPair
+        label="Are you receiving collection calls or letters about this bill?"
+        value={collection}
+        onChange={setCollection}
+      />
+      <BtnPair
+        label="Has this bill appeared on your credit report?"
+        value={credit}
+        onChange={setCredit}
+      />
+      <BtnPair
+        label="Has your insurance company denied this claim?"
+        value={denial}
+        onChange={setDenial}
+      />
+
+      {allAnswered && (
+        <button
+          onClick={() => onSubmit({
+            hasActiveCollectionActivity: collection!,
+            hasCreditReportingImpact: credit!,
+            hasInsuranceDenial: denial!,
+          })}
+          style={{
+            ...sans('12px', '#0D0D0D'),
+            backgroundColor: '#C8A97E',
+            border: 'none',
+            padding: '14px 32px',
+            cursor: 'pointer',
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            fontWeight: 600,
+            marginTop: '8px',
+          }}
+        >
+          Calculate my risk score →
+        </button>
+      )}
+    </div>
+  )
+}

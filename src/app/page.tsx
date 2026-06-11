@@ -113,7 +113,7 @@ function Nav() {
               lineHeight: 1,
             }}
           >
-            Clear Claim Advocacy
+            Med Claim
           </span>
         </span>
       </Link>
@@ -197,7 +197,7 @@ function Footer() {
             marginBottom: "20px",
           }}
         >
-          Clear Claim Advocacy
+          Med Claim
         </div>
         <div style={{ ...sans("12px", "#5F5648"), marginBottom: "16px", lineHeight: 1.6 }}>
           Financial clarity. Human advocacy.
