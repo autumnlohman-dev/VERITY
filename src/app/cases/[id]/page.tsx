@@ -557,6 +557,7 @@ export default function CaseDetailPage({
       const topDisc = cbsSet.crossDocumentDiscrepancies[0];
       const outcome = createPendingOutcome({
         outcomeId,
+        caseId: String(caseRow.id),
         discrepancyType: topDisc?.type || errors[0]?.error_type || 'overcharge',
         discrepancySeverity: topDisc?.severity || 'medium',
         dollarAmountDisputed: computed.totalDollarAtRisk || Number(caseRow.potential_savings || 0),

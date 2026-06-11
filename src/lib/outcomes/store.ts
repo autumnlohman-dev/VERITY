@@ -1,11 +1,20 @@
 'use client'
 
+import { createClient } from '@/lib/supabase/client'
+
 // ─── Dispute Outcome Label schema ─────────────────────────────────────────────
 // Every dispute tracked here becomes a labeled training record for the
 // future Recovery Probability Score ML model.
+//
+// Persistence model (v8.1): Supabase is the system of record; localStorage is
+// a synchronous cache and offline fallback. Every write lands in localStorage
+// immediately (so the synchronous read API below stays instant) and is then
+// pushed to Supabase best-effort. Guests accumulate records locally; on login
+// `syncOutcomes()` reconciles the two stores.
 
 export interface DisputeOutcomeLabel {
   outcomeId: string
+  caseId?: string
   createdAt: string
   resolvedAt?: string
 
@@ -73,6 +82,7 @@ export function saveOutcome(outcome: DisputeOutcomeLabel): void {
     all.push(outcome)
   }
   saveAll(all)
+  void pushRemote(outcome)
 }
 
 export function getOutcome(outcomeId: string): DisputeOutcomeLabel | null {
@@ -92,6 +102,7 @@ export function updateOutcome(
   if (idx >= 0) {
     all[idx] = { ...all[idx], ...updates }
     saveAll(all)
+    void pushRemote(all[idx])
   }
 }
 
@@ -135,6 +146,7 @@ export function getAggregateStats(): OutcomeStats {
 
 export function createPendingOutcome(params: {
   outcomeId: string
+  caseId?: string
   discrepancyType: string
   discrepancySeverity: string
   dollarAmountDisputed: number
@@ -144,6 +156,7 @@ export function createPendingOutcome(params: {
 }): DisputeOutcomeLabel {
   return {
     outcomeId: params.outcomeId,
+    caseId: params.caseId,
     createdAt: new Date().toISOString(),
     discrepancyType: params.discrepancyType,
     discrepancySeverity: params.discrepancySeverity,
@@ -153,5 +166,72 @@ export function createPendingOutcome(params: {
     regulationsCited: params.regulationsCited,
     documentationCompleteness: 'partial',
     status: 'pending',
+  }
+}
+
+// ─── Supabase sync ────────────────────────────────────────────────────────────
+// localStorage is the synchronous cache; Supabase is the durable store. Writes
+// are best-effort — a failure leaves the localStorage copy as the offline
+// fallback to be reconciled by syncOutcomes() on the next login.
+
+function rowToLabel(row: Record<string, unknown>): DisputeOutcomeLabel {
+  return {
+    outcomeId: String(row.id),
+    caseId: (row.case_id as string) ?? undefined,
+    createdAt: (row.created_at as string) ?? new Date().toISOString(),
+    resolvedAt: (row.resolved_at as string) ?? undefined,
+    discrepancyType: (row.discrepancy_type as string) ?? '',
+    discrepancySeverity: (row.discrepancy_severity as string) ?? '',
+    dollarAmountDisputed: Number(row.dollar_amount_disputed ?? 0),
+    payerName: (row.payer_name as string) ?? undefined,
+    payerType: (row.payer_type as DisputeOutcomeLabel['payerType']) ?? undefined,
+    providerName: (row.provider_name as string) ?? undefined,
+    stateOfService: (row.state_of_service as string) ?? undefined,
+    regulationsCited: (row.regulations_cited as string[]) ?? [],
+    documentationCompleteness:
+      (row.documentation_completeness as DisputeOutcomeLabel['documentationCompleteness']) ?? 'partial',
+    resolutionPathwayUsed: (row.resolution_pathway_used as string) ?? undefined,
+    status: (row.status as DisputeOutcomeLabel['status']) ?? 'pending',
+    amountRecovered: row.amount_recovered != null ? Number(row.amount_recovered) : undefined,
+    daysToResolution: row.days_to_resolution != null ? Number(row.days_to_resolution) : undefined,
+    notes: (row.notes as string) ?? undefined,
+  }
+}
+
+async function pushRemote(outcome: DisputeOutcomeLabel): Promise<void> {
+  try {
+    if (typeof window === 'undefined') return
+    await fetch('/api/outcomes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(outcome),
+    })
+  } catch {
+    // Offline / network error — localStorage copy is the fallback.
+  }
+}
+
+// Reconcile localStorage with Supabase. Called on login: pushes every local
+// record up (claiming guest records under the now-authenticated user via the
+// API route), then pulls the remote set down into the local cache.
+export async function syncOutcomes(): Promise<void> {
+  if (typeof window === 'undefined') return
+  try {
+    const local = loadAll()
+    await Promise.all(local.map(pushRemote))
+
+    const supabase = createClient()
+    const { data, error } = await supabase.from('dispute_outcomes').select('*')
+    if (error || !data) return
+
+    const merged = new Map<string, DisputeOutcomeLabel>()
+    for (const o of local) merged.set(o.outcomeId, o)
+    for (const row of data) {
+      const label = rowToLabel(row as Record<string, unknown>)
+      merged.set(label.outcomeId, label)
+    }
+    saveAll([...merged.values()])
+  } catch {
+    // Sync is best-effort; the local cache remains usable.
   }
 }

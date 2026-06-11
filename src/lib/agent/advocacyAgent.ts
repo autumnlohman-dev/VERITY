@@ -11,6 +11,7 @@
 import type { NormalizedCBSSet, CBSDiscrepancy } from '../cbs/schema'
 import type { DeadlineResult } from '../deadlines/calculator'
 import type { FinancialOutcomePrediction } from '../predictions/outcomePrediction'
+import { createClient } from '@/lib/supabase/client'
 
 export type TriggerType =
   | 'billing_discrepancy'
@@ -292,6 +293,11 @@ export function terminateWorkflow(
 }
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
+//
+// Same model as the outcomes store: localStorage is the synchronous cache and
+// offline fallback; Supabase is the durable store. saveWorkflow writes locally
+// (instant, keeps the synchronous read API working) and pushes to Supabase
+// best-effort. syncWorkflows() reconciles the two on login.
 
 const WF_KEY = 'verity_advocacy_workflows'
 
@@ -304,6 +310,84 @@ export function saveWorkflow(wf: AdvocacyWorkflow): void {
     else all.push(wf)
     window.localStorage.setItem(WF_KEY, JSON.stringify(all))
   } catch { /* quota — non-fatal */ }
+  void pushWorkflowRemote(wf)
+}
+
+function isUuid(v: unknown): v is string {
+  return typeof v === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+}
+
+function workflowToRow(wf: AdvocacyWorkflow, userId?: string): Record<string, unknown> {
+  return {
+    id: wf.workflowId,
+    ...(isUuid(wf.caseId) ? { case_id: wf.caseId } : {}),
+    ...(userId ? { user_id: userId } : {}),
+    created_at: wf.createdAt,
+    updated_at: new Date().toISOString(),
+    status: wf.status,
+    current_step: wf.currentStep,
+    total_dollar_at_stake: wf.totalDollarAtStake,
+    expected_recovery: wf.expectedRecovery,
+    termination_reason: wf.terminationReason ?? null,
+    consumer_authorized: wf.consumerAuthorized,
+    triggers: wf.triggers,
+    actions: wf.actions,
+  }
+}
+
+function rowToWorkflow(row: Record<string, unknown>): AdvocacyWorkflow {
+  return {
+    workflowId: String(row.id),
+    caseId: (row.case_id as string) ?? '',
+    createdAt: (row.created_at as string) ?? new Date().toISOString(),
+    status: (row.status as WorkflowStatus) ?? 'active',
+    triggers: (row.triggers as AdvocacyTrigger[]) ?? [],
+    actions: (row.actions as AdvocacyAction[]) ?? [],
+    currentStep: Number(row.current_step ?? 1),
+    totalDollarAtStake: Number(row.total_dollar_at_stake ?? 0),
+    expectedRecovery: Number(row.expected_recovery ?? 0),
+    terminationReason: (row.termination_reason as string) ?? undefined,
+    consumerAuthorized: Boolean(row.consumer_authorized),
+  }
+}
+
+async function pushWorkflowRemote(wf: AdvocacyWorkflow): Promise<void> {
+  try {
+    if (typeof window === 'undefined') return
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase
+      .from('advocacy_workflows')
+      .upsert(workflowToRow(wf, user?.id), { onConflict: 'id' })
+  } catch {
+    // Offline / network error — localStorage copy is the fallback.
+  }
+}
+
+// Reconcile localStorage with Supabase on login: push every local workflow up
+// (claiming guest workflows under the authenticated user), then pull the
+// remote set into the local cache.
+export async function syncWorkflows(): Promise<void> {
+  if (typeof window === 'undefined') return
+  try {
+    const local = getAllWorkflows()
+    await Promise.all(local.map(pushWorkflowRemote))
+
+    const supabase = createClient()
+    const { data, error } = await supabase.from('advocacy_workflows').select('*')
+    if (error || !data) return
+
+    const merged = new Map<string, AdvocacyWorkflow>()
+    for (const w of local) merged.set(w.workflowId, w)
+    for (const row of data) {
+      const wf = rowToWorkflow(row as Record<string, unknown>)
+      merged.set(wf.workflowId, wf)
+    }
+    window.localStorage.setItem(WF_KEY, JSON.stringify([...merged.values()]))
+  } catch {
+    // Sync is best-effort; the local cache remains usable.
+  }
 }
 
 export function getWorkflowForCase(caseId: string): AdvocacyWorkflow | null {
