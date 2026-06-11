@@ -814,11 +814,46 @@ function LetterPaywall({
   caseId,
   confirming,
   onRefresh,
+  onUnlocked,
+  autoOpenPromo = false,
 }: {
   caseId: string;
   confirming: boolean;
   onRefresh: () => void;
+  onUnlocked: () => void;
+  autoOpenPromo?: boolean;
 }) {
+  const [promoOpen, setPromoOpen] = useState(autoOpenPromo);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [promoSubmitting, setPromoSubmitting] = useState(false);
+
+  async function applyPromo() {
+    const code = promoCode.trim();
+    if (!code || promoSubmitting) return;
+    setPromoSubmitting(true);
+    setPromoError(null);
+    try {
+      const res = await fetch("/api/redeem-promo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseId, code }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPromoError(
+          json.error ?? "That code isn't valid. Double-check it and try again."
+        );
+        return;
+      }
+      onUnlocked();
+    } catch {
+      setPromoError("Something went wrong. Please try again.");
+    } finally {
+      setPromoSubmitting(false);
+    }
+  }
+
   return (
     <div
       style={{
@@ -909,6 +944,79 @@ function LetterPaywall({
               Or join membership — $19/mo
             </button>
           </div>
+
+          {/* Promo code */}
+          <div style={{ marginTop: "28px", width: "100%", maxWidth: "380px" }}>
+            {!promoOpen ? (
+              <button
+                onClick={() => setPromoOpen(true)}
+                style={{
+                  ...sans("12px", "#8A7F6E"),
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Have a promo code?
+              </button>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="text"
+                    value={promoCode}
+                    autoFocus
+                    onChange={(e) => {
+                      setPromoCode(e.target.value);
+                      if (promoError) setPromoError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void applyPromo();
+                    }}
+                    placeholder="Enter promo code"
+                    aria-label="Promo code"
+                    style={{
+                      flex: 1,
+                      backgroundColor: "#0D0D0D",
+                      border: `1px solid ${promoError ? "#C47C6A" : "#2A2A2A"}`,
+                      color: "#F5F0E8",
+                      padding: "12px 14px",
+                      fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                      fontSize: "13px",
+                      letterSpacing: "0.05em",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                  <button
+                    onClick={() => void applyPromo()}
+                    disabled={promoSubmitting || !promoCode.trim()}
+                    style={{
+                      ...sans("11px", "#0D0D0D"),
+                      backgroundColor: "#C8A97E",
+                      border: "none",
+                      padding: "12px 20px",
+                      letterSpacing: "0.15em",
+                      textTransform: "uppercase",
+                      fontWeight: 500,
+                      cursor: promoSubmitting || !promoCode.trim() ? "not-allowed" : "pointer",
+                      opacity: promoSubmitting || !promoCode.trim() ? 0.5 : 1,
+                    }}
+                  >
+                    {promoSubmitting ? "Applying…" : "Apply"}
+                  </button>
+                </div>
+                {promoError && (
+                  <p role="alert" style={{ ...sans("12px", "#C47C6A"), textAlign: "left", margin: 0 }}>
+                    {promoError}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           <Link
             href={`/cases/${caseId}`}
             style={{ ...sans("12px", "#6B635C"), textDecoration: "none", marginTop: "32px", letterSpacing: "0.1em" }}
@@ -936,6 +1044,10 @@ export default function LetterPage({
   const [paidPending, setPaidPending] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).get("paid") === "1";
+  });
+  const [promoHint] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("promo") === "1";
   });
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [genFailed, setGenFailed] = useState<boolean>(() => {
@@ -1168,6 +1280,11 @@ export default function LetterPage({
         caseId={caseRow.id}
         confirming={paidPending}
         onRefresh={() => void load()}
+        onUnlocked={() => {
+          setUnlocked(true);
+          void load();
+        }}
+        autoOpenPromo={promoHint}
       />
     );
   }

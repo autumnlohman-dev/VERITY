@@ -138,9 +138,10 @@ export default function EmReviewPanel({
       });
 
       if (letterRes.status === 402) {
-        // The dispute package is gated behind a purchase or membership. Send
-        // the user to the letter page, which renders the paywall + checkout.
-        window.location.href = `/cases/${caseId}/letter`;
+        // The dispute package is gated behind a purchase, membership, or promo
+        // code. Send the user to the letter-page paywall; ?promo=1 opens the
+        // promo-code field so logged-in beta users can redeem in this path too.
+        window.location.href = `/cases/${caseId}/letter?promo=1`;
         return;
       }
 

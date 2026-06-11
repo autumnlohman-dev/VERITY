@@ -56,7 +56,10 @@ export async function POST(request: Request) {
           })
 
           if (caseId) {
-            await admin.from('cases').update({ dispute_paid: true }).eq('id', caseId)
+            await admin
+              .from('cases')
+              .update({ dispute_paid: true, dispute_unlock_source: 'payment' })
+              .eq('id', caseId)
           }
         } else if (session.mode === 'subscription' && session.subscription) {
           const subId =
@@ -105,7 +108,10 @@ export async function POST(request: Request) {
             .select('case_id')
             .maybeSingle()
           if (pay?.case_id) {
-            await admin.from('cases').update({ dispute_paid: false }).eq('id', pay.case_id)
+            await admin
+              .from('cases')
+              .update({ dispute_paid: false, dispute_unlock_source: null, promo_code: null })
+              .eq('id', pay.case_id)
           }
         }
         break
