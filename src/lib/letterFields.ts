@@ -201,3 +201,75 @@ export function todayLongDate(): string {
     year: "numeric",
   });
 }
+
+// Contact/insurance placeholders that aren't on the bill and may be left blank.
+// When empty, the whole line is dropped rather than printing "[Phone Number]".
+const DROP_LINE_WHEN_EMPTY = new Set([
+  "phone",
+  "phone number",
+  "telephone",
+  "contact phone",
+  "email",
+  "email address",
+  "e-mail",
+  "member id",
+  "member number",
+  "id number",
+  "insurance id",
+  "subscriber id",
+]);
+
+// Fills [Bracket] placeholders in a letter from the known case/patient sources.
+// Lines whose only content is an unfilled optional placeholder are removed so
+// the rendered letter never ships with a stray "[Phone Number]" stub. This is
+// the shared substitution used when embedding the dispute letter into the
+// Evidentiary Package from the case page.
+export function applyLetterSubstitutions(
+  content: string,
+  sources: LetterFieldSources & {
+    phone?: string;
+    email?: string;
+    date_of_service?: string;
+    today?: string;
+  }
+): string {
+  const map = buildSubstitutionMap({
+    name: sources.name,
+    address: sources.address,
+    phone: sources.phone,
+    email: sources.email,
+    member_id: sources.member_id,
+    account_number: sources.account_number,
+    provider_name: sources.provider_name ?? null,
+    date_of_service: sources.date_of_service,
+    today: sources.today ?? todayLongDate(),
+  });
+
+  const keptLines = content.split("\n").filter((line) => {
+    for (const m of line.matchAll(/\[([^\[\]\n]{2,40})\]/g)) {
+      const normalized = m[1].trim().toLowerCase();
+      if (DROP_LINE_WHEN_EMPTY.has(normalized) && !map[normalized]) return false;
+    }
+    return true;
+  });
+
+  let result = keptLines.join("\n").replace(/\[([^\[\]\n]{2,40})\]/g, (match, key: string) => {
+    const normalized = key.trim().toLowerCase();
+    const replacement = map[normalized];
+    if (replacement === undefined) return match;
+    return replacement || match;
+  });
+
+  // The generate-letter API inlines "Provider on file" when the case row has no
+  // provider name; swap it for the real name when the caller supplies one.
+  const providerOverride = sources.provider_name?.trim();
+  if (providerOverride && providerOverride !== "Provider on file") {
+    result = result.replace(/Provider on file/g, providerOverride);
+  }
+
+  return result;
+}
+
+export function evidentiaryPackageFilename(caseShortId: string): string {
+  return `evidentiary-package-${caseShortId}.pdf`;
+}

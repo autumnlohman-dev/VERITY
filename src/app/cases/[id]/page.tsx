@@ -22,6 +22,8 @@ import { saveOutcome, createPendingOutcome } from "@/lib/outcomes/store";
 import { predictAll, type FinancialOutcomePrediction } from "@/lib/predictions/outcomePrediction";
 import { generateWorkflow, getWorkflowForCase, saveWorkflow, recordActionUpdate, checkTermination, type AdvocacyWorkflow, type AdvocacyAction } from "@/lib/agent/advocacyAgent";
 import { OutcomePredictionPanel, AdvocacyWorkflowPanel } from "@/components/AdvocacyPanels";
+import { generateEvidentiaryPackage } from "@/lib/letterPdf";
+import { applyLetterSubstitutions, evidentiaryPackageFilename, todayLongDate } from "@/lib/letterFields";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -601,6 +603,35 @@ export default function CaseDetailPage({
   const savings = Number(caseRow.potential_savings ?? 0);
   const statusCfg = STATUS_DISPLAY[caseRow.status] ?? { label: caseRow.status };
 
+  // Generate the full Evidentiary Package PDF client-side from the data already
+  // loaded on this page: the dispute letter, plus the CBS timeline, deadlines,
+  // and itemized audit findings that the letter page does not have on hand.
+  const handleDownloadPackage = () => {
+    if (!letter) return;
+    const caseShortId = caseRow.id.slice(0, 8).toUpperCase();
+    const finalLetter = applyLetterSubstitutions(letter.letter_content, {
+      account_number: caseRow.id,
+      provider_name: caseRow.provider_name,
+      date_of_service: caseRow.bill_data?.date_of_service,
+    });
+    generateEvidentiaryPackage(
+      {
+        letterMarkdown: finalLetter,
+        caseId: caseRow.id,
+        providerName: caseRow.provider_name ?? undefined,
+        payerName: caseRow.insurance_type ?? caseRow.bill_data?.insuranceType ?? undefined,
+        accountNumber: caseRow.id.slice(0, 8).toUpperCase(),
+        dateOfService: caseRow.bill_data?.date_of_service,
+        preparedDate: todayLongDate(),
+        errors,
+        cbsSet,
+        deadlines,
+        potentialSavings: savings,
+      },
+      evidentiaryPackageFilename(caseShortId)
+    );
+  };
+
   return (
     <Shell>
       {/* Breadcrumb */}
@@ -708,13 +739,15 @@ export default function CaseDetailPage({
             }}
           >
             <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
-              Your dispute package is ready.
+              Your Evidentiary Package is ready.
             </div>
             <p style={{ ...sans("13px", "#A89F96") }}>
-              Dispute letter, regulatory citations, and financial calculations — prefilled and ready to send.
+              A complete, ready-to-send PDF: cover sheet, dispute letter, chronological timeline,
+              financial calculation worksheet, regulatory citation appendix, and a deadline summary.
             </p>
-            <Link href={`/cases/${caseRow.id}/letter`} style={{ textDecoration: "none" }}>
-              <span
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
+              <button
+                onClick={handleDownloadPackage}
                 style={{
                   ...sans("10px", "#0D0D0D"),
                   backgroundColor: "#C8A97E",
@@ -722,11 +755,27 @@ export default function CaseDetailPage({
                   letterSpacing: "0.2em",
                   textTransform: "uppercase",
                   display: "inline-block",
+                  border: "none",
+                  cursor: "pointer",
                 }}
               >
-                View your dispute package →
-              </span>
-            </Link>
+                Download Evidentiary Package ↓
+              </button>
+              <Link href={`/cases/${caseRow.id}/letter`} style={{ textDecoration: "none" }}>
+                <span
+                  style={{
+                    ...sans("10px", "#C8A97E"),
+                    border: "1px solid rgba(200,169,126,0.4)",
+                    padding: "10px 20px",
+                    letterSpacing: "0.2em",
+                    textTransform: "uppercase",
+                    display: "inline-block",
+                  }}
+                >
+                  View dispute letter →
+                </span>
+              </Link>
+            </div>
           </div>
         ) : caseRow.status === "error_found" ? (
           <div
