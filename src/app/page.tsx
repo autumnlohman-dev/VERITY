@@ -91,16 +91,30 @@ function Nav() {
           <circle cx="32" cy="32" r="20" fill="none" stroke="#B8945C" strokeWidth="1.8" />
           <text x="32" y="45" textAnchor="middle" fontFamily="var(--font-cormorant), Georgia, serif" fontSize="36" fontWeight={500} fill="#B8945C">V</text>
         </svg>
-        <span
-          style={{
-            ...sans("15px", "#221C14"),
-            letterSpacing: "0.42em",
-            textTransform: "uppercase",
-            fontWeight: 300,
-            paddingLeft: "0.42em",
-          }}
-        >
-          Verity
+        <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+          <span
+            style={{
+              ...sans("15px", "#221C14"),
+              letterSpacing: "0.42em",
+              textTransform: "uppercase",
+              fontWeight: 300,
+              paddingLeft: "0.42em",
+              lineHeight: 1,
+            }}
+          >
+            Verity™
+          </span>
+          <span
+            style={{
+              ...sans("8px", "#8A7F6E"),
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              paddingLeft: "0.42em",
+              lineHeight: 1,
+            }}
+          >
+            Clear Claim Advocacy
+          </span>
         </span>
       </Link>
 
@@ -175,15 +189,15 @@ function Footer() {
         </div>
         <div
           style={{
-            ...sans("11px", "#8A7F6E"),
-            letterSpacing: "0.42em",
+            ...sans("9px", "#8A7F6E"),
+            letterSpacing: "0.28em",
             textTransform: "uppercase",
-            paddingLeft: "0.42em",
-            marginTop: "8px",
+            paddingLeft: "0.34em",
+            marginTop: "6px",
             marginBottom: "20px",
           }}
         >
-          Advocacy
+          Clear Claim Advocacy
         </div>
         <div style={{ ...sans("12px", "#5F5648"), marginBottom: "16px", lineHeight: 1.6 }}>
           Financial clarity. Human advocacy.

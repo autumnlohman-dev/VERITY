@@ -60,9 +60,14 @@ function Nav() {
         borderBottom: "1px solid #1C1C1C",
       }}
     >
-      <Link href="/" style={{ textDecoration: "none" }}>
-        <span style={{ ...sans("12px", "#F5F0E8"), letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500 }}>
-          ClearClaim
+      <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center" }}>
+        <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+          <span style={{ ...sans("12px", "#F5F0E8"), letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, lineHeight: 1 }}>
+            Verity™
+          </span>
+          <span style={{ ...sans("8px", "#A89F96"), letterSpacing: "0.18em", textTransform: "uppercase", lineHeight: 1 }}>
+            Clear Claim Advocacy
+          </span>
         </span>
       </Link>
       <div className="hidden md:flex" style={{ gap: "40px" }}>
