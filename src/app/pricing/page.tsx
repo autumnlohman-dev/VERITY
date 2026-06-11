@@ -133,7 +133,7 @@ function Footer() {
           <Link href="/privacy" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Privacy</Link>
           <Link href="/terms" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Terms</Link>
         </div>
-        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity™ audit method, scoring models, and datasets are proprietary and confidential. Patent Pending.</div>
+        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity™ audit method, scoring models, and datasets are proprietary and confidential. Patent Pending — 41 claims, 13 independent claim categories.</div>
       </div>
     </footer>
   );
@@ -218,10 +218,14 @@ const TABLE_ROWS: { feature: string; audit: CellVal; dispute: CellVal; member: C
   { feature: "Appeal letter if denied", audit: "dash", dispute: "check", member: "check" },
   { feature: "Submission guide (portal, fax, mail)", audit: "dash", dispute: "check", member: "check" },
   { feature: "Appeal deadline tracker — Critical / High / Moderate urgency alerts", audit: "dash", dispute: "check", member: "check" },
+  { feature: "Outcome prediction — recovery amount, timeframe, settlement range", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Autonomous dispute filing — Verity files and follows up for you", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Bills covered", audit: "Report only", dispute: "1 bill", member: "Unlimited" },
   { feature: "Continuous monitoring of new bills", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Alerts on new & suspicious claims", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Complete billing history across all providers and insurers", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Regulator & escalation letters (DOI, CMS, CFPB) + FCRA credit bureau & FDCPA collection dispute letters", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Real-time call guidance", audit: "dash", dispute: "dash", member: "Coming soon" },
   { feature: "Priority support", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Price", audit: "$0", dispute: "$39 one-time", member: "$19/mo · $149/yr" },
 ];
@@ -469,8 +473,12 @@ export default function PricingPage() {
                 "› Unlimited audits and dispute packages",
                 "› Continuous monitoring — every new bill auto-audited",
                 "› Alerts on new claims and suspicious charges",
-                "› Escalation & regulator letters (appeal, DOI, CMS, CFPB) plus FCRA credit bureau dispute letters and FDCPA collection dispute letters for any medical debt on your credit report.",
+                "› Outcome prediction before you file — recovery amount, timeframe, and settlement range",
+                "› Autonomous dispute filing — authorize Verity to run the dispute for you",
+                "› Complete billing history tracked across all providers and insurers",
+                "› Escalation & regulator letters (appeal, DOI, CMS, CFPB) plus FCRA credit bureau dispute letters and FDCPA collection dispute letters",
                 "› Priority support",
+                "› Real-time call guidance — coming soon",
               ].map((f) => (
                 <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
               ))}

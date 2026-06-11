@@ -132,7 +132,7 @@ function Footer() {
           <Link href="/privacy" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Privacy</Link>
           <Link href="/terms" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Terms</Link>
         </div>
-        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity™ audit method, scoring models, and datasets are proprietary and confidential. Patent Pending.</div>
+        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity™ audit method, scoring models, and datasets are proprietary and confidential. Patent Pending — 41 claims, 13 independent claim categories.</div>
       </div>
     </footer>
   );
@@ -146,7 +146,7 @@ const FAQS = [
   },
   {
     q: "How long does it take?",
-    a: "Audit reports are ready within 24 hours of upload, and your dispute letter is generated instantly. Once you send it, most insurers and providers respond within 30 days, though complex cases or appeals can take longer.",
+    a: "Audit reports are ready within 24 hours of upload, and your dispute package is generated instantly. Once you send it, most insurers and providers respond within 30 days, though complex cases or appeals can take longer.",
   },
   {
     q: "What do I need to upload?",
@@ -246,20 +246,20 @@ const STEPS = [
   },
   {
     n: 4,
-    title: "You choose what happens next.",
-    body: "Stay on the free audit and see exactly what's wrong, pay $39 for a single dispute on one bill, or join the $19/mo membership and have every bill you ever get audited and disputed.",
-    time: "Your call",
+    title: "See your outcome prediction.",
+    body: "Before you file anything, membership users see an estimated recovery amount, likely resolution timeframe, escalation probability, and a specific settlement floor and ceiling — so you know exactly what you're walking into.",
+    time: "Instant",
   },
   {
     n: 5,
-    title: "You send your dispute.",
-    body: "You get an insurer-specific dispute package plus a step-by-step submission guide — portal link, fax number, and mailing address — and an appeal deadline tracker with urgency alerts so nothing slips.",
-    time: "Same day",
+    title: "You choose what happens next.",
+    body: "Stay on the free audit, pay $39 for a single dispute package on one bill, or join the membership and authorize Verity to file and close the dispute entirely — generating every letter, appeal, and follow-up automatically until the case is resolved.",
+    time: "Your call",
   },
   {
     n: 6,
     title: "You recover what you're owed.",
-    body: "The provider or insurer corrects the charge and issues a refund or adjusts your balance. Most respond within 30 days, and Verity generates the appeal or regulator letter if you need to escalate.",
+    body: "The provider or insurer corrects the charge and issues a refund or adjusts your balance. Most respond within 30 days, and Verity generates every appeal or regulator letter needed at each escalation step.",
     time: "~30 days",
   },
 ];
@@ -309,8 +309,8 @@ export default function HowItWorksPage() {
             <em style={{ fontStyle: "italic" }}>You keep the money.</em>
           </h1>
           <p style={{ ...sans("15px", "#5F5648"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
-            Verity is a medical bill advocacy tool. We review your bill, find the errors, and — if you choose —
-            hand you a ready-to-send dispute letter with the evidence to back it up.
+            Verity is a medical bill advocacy tool. We review your bill, find the errors, predict your recovery odds, and — if you choose —
+            run the dispute entirely on your behalf.
           </p>
         </motion.div>
       </section>

@@ -40,7 +40,7 @@ const FAQS = [
   },
   {
     q: "How long does it take?",
-    a: "Audit reports are ready within 24 hours of upload, and your dispute letter is generated instantly. Once you send it, most insurers and providers respond within 30 days, though complex cases or appeals can take longer.",
+    a: "Audit reports are ready within 24 hours of upload, and your dispute package is generated instantly. Before you file, you'll see an estimated recovery amount, likely timeframe, and settlement range. Once you send it — or authorize Verity to file on your behalf — most insurers and providers respond within 30 days. Complex cases and appeals can take longer, and Verity generates every follow-up letter you need at each step.",
   },
   {
     q: "What do I need to upload?",
@@ -234,7 +234,7 @@ function Footer() {
         </div>
         <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>
           The Verity™ audit method, scoring models, and datasets are proprietary
-          and confidential. Patent Pending.
+          and confidential. Patent Pending — 41 claims, 13 independent claim categories.
         </div>
       </div>
     </footer>
@@ -702,12 +702,14 @@ export default function LandingPage() {
             the law.
           </p>
 
-          <div className="r-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1px", backgroundColor: "#D8CFBE" }}>
+          <div className="r-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1px", backgroundColor: "#D8CFBE" }}>
             {[
               { r: "I", name: "Multimodal extraction", body: "We turn a phone photo of a bill or EOB into every CPT code, charge, date, and modifier — flagging anything the image left uncertain." },
               { r: "II", name: "Simultaneous audit", body: "NCCI, MUE, and Medicare fee-schedule rules are checked in a single pass — fewer false positives, and nothing slips between datasets." },
               { r: "III", name: "E&M integrity scoring", body: "A weighted model judges whether the visit level billed is actually supported — catching the upcoding that coding-only checkers miss." },
-              { r: "IV", name: "Citation-linked disputes", body: "Every violation is mapped to the exact regulation it breaks and written into a dispute letter, citation embedded, ready to send." },
+              { r: "IV", name: "Citation-linked disputes", body: "Every violation is mapped to the exact regulation it breaks and written into a dispute package, citation embedded, ready to send." },
+              { r: "V", name: "Outcome prediction", body: "Before you file, see your estimated recovery amount, likely resolution timeframe, escalation probability, and a specific settlement range — so you know what you're walking into." },
+              { r: "VI", name: "Autonomous advocacy", body: "Once you authorize it, Verity can run your dispute for you — generating correspondence, filing appeals, and adapting to every response until the case is closed." },
             ].map((c) => (
               <div key={c.r} style={{ backgroundColor: "#EBE5D9", padding: "36px 28px 40px" }}>
                 <div style={{ ...serif("34px", { color: "#C8A97E", lineHeight: 1, marginBottom: "20px" }) }}>{c.r}</div>
@@ -719,7 +721,7 @@ export default function LandingPage() {
 
           <p style={{ ...sans("11px", "#8A7F6E"), letterSpacing: "0.06em", lineHeight: 1.7, marginTop: "40px", maxWidth: "640px" }}>
             The Verity™ audit method, scoring models, and datasets are
-            proprietary and confidential. Patent Pending.
+            proprietary and confidential. Patent Pending — 41 claims, 13 independent claim categories.
           </p>
         </div>
       </SectionAccordion>
@@ -752,7 +754,7 @@ export default function LandingPage() {
           {
             num: "03",
             title: "You choose what happens next.",
-            body: "See the audit free. Get a ready-to-send dispute package. Or let us file and close the dispute entirely.",
+            body: "See your audit free. Get your estimated recovery amount and settlement range before you file. Download a ready-to-send dispute package — or authorize Verity to run the dispute entirely, filing correspondence and appeals on your behalf until it's resolved.",
             time: "Your call",
           },
         ].map((step, i) => (
@@ -963,7 +965,8 @@ export default function LandingPage() {
               Most overcharges arrive after you&apos;ve stopped looking. With a
               Verity membership, every new bill and EOB you receive is audited the
               moment it lands — and you&apos;re alerted the instant something looks
-              wrong. You never have to catch it yourself again.
+              wrong. Every encounter, every insurer, every dispute outcome is tracked
+              in one place across your complete billing history. You never have to catch it yourself again.
             </p>
             <Link href="/upload?tier=membership" style={{ textDecoration: "none" }}>
               <span
@@ -986,7 +989,8 @@ export default function LandingPage() {
           <div style={{ borderLeft: "1px solid #D8CFBE", paddingLeft: "40px" }}>
             {[
               { d: "Apr 14", t: "New bill detected", s: "City Medical Center · $3,600", flag: true },
-              { d: "Apr 10", t: "Audit complete", s: "1 error · $165 recoverable", flag: true },
+              { d: "Apr 10", t: "Audit complete", s: "1 error · $165 recoverable · 84% win probability", flag: true },
+              { d: "Apr 10", t: "Dispute filed automatically", s: "Appeal letter sent to Aetna on your behalf", flag: true },
               { d: "Mar 28", t: "EOB reconciled", s: "Matches your plan — no action", flag: false },
               { d: "Mar 12", t: "Recovered", s: "$2,840 credited to your account", flag: false },
             ].map((row, i) => (
@@ -1289,8 +1293,12 @@ export default function LandingPage() {
                 "Unlimited audits and dispute packages",
                 "Every new bill audited automatically",
                 "Alerts on new and suspicious charges",
-                "Escalation & regulator letters (appeal, DOI, CMS, CFPB) plus FCRA credit bureau dispute letters and FDCPA collection dispute letters for any medical debt on your credit report.",
+                "Outcome prediction before you file — recovery amount, timeframe, and settlement range",
+                "Autonomous dispute filing — authorize Verity to run the dispute for you",
+                "Complete billing history tracked across all providers and insurers",
+                "Escalation & regulator letters (appeal, DOI, CMS, CFPB) plus FCRA credit bureau and FDCPA collection dispute letters",
                 "Priority support",
+                "Real-time call guidance — coming soon",
               ].map((f) => (
                 <div
                   key={f}
