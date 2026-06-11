@@ -634,7 +634,7 @@ const [error, setError] = useState<string | null>(null);
                   sublabel="Itemized bill, not the summary"
                   required={true}
                   file={billFile}
-                  setFile={setBillFile}
+                  setFile={(f) => { setBillFile(f); setError(null); }}
                 />
                 <DropZone
                   zonelabel="Explanation of Benefits (EOB)"
