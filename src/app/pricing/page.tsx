@@ -102,7 +102,7 @@ function Footer() {
       }}
     >
       <div>
-        <div style={{ ...sans("12px", "#221C14"), letterSpacing: "0.34em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.34em", marginBottom: "8px" }}>Verity</div>
+        <div style={{ ...sans("12px", "#221C14"), letterSpacing: "0.34em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.34em", marginBottom: "8px" }}>Verity™</div>
         <div style={{ ...sans("11px", "#8A7F6E"), marginBottom: "16px" }}>Medical bill advocacy.</div>
         <div style={{ ...sans("11px", "#8A7F6E"), maxWidth: "260px", lineHeight: 1.6 }}>
           Verity is an administrative advocacy service. We are not a law firm and do not provide legal advice.
@@ -133,7 +133,7 @@ function Footer() {
           <Link href="/privacy" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Privacy</Link>
           <Link href="/terms" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Terms</Link>
         </div>
-        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity audit method, scoring models, and datasets are proprietary &amp; confidential.</div>
+        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity™ audit method, scoring models, and datasets are proprietary and confidential. Patent Pending.</div>
       </div>
     </footer>
   );
@@ -214,14 +214,14 @@ const TABLE_ROWS: { feature: string; audit: CellVal; dispute: CellVal; member: C
   { feature: "Error report with confidence scores", audit: "check", dispute: "check", member: "check" },
   { feature: "Evidence + regulatory citation per item", audit: "check", dispute: "check", member: "check" },
   { feature: "CPT code cross-reference", audit: "check", dispute: "check", member: "check" },
-  { feature: "Insurer-specific dispute letter", audit: "dash", dispute: "check", member: "check" },
+  { feature: "Insurer-specific dispute package (letter, citations, calculations, timeline)", audit: "dash", dispute: "check", member: "check" },
   { feature: "Appeal letter if denied", audit: "dash", dispute: "check", member: "check" },
   { feature: "Submission guide (portal, fax, mail)", audit: "dash", dispute: "check", member: "check" },
-  { feature: "Deadline tracker", audit: "dash", dispute: "check", member: "check" },
+  { feature: "Appeal deadline tracker — Critical / High / Moderate urgency alerts", audit: "dash", dispute: "check", member: "check" },
   { feature: "Bills covered", audit: "Report only", dispute: "1 bill", member: "Unlimited" },
   { feature: "Continuous monitoring of new bills", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Alerts on new & suspicious claims", audit: "dash", dispute: "dash", member: "check" },
-  { feature: "Regulator complaint letters (DOI, CMS, CFPB)", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Regulator & escalation letters (DOI, CMS, CFPB) + FCRA credit bureau & FDCPA collection dispute letters", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Priority support", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Price", audit: "$0", dispute: "$39 one-time", member: "$19/mo · $149/yr" },
 ];
@@ -401,11 +401,11 @@ export default function PricingPage() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
               {[
                 "› Everything in Audit, plus:",
-                "› Insurer-specific prefilled dispute letter",
+                "› Insurer-specific dispute package including the dispute letter, regulatory citations, financial calculations, and timeline summary.",
                 "› Appeal letter if your dispute is denied",
                 "› Step-by-step submission guide",
                 "› Portal link, fax number, and mailing address",
-                "› Deadline tracker",
+                "› Appeal deadline tracker with urgency alerts — Critical (under 7 days), High (under 30 days), Moderate (under 90 days).",
               ].map((f) => (
                 <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
               ))}
@@ -466,10 +466,10 @@ export default function PricingPage() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
               {[
                 "› Everything in Single Dispute, unlimited:",
-                "› Unlimited audits and dispute letters",
+                "› Unlimited audits and dispute packages",
                 "› Continuous monitoring — every new bill auto-audited",
                 "› Alerts on new claims and suspicious charges",
-                "› Escalation & regulator letters (appeal, DOI, CMS, CFPB)",
+                "› Escalation & regulator letters (appeal, DOI, CMS, CFPB) plus FCRA credit bureau dispute letters and FDCPA collection dispute letters for any medical debt on your credit report.",
                 "› Priority support",
               ].map((f) => (
                 <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>

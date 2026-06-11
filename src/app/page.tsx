@@ -171,7 +171,7 @@ function Footer() {
             lineHeight: 1,
           }}
         >
-          Verity
+          Verity™
         </div>
         <div
           style={{
@@ -233,8 +233,8 @@ function Footer() {
           <Link href="/terms" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Terms</Link>
         </div>
         <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>
-          The Verity audit method, scoring models, and datasets are proprietary
-          and confidential.
+          The Verity™ audit method, scoring models, and datasets are proprietary
+          and confidential. Patent Pending.
         </div>
       </div>
     </footer>
@@ -454,7 +454,7 @@ export default function LandingPage() {
         }}
       >
         <h1 className="sr-only">
-          Clarity over confusion. Verity uses AI and expert advocacy to uncover
+          Clarity over confusion. Verity™ uses AI and expert advocacy to uncover
           overcharges, decode complex billing, and restore financial clarity.
         </h1>
         <Image
@@ -471,6 +471,10 @@ export default function LandingPage() {
             boxShadow: "0 40px 90px rgba(60,46,32,0.16)",
           }}
         />
+        <p style={{ ...serif("clamp(17px, 2vw, 24px)", { fontStyle: "italic", lineHeight: 1.35, color: "#5F5648" }), textAlign: "center", maxWidth: "560px", marginTop: "32px" }}>
+          You Opened the Bill. We Open the Investigation.™
+        </p>
+
         <div className="r-cta" style={{ display: "flex", gap: "16px", alignItems: "center", marginTop: "44px" }}>
           <Link href="/upload" style={{ textDecoration: "none" }}>
             <span
@@ -661,6 +665,19 @@ export default function LandingPage() {
             ))}
           </div>
 
+          <div className="r-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1px", backgroundColor: "#DDD3C2", marginTop: "1px" }}>
+            <div style={{ backgroundColor: "#F1EBDF", padding: "32px 28px 36px" }}>
+              <div style={{ ...sans("11px", "#B3A28A"), letterSpacing: "0.2em", marginBottom: "20px" }}>09</div>
+              <div style={{ ...serif("23px", { marginBottom: "16px", lineHeight: 1.1 }) }}>Recovery Probability Score</div>
+              <div style={{ ...sans("12.5px", "#5F5648"), lineHeight: 1.65 }}>For every error we find, our AI tells you the exact likelihood you&apos;ll win that dispute, trained on real outcomes.</div>
+            </div>
+            <div style={{ backgroundColor: "#F1EBDF", padding: "32px 28px 36px" }}>
+              <div style={{ ...sans("11px", "#B3A28A"), letterSpacing: "0.2em", marginBottom: "20px" }}>10</div>
+              <div style={{ ...serif("23px", { marginBottom: "16px", lineHeight: 1.1 }) }}>Financial Harm Score</div>
+              <div style={{ ...sans("12.5px", "#5F5648"), lineHeight: 1.65 }}>One composite number showing your total financial risk: dollar amount in dispute, collection activity, credit reporting exposure, deadline urgency, and recovery odds — all in one score.</div>
+            </div>
+          </div>
+
           <p style={{ ...sans("12px", "#8A7F6E"), letterSpacing: "0.08em", textTransform: "uppercase", marginTop: "40px" }}>
             Every finding is backed by the exact federal rule or contract clause it violates.
           </p>
@@ -701,8 +718,8 @@ export default function LandingPage() {
           </div>
 
           <p style={{ ...sans("11px", "#8A7F6E"), letterSpacing: "0.06em", lineHeight: 1.7, marginTop: "40px", maxWidth: "640px" }}>
-            Verity’s consumer-side audit method, scoring models, and datasets are
-            proprietary and confidential.
+            The Verity™ audit method, scoring models, and datasets are
+            proprietary and confidential. Patent Pending.
           </p>
         </div>
       </SectionAccordion>
@@ -729,13 +746,13 @@ export default function LandingPage() {
           {
             num: "02",
             title: "We find every error.",
-            body: "Our system cross-references every CPT code and charge against your insurer's contracted rates. Every error gets flagged with evidence.",
+            body: "We normalize every document you upload — your itemized bill, your EOB, your denial letter, your authorization — into a single unified schema, then compare them against each other and against federal billing rules in one pass. Discrepancies across documents are found automatically, no manual review required.",
             time: "24 hours",
           },
           {
             num: "03",
             title: "You choose what happens next.",
-            body: "See the audit free. Get a prefilled dispute letter. Or let us file and close the dispute entirely.",
+            body: "See the audit free. Get a ready-to-send dispute package. Or let us file and close the dispute entirely.",
             time: "Your call",
           },
         ].map((step, i) => (
@@ -1172,10 +1189,10 @@ export default function LandingPage() {
             >
               {[
                 "Everything in Audit, plus:",
-                "Insurer-specific prefilled dispute letter",
+                "Insurer-specific dispute package including the dispute letter, regulatory citations, financial calculations, and timeline summary.",
                 "Appeal letter if denied",
                 "Step-by-step submission guide",
-                "Deadline tracker",
+                "Appeal deadline tracker with urgency alerts — Critical (under 7 days), High (under 30 days), Moderate (under 90 days).",
               ].map((f) => (
                 <div
                   key={f}
@@ -1269,10 +1286,10 @@ export default function LandingPage() {
               }}
             >
               {[
-                "Unlimited audits and dispute letters",
+                "Unlimited audits and dispute packages",
                 "Every new bill audited automatically",
                 "Alerts on new and suspicious charges",
-                "Appeal & regulator letters (DOI, CMS, CFPB)",
+                "Escalation & regulator letters (appeal, DOI, CMS, CFPB) plus FCRA credit bureau dispute letters and FDCPA collection dispute letters for any medical debt on your credit report.",
                 "Priority support",
               ].map((f) => (
                 <div

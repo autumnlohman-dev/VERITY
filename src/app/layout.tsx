@@ -16,7 +16,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Verity — Medical Bill Advocacy",
+  title: "Verity™ — Medical Bill Advocacy",
   description:
     "Verity audits every line item on your medical bill against published billing rules, finds the errors, and gives you dispute letters ready to send.",
 };

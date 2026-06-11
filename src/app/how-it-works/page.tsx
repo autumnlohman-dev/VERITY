@@ -101,7 +101,7 @@ function Footer() {
       }}
     >
       <div>
-        <div style={{ ...sans("12px", "#221C14"), letterSpacing: "0.34em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.34em", marginBottom: "8px" }}>Verity</div>
+        <div style={{ ...sans("12px", "#221C14"), letterSpacing: "0.34em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.34em", marginBottom: "8px" }}>Verity™</div>
         <div style={{ ...sans("11px", "#8A7F6E"), marginBottom: "16px" }}>Medical bill advocacy.</div>
         <div style={{ ...sans("11px", "#8A7F6E"), maxWidth: "260px", lineHeight: 1.6 }}>
           Verity is an administrative advocacy service. We are not a law firm and do not provide legal advice.
@@ -132,7 +132,7 @@ function Footer() {
           <Link href="/privacy" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Privacy</Link>
           <Link href="/terms" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Terms</Link>
         </div>
-        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity audit method, scoring models, and datasets are proprietary &amp; confidential.</div>
+        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity™ audit method, scoring models, and datasets are proprietary and confidential. Patent Pending.</div>
       </div>
     </footer>
   );
@@ -235,7 +235,7 @@ const STEPS = [
   {
     n: 2,
     title: "We audit every charge.",
-    body: "Our system cross-references every CPT code against your insurer's contracted rates, checks for duplicate and bundled procedures, and flags any charge above your allowed amount.",
+    body: "We normalize every document you upload — your itemized bill, your EOB, your denial letter, your authorization — into a single unified schema, then compare them against each other and against federal billing rules in one pass. Discrepancies across documents are found automatically, no manual review required.",
     time: "24 hours",
   },
   {
@@ -253,7 +253,7 @@ const STEPS = [
   {
     n: 5,
     title: "You send your dispute.",
-    body: "You get an insurer-specific letter plus a step-by-step submission guide — portal link, fax number, and mailing address — and a deadline tracker so nothing slips.",
+    body: "You get an insurer-specific dispute package plus a step-by-step submission guide — portal link, fax number, and mailing address — and an appeal deadline tracker with urgency alerts so nothing slips.",
     time: "Same day",
   },
   {
@@ -491,7 +491,7 @@ export default function HowItWorksPage() {
               {[
                 "A medical bill advocacy platform for patients",
                 "Software that finds billing errors and writes your dispute and appeal letters",
-                "Grounded in federal rules — NCCI, MUE, PFS, and the No Surprises Act",
+                "Grounded in federal rules — NCCI, MUE, PFS, No Surprises Act, Transparency in Coverage Rule, FDCPA, FCRA, and ERISA, with state-specific overlays",
                 "Built on CPT codes, insurance contracts, and dispute procedures",
                 "Covered under your patient rights to dispute charges",
               ].map((item) => (
@@ -550,10 +550,7 @@ export default function HowItWorksPage() {
             is your legal right.
           </h2>
           <p style={{ ...sans("14px", "#5F5648"), maxWidth: "640px", lineHeight: 1.75 }}>
-            Under the No Surprises Act (effective January 2022), patients have federally protected rights to dispute
-            surprise medical bills. You have the right to request an itemized bill from any provider, the right to
-            dispute charges above the contracted rate, and the right to an independent external review if your insurer
-            denies your claim.
+            Under the No Surprises Act, Transparency in Coverage Rule, FDCPA, FCRA, ERISA, and applicable state balance billing and insurance protection laws — with state-specific overlays based on your state of residence and state of treatment — patients have federally and state-protected rights to dispute medical bills. You have the right to request an itemized bill from any provider, the right to dispute charges above the contracted rate, and the right to an independent external review if your insurer denies your claim.
           </p>
           <p style={{ ...sans("14px", "#5F5648"), maxWidth: "640px", lineHeight: 1.75, marginTop: "16px" }}>
             Verity makes this process simple: we find the errors, cite the exact rules, and generate the letters —
