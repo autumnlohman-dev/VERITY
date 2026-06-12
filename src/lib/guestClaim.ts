@@ -72,10 +72,15 @@ export function saveGuestClaim(audit: GuestClaimAudit, inputs: GuestClaimInputs)
 }
 
 export function getGuestClaim(): GuestClaim | null {
-  if (typeof window === 'undefined') return null
-  const raw = window.localStorage.getItem(CLAIM_KEY)
-  if (!raw) return null
-  return JSON.parse(raw) as GuestClaim
+  try {
+    if (typeof window === 'undefined') return null
+    const raw = window.localStorage.getItem(CLAIM_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as GuestClaim
+  } catch {
+    // Corrupt JSON in storage — treat as no claim rather than throwing.
+    return null
+  }
 }
 
 export function clearGuestClaim(): void {

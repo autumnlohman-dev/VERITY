@@ -1,9 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { extractFromBase64, isSupportedExt } from '@/lib/extraction'
-import { runAudit, type InsuranceType } from '@/lib/errorDetection'
-import { billExtractionToCBS, extractEOBToCBS, isExtractableExt } from '@/lib/cbs/extractor'
-import { normalizeCBSSet } from '@/lib/cbs/normalizer'
-import type { CanonicalBillingSchema } from '@/lib/cbs/schema'
+import { type InsuranceType } from '@/lib/errorDetection'
+import { runFullAudit } from '@/lib/audit/runFullAudit'
+import { findDuplicateCase } from '@/lib/audit/dedup'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -21,11 +20,9 @@ function mapInsuranceType(raw: unknown): InsuranceType {
   return VALID.includes(v as InsuranceType) ? (v as InsuranceType) : 'commercial'
 }
 
-// Signed-in bill audit. Mirrors /api/audit-guest's extract → audit → CBS
-// pipeline (same graceful degradation when the reference tables are empty,
-// since it calls the same runAudit), but with an authenticated user, an
-// existing case, and persistence of the results back onto that case so they
-// render on /cases/[id]. The guest route stores nothing; this one does.
+// Signed-in bill audit. Runs the shared runFullAudit pipeline (identical to the
+// guest + claim paths) and persists the result onto the case so it renders on
+// /cases/[id]. The guest route stores nothing; this one does.
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
@@ -81,83 +78,57 @@ export async function POST(request: Request) {
         ? (caseRow.bill_data as Record<string, unknown>)
         : {}
 
-    // Audit against the rules engine. Same call as the guest route, so the
-    // empty-reference-table degradation (a reference_data_missing preamble
-    // rather than a throw) applies identically here.
-    const insuranceType = mapInsuranceType(
-      caseRow.insurance_type ?? existingBillData.insuranceType
-    )
-    const errors = await runAudit(lineItems, insuranceType, { supabase })
-
-    const totalBilled = lineItems.reduce((s, li) => s + li.billed_amount, 0)
-    const totalBilledInErrors = errors.reduce((s, e) => s + Number(e.billed_amount || 0), 0)
-    const totalExpected = errors.reduce((s, e) => s + Number(e.expected_amount || 0), 0)
-    const potentialSavings = Math.max(0, totalBilledInErrors - totalExpected)
-
-    // ── CBS cross-document layer (identical to the guest pipeline) ───────────
-    const billCbs = billExtractionToCBS(
-      {
-        lineItems: lineItems.map((li) => ({
-          cpt_code: li.cpt_code,
-          description: li.description ?? '',
-          date_of_service: li.date_of_service,
-          units: li.units,
-          billed_amount: li.billed_amount,
-          modifiers: li.modifiers,
-        })),
-        billMetadata: {
-          provider_name: provider ?? '',
-          provider_npi: '',
-          bill_date: dateOfService ?? '',
-          patient_name: '',
-          account_number: caseId,
-        },
-      },
-      `bill_${caseId}`
-    )
-
-    let eobCbs: CanonicalBillingSchema | null = null
+    const insuranceType = mapInsuranceType(caseRow.insurance_type ?? existingBillData.insuranceType)
     const eobExt = String(eobFileName ?? '').split('.').pop()?.toLowerCase() ?? ''
-    if (typeof eobFileBase64 === 'string' && eobFileBase64 && isExtractableExt(eobExt)) {
-      try {
-        eobCbs = await extractEOBToCBS(eobFileBase64, eobExt, `eob_${caseId}`)
-        // Pin bill + EOB to a shared episode so the normalizer compares them
-        // even without a matching claim number / service date.
-        const sharedEpisode =
-          billCbs.serviceEpisodeId || eobCbs.serviceEpisodeId || billCbs.claimNumber || `episode_${caseId}`
-        billCbs.serviceEpisodeId = sharedEpisode
-        eobCbs.serviceEpisodeId = sharedEpisode
-        if (!eobCbs.dateOfService) eobCbs.dateOfService = billCbs.dateOfService
-      } catch (eobErr) {
-        // EOB unreadable — degrade gracefully to a bill-only audit.
-        console.error('EOB extraction error:', eobErr)
-        eobCbs = null
-      }
+
+    const result = await runFullAudit({
+      lineItems,
+      insuranceType,
+      provider,
+      dateOfService,
+      lowConfidence,
+      docIdBase: caseId,
+      accountNumber: caseId,
+      eob: typeof eobFileBase64 === 'string' && eobFileBase64 ? { base64: eobFileBase64, ext: eobExt } : null,
+      supabase,
+    })
+
+    // ── Bill-level dedup ─────────────────────────────────────────────────────
+    // The same physical bill (same provider + date of service + amount billed)
+    // should live in the dashboard exactly once. If a populated case already
+    // matches, discard this freshly-created shell and point the user at it.
+    const duplicate = await findDuplicateCase(supabase, {
+      userId: user.id,
+      excludeCaseId: caseId,
+      providerName: result.provider ?? caseRow.provider_name ?? null,
+      dateOfService: result.dateOfService,
+      amountBilled: result.totalBilled,
+    })
+    if (duplicate) {
+      // Remove the empty shell this upload just created so it doesn't linger.
+      await supabase.from('cases').delete().eq('id', caseId).eq('user_id', user.id)
+      return NextResponse.json({ duplicate: true, caseId: duplicate.id })
     }
 
-    const normalizedCbs = normalizeCBSSet(eobCbs ? [billCbs, eobCbs] : [billCbs])
-
     // ── Persist results onto the case so /cases/[id] can render them ─────────
-    // normalizedCbs + lineItems live inside bill_data (jsonb); the case page
-    // prefers the persisted cross-document set and falls back to line items.
     const updatedBillData = {
       ...existingBillData,
-      lineItems,
-      normalizedCbs,
-      date_of_service: dateOfService ?? existingBillData.date_of_service ?? '',
-      hasEob: !!eobCbs,
-      lowConfidence,
+      lineItems: result.lineItems,
+      normalizedCbs: result.normalizedCbs,
+      date_of_service: result.dateOfService || existingBillData.date_of_service || '',
+      hasEob: result.hasEob,
+      lowConfidence: result.lowConfidence,
     }
 
     const { error: updateErr } = await supabase
       .from('cases')
       .update({
-        status: errors.length > 0 ? 'error_found' : 'no_errors',
-        provider_name: provider ?? caseRow.provider_name ?? null,
-        amount_billed: totalBilled,
-        amount_expected: totalExpected,
-        potential_savings: potentialSavings,
-        errors_found: errors,
+        status: result.errors.length > 0 ? 'error_found' : 'no_errors',
+        provider_name: result.provider ?? caseRow.provider_name ?? null,
+        amount_billed: result.totalBilled,
+        amount_expected: result.totalExpected,
+        potential_savings: result.potentialSavings,
+        errors_found: result.errors,
         bill_data: updatedBillData,
       })
       .eq('id', caseId)
@@ -171,12 +142,12 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       caseId,
-      provider,
-      errorCount: errors.length,
-      totalBilled,
-      potentialSavings,
-      lowConfidence,
-      hasEob: !!eobCbs,
+      provider: result.provider,
+      errorCount: result.errors.length,
+      totalBilled: result.totalBilled,
+      potentialSavings: result.potentialSavings,
+      lowConfidence: result.lowConfidence,
+      hasEob: result.hasEob,
     })
   } catch (error) {
     console.error('Extract/audit error:', error)

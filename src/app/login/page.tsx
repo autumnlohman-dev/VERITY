@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { syncOutcomes } from '@/lib/outcomes/store'
@@ -22,16 +23,22 @@ export default function LoginPage() {
   // checkout if the user came here to buy, import a pending guest audit into a
   // real case (landing them on it), otherwise land on the dashboard.
   async function completeSignedIn() {
-    await Promise.all([syncOutcomes(), syncWorkflows()])
-    if (resumePendingCheckout()) return
-    // Carry a guest audit through signup: turn it into a saved case and go
-    // straight there, so the user sees the exact audit they ran — now saved.
-    const claimedCaseId = await claimPendingGuestAudit()
-    if (claimedCaseId) {
-      router.push(`/cases/${claimedCaseId}`)
-      return
+    // Auth has already succeeded by the time we get here. Importing the guest
+    // claim and syncing local records are best-effort niceties — if any of them
+    // throw, we log to Sentry and still land the user somewhere useful. A
+    // post-login error page on a successful sign-in is never acceptable.
+    let target = '/dashboard'
+    try {
+      await Promise.all([syncOutcomes(), syncWorkflows()])
+      if (resumePendingCheckout()) return
+      // Carry a guest audit through signup: turn it into a saved case and go
+      // straight there, so the user sees the exact audit they ran — now saved.
+      const claimedCaseId = await claimPendingGuestAudit()
+      if (claimedCaseId) target = `/cases/${claimedCaseId}`
+    } catch (err) {
+      Sentry.captureException(err)
     }
-    router.push('/dashboard')
+    router.push(target)
   }
 
   async function handleSubmit(e: React.FormEvent) {

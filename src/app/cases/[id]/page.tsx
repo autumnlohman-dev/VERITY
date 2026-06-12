@@ -428,6 +428,13 @@ export default function CaseDetailPage({
   const [loading, setLoading] = useState(true);
   const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
   const [letter, setLetter] = useState<LetterRow | null>(null);
+  // Set when we arrived here because the uploaded/imported bill was already in
+  // the dashboard (?dup=1) — the audit was collapsed onto this existing case.
+  const [alreadyInDashboard, setAlreadyInDashboard] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setAlreadyInDashboard(new URLSearchParams(window.location.search).get("dup") === "1");
+  }, []);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   // VERITY v2 — CBS, FHS, deadlines
@@ -664,6 +671,23 @@ export default function CaseDetailPage({
         </Link>
       </div>
 
+      {alreadyInDashboard && (
+        <div style={{ paddingLeft: "64px", paddingRight: "64px", marginTop: "16px" }}>
+          <div
+            style={{
+              backgroundColor: "rgba(200,169,126,0.1)",
+              border: "1px solid rgba(200,169,126,0.4)",
+              borderLeft: "3px solid #C8A97E",
+              padding: "14px 20px",
+              ...sans("13px", "#C8A97E"),
+            }}
+          >
+            This bill is already in your dashboard — showing your existing audit
+            rather than creating a duplicate.
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
@@ -867,7 +891,7 @@ export default function CaseDetailPage({
           transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
         >
           {/* ── VERITY v2: FHS intake → score, deadlines, timeline ── */}
-          {(errors.length > 0 || (cbsSet && cbsSet.totalDiscrepancies > 0)) && (
+          {(errors.length > 0 || (cbsSet && (cbsSet.totalDiscrepancies ?? 0) > 0)) && (
             <>
               {/* Financial Harm Score */}
               {fhs ? (
@@ -896,7 +920,7 @@ export default function CaseDetailPage({
               )}
 
               {/* Cross-document discrepancies (bill vs. EOB) */}
-              {cbsSet && cbsSet.crossDocumentDiscrepancies.length > 0 && (
+              {cbsSet && (cbsSet.crossDocumentDiscrepancies?.length ?? 0) > 0 && (
                 <div style={{ marginBottom: "48px" }}>
                   <div style={{ ...label("#6B635C"), marginBottom: "16px" }}>
                     Cross-document findings · bill vs. EOB
@@ -945,12 +969,12 @@ export default function CaseDetailPage({
               )}
 
               {/* Financial Timeline (only when we have dated events) */}
-              {cbsSet && cbsSet.timeline.length > 0 && (
+              {cbsSet && (cbsSet.timeline?.length ?? 0) > 0 && (
                 <FinancialTimeline
                   events={cbsSet.timeline}
-                  totalDocuments={cbsSet.documents.length}
-                  totalInconsistencies={cbsSet.documents.reduce(
-                    (sum, d) => sum + d.temporalInconsistencies.length, 0
+                  totalDocuments={cbsSet.documents?.length ?? 0}
+                  totalInconsistencies={(cbsSet.documents ?? []).reduce(
+                    (sum, d) => sum + (d.temporalInconsistencies?.length ?? 0), 0
                   )}
                 />
               )}

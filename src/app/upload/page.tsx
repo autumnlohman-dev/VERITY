@@ -1242,8 +1242,11 @@ const [error, setError] = useState<string | null>(null);
 
       // Land straight on the case page with the full audit results + letter CTA.
       // No "we'll email you" dead end — the audit already ran above, and the case
-      // page renders a live progress state if anything is still processing.
-      router.push(`/cases/${data.caseId}`)
+      // page renders a live progress state if anything is still processing. If the
+      // extract collapsed this into an existing case (same bill already audited),
+      // /api/extract returns { duplicate, caseId } pointing at the original — go
+      // there with a flag so the case page can say it's already in the dashboard.
+      router.push(data.duplicate ? `/cases/${data.caseId}?dup=1` : `/cases/${data.caseId}`)
 
     } catch (err) {
       console.error(err)

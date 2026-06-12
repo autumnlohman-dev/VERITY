@@ -123,6 +123,7 @@ function Nav() {
           { label: "How it works", href: "/how-it-works" },
           { label: "Pricing", href: "/pricing" },
           { label: "FAQ", href: "#faq" },
+          { label: "Sign in", href: "/login" },
         ].map((link) => (
           <Link
             key={link.href}
@@ -220,6 +221,7 @@ function Footer() {
           { lbl: "How it works", href: "/how-it-works" },
           { lbl: "Pricing", href: "/pricing" },
           { lbl: "Dashboard", href: "/dashboard" },
+          { lbl: "Sign in", href: "/login" },
           { lbl: "FAQ", href: "#faq" },
         ].map((link) => (
           <Link
