@@ -69,6 +69,46 @@ function parseAddress(raw: string | undefined, name: string): MailAddress {
   return a;
 }
 
+// Providers are often stored as one comma-joined blob, e.g.
+//   "Frances Mahon Deaconess Hospital, 621 3rd Street South, Glasgow, MT 59230".
+// Lob needs these as separate fields (and name ≤ 40 chars), so split the blob
+// into name / street / city / state / zip. Falls back to name-only when there's
+// no recognizable trailing "City, ST ZIP". Always editable afterward.
+function parseProviderBlob(blob: string | null | undefined): MailAddress {
+  const a: MailAddress = { ...EMPTY };
+  if (!blob || !blob.trim()) return a;
+  const parts = blob.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return a;
+
+  // Trailing "ST ZIP" (state + zip), optionally its own segment or tail of the
+  // last segment ("Glasgow MT 59230" or separate "MT 59230").
+  const last = parts[parts.length - 1];
+  const stZip = last.match(/^([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+  if (stZip && parts.length >= 2) {
+    a.state = stZip[1].toUpperCase();
+    a.zip = stZip[2];
+    a.city = parts[parts.length - 2] ?? "";
+    a.name = parts[0] ?? "";
+    if (parts.length >= 4) a.line1 = parts[1] ?? "";
+    else if (parts.length === 3) a.line1 = ""; // name, city, ST ZIP → no street
+    return a;
+  }
+  // "City ST ZIP" all in the last segment.
+  const cityStZip = last.match(/^(.*?)\s+([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+  if (cityStZip && parts.length >= 2) {
+    a.city = cityStZip[1].trim();
+    a.state = cityStZip[2].toUpperCase();
+    a.zip = cityStZip[3];
+    a.name = parts[0] ?? "";
+    if (parts.length >= 3) a.line1 = parts[1] ?? "";
+    return a;
+  }
+  // No recognizable address tail — treat the whole thing as the name.
+  a.name = parts[0] ?? blob.trim();
+  if (parts.length >= 2) a.line1 = parts[1] ?? "";
+  return a;
+}
+
 function fmtDate(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
@@ -128,7 +168,7 @@ export function MailItPanel({
   initial: MailState;
   onMailed: (next: MailState) => void;
 }) {
-  const [to, setTo] = useState<MailAddress>(() => ({ ...EMPTY, name: providerName ?? "" }));
+  const [to, setTo] = useState<MailAddress>(() => parseProviderBlob(providerName));
   const [from, setFrom] = useState<MailAddress>(() => parseAddress(patientInfo.address, patientInfo.name ?? ""));
   const [certified, setCertified] = useState(false);
   const [submitting, setSubmitting] = useState(false);

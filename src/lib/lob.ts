@@ -17,6 +17,42 @@ export interface LobAddress {
   zip: string
 }
 
+// Lob's hard field limits (https://docs.lob.com/#tag/Letters). Exceeding any of
+// these is a 422 from Lob — most commonly `name` (40), since a provider is often
+// stored as one long "Name, Street, City, ST ZIP" blob.
+export const LOB_LIMITS = { name: 40, line1: 64, line2: 64, city: 200 } as const
+
+function clamp(s: string, n: number): string {
+  const t = s.trim()
+  return t.length > n ? t.slice(0, n) : t
+}
+
+// Truncate every field to Lob's limit so a slightly-too-long name/street can't
+// fail the whole send. Deliverability depends on the street/city/state/ZIP, so a
+// clipped recipient *name* still delivers.
+export function clampAddress(a: LobAddress): LobAddress {
+  return {
+    name: clamp(a.name, LOB_LIMITS.name),
+    line1: clamp(a.line1, LOB_LIMITS.line1),
+    line2: a.line2 ? clamp(a.line2, LOB_LIMITS.line2) : undefined,
+    city: clamp(a.city, LOB_LIMITS.city),
+    state: a.state.trim().slice(0, 2).toUpperCase(),
+    zip: a.zip.trim(),
+  }
+}
+
+// Thrown when Lob rejects a request. Carries the HTTP status (4xx = our payload
+// is bad → surface a specific reason; 5xx = Lob outage → generic retry) and Lob's
+// own descriptive message, which the route sanitizes for the UI + logs to Sentry.
+export class LobError extends Error {
+  statusCode: number
+  constructor(message: string, statusCode: number) {
+    super(message)
+    this.name = 'LobError'
+    this.statusCode = statusCode
+  }
+}
+
 export function lobApiKey(): string | null {
   const key = process.env.LOB_API_KEY
   return key && key.trim() ? key.trim() : null
@@ -129,8 +165,10 @@ export async function createLetter(args: {
 
   const body: Record<string, unknown> = {
     description: args.description ?? 'ClearClaim dispute letter',
-    to: toLobAddress(args.to),
-    from: toLobAddress(args.from),
+    // Clamp to Lob's field limits as a server-side safety net (the panel also
+    // splits the provider blob into clean name/street/city/state/zip fields).
+    to: toLobAddress(clampAddress(args.to)),
+    from: toLobAddress(clampAddress(args.from)),
     file: args.html,
     color: false,
     address_placement: 'top_first_page',
@@ -147,10 +185,13 @@ export async function createLetter(args: {
     id?: string
     expected_delivery_date?: string
     carrier?: string
-    error?: { message?: string }
+    error?: { message?: string; status_code?: number }
   }
   if (!res.ok || !data.id) {
-    throw new Error(data.error?.message || `Lob letter creation failed (${res.status})`)
+    throw new LobError(
+      data.error?.message || `Lob letter creation failed (${res.status})`,
+      data.error?.status_code ?? res.status
+    )
   }
   return {
     id: data.id,

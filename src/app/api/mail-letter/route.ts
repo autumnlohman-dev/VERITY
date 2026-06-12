@@ -8,9 +8,28 @@ import {
   isLobTestKey,
   verifyUsAddress,
   createLetter,
+  LobError,
   type LobAddress,
 } from '@/lib/lob'
 import { NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
+
+// Turn Lob's raw field-validation message into something a patient can act on.
+// Lob's 4xx messages reference API field names (address_line1, name, …); map the
+// common ones to plain words. The message is otherwise safe to surface verbatim.
+function humanizeLobMessage(msg: string): string {
+  let m = msg
+    .replace(/address_line1/gi, 'street address')
+    .replace(/address_line2/gi, 'street address (line 2)')
+    .replace(/address_city/gi, 'city')
+    .replace(/address_state/gi, 'state')
+    .replace(/address_zip/gi, 'ZIP code')
+    .replace(/\bfile\b/gi, 'letter document')
+    .replace(/\bto\./gi, 'recipient ')
+    .replace(/\bfrom\./gi, 'return-address ')
+  m = m.trim()
+  return m.charAt(0).toUpperCase() + m.slice(1)
+}
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -227,6 +246,23 @@ export async function POST(request: Request) {
       provider_name: caseRecord.provider_name,
       date_of_service: typeof billData.date_of_service === 'string' ? billData.date_of_service : undefined,
     })
+    // Lob letters have a page cap. We mail ONLY the formal dispute letter
+    // (letterContent) — never the long Evidentiary Package (cover sheet,
+    // timeline, calculation worksheet, citation appendix), which is download-only
+    // — so this stays short. Guard anyway and tell the user plainly if a letter
+    // is somehow too long to mail, rather than letting Lob reject it opaquely.
+    const MAX_LETTER_PAGES = 60
+    const estimatedPages = Math.max(1, Math.ceil(finalLetter.length / 3000))
+    if (estimatedPages > MAX_LETTER_PAGES) {
+      return NextResponse.json(
+        {
+          error: `This letter is too long to mail automatically (about ${estimatedPages} pages; the limit is ${MAX_LETTER_PAGES}). Download it and mail it yourself.`,
+          code: 'too_long',
+        },
+        { status: 422 }
+      )
+    }
+
     const html = buildLetterHtml(finalLetter)
 
     let created
@@ -241,9 +277,26 @@ export async function POST(request: Request) {
         idempotencyKey: `mail_${caseId}`,
       })
     } catch (lobErr) {
-      console.error('Lob letter creation failed:', lobErr)
+      // Don't mask the reason. Log Lob's actual error to Sentry, and return a
+      // specific (sanitized) message for client errors (4xx = our payload, e.g.
+      // a too-long name) vs a generic retry for Lob outages (5xx).
+      const status = lobErr instanceof LobError ? lobErr.statusCode : 0
+      console.error('Lob letter creation failed:', status, lobErr instanceof Error ? lobErr.message : lobErr)
+      Sentry.captureException(lobErr, {
+        tags: { route: 'mail-letter', stage: 'lob-create' },
+        extra: { caseId, lobStatus: status },
+      })
+      if (lobErr instanceof LobError && status >= 400 && status < 500) {
+        return NextResponse.json(
+          {
+            error: `The mail service couldn't accept this letter: ${humanizeLobMessage(lobErr.message)}`,
+            code: 'lob_rejected',
+          },
+          { status: 422 }
+        )
+      }
       return NextResponse.json(
-        { error: 'The mail service rejected this letter. Please try again shortly.', code: 'lob_error' },
+        { error: 'The mail service is temporarily unavailable. Please try again shortly.', code: 'lob_error' },
         { status: 502 }
       )
     }
