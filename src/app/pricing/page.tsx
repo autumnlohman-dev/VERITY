@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown } from "lucide-react";
-import { startMembershipCheckout } from "@/lib/checkout";
+import { startMembershipCheckout, rememberCheckoutIntent } from "@/lib/checkout";
+import { createClient } from "@/lib/supabase/client";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -243,6 +244,22 @@ function TableCell({ val }: { val: CellVal }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function PricingPage() {
+  // Membership CTA: logged-in users go straight to Stripe Checkout; guests keep
+  // routing into the signup funnel, but we remember the chosen plan so they land
+  // in checkout immediately after authenticating (see resumePendingCheckout).
+  const handleStartMembership = async (plan: "monthly" | "annual") => {
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session) {
+      void startMembershipCheckout(plan);
+      return;
+    }
+    rememberCheckoutIntent({ type: "membership", plan });
+    window.location.href = "/login";
+  };
+
   const fadeUp = {
     initial: { opacity: 0, y: 30 },
     whileInView: { opacity: 1, y: 0 } as { opacity: number; y: number },
@@ -489,7 +506,12 @@ export default function PricingPage() {
               ))}
             </div>
             <div
-              onClick={() => startMembershipCheckout("monthly")}
+              role="button"
+              tabIndex={0}
+              onClick={() => handleStartMembership("monthly")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") handleStartMembership("monthly");
+              }}
               style={{
                 ...sans("11px", "#221C14"),
                 backgroundColor: "#C8A97E",

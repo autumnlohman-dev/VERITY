@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { syncOutcomes } from '@/lib/outcomes/store'
 import { syncWorkflows } from '@/lib/agent/advocacyAgent'
+import { resumePendingCheckout } from '@/lib/checkout'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -22,17 +23,23 @@ export default function LoginPage() {
 
     if (isSignUp) {
       const { error } = await supabase.auth.signUp({ email, password })
-      if (error) setError(error.message)
-      else {
+      if (error) {
+        setError(error.message)
+      } else {
         // Push any records this person accumulated as a guest up to Supabase.
         await Promise.all([syncOutcomes(), syncWorkflows()])
+        // If they came here to buy a paid tier, resume that checkout instead of
+        // dropping them on the dashboard — the redirect to Stripe takes over.
+        if (resumePendingCheckout()) return
         router.push('/dashboard')
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setError(error.message)
-      else {
+      if (error) {
+        setError(error.message)
+      } else {
         await Promise.all([syncOutcomes(), syncWorkflows()])
+        if (resumePendingCheckout()) return
         router.push('/dashboard')
       }
     }
