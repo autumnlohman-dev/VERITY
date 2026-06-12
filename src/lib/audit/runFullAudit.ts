@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { runAudit, type BillingError, type InsuranceType, type LineItem } from '@/lib/errorDetection'
 import { analyzeDisputedProcedures } from '@/lib/patientDisputes'
-import { billExtractionToCBS, extractEOBToCBS, isExtractableExt } from '@/lib/cbs/extractor'
+import { billExtractionToCBS, isExtractableExt } from '@/lib/cbs/extractor'
+import { extractEOBToCBS } from '@/lib/cbs/eobExtractor'
 import { normalizeCBSSet } from '@/lib/cbs/normalizer'
 import type { CanonicalBillingSchema, NormalizedCBSSet } from '@/lib/cbs/schema'
 

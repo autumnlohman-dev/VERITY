@@ -8,10 +8,13 @@ import { disputeUnlocked } from '@/lib/entitlements'
 // Anthropic generation runs longer than Vercel's 10s Hobby / 15s Pro default.
 export const maxDuration = 60
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  timeout: 60_000,
-})
+// Constructed lazily inside the handler, never at module scope (a module-scope
+// SDK client evaluates on import; keep all construction in-handler).
+let _client: Anthropic | null = null
+function anthropic(): Anthropic {
+  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 60_000 })
+  return _client
+}
 
 export async function POST(request: Request) {
   try {
@@ -135,7 +138,7 @@ E&M DISPUTE GUIDANCE:
         : ''
 
     // Generate the dispute letter with Claude
-    const message = await anthropic.messages.create({
+    const message = await anthropic().messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 2000,
       system: `You are a medical billing advocate generating a formal dispute letter

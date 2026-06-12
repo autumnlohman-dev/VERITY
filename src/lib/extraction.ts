@@ -6,7 +6,14 @@ import { CPT_CODE_PATTERN, mapDescriptionToCpt } from './billExtractor'
 // Shared by the authenticated case pipeline (/api/extract) and the public
 // guest audit (/api/audit-guest).
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+// Constructed lazily inside the handler, never at module scope — a module-scope
+// `new Anthropic()` evaluates on import and throws in a browser bundle. This
+// module is server-only (imported by /api/extract + /api/audit-guest).
+let _client: Anthropic | null = null
+function anthropic(): Anthropic {
+  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  return _client
+}
 
 const EXTRACTION_SYSTEM = `You are a medical-billing document parser. You receive an image or PDF of a
 medical bill, itemized statement, or Explanation of Benefits (EOB). Extract every billable line item and
@@ -62,7 +69,7 @@ export async function extractFromBase64(base64: string, ext: string): Promise<Ex
     throw new Error(`Unsupported file type: .${ext}. Upload a PDF, PNG, JPG, or WEBP.`)
   }
 
-  const message = await anthropic.messages.create({
+  const message = await anthropic().messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 1500,
     system: EXTRACTION_SYSTEM,

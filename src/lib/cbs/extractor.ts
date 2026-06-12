@@ -1,9 +1,14 @@
-import Anthropic from '@anthropic-ai/sdk'
 import type {
   CanonicalBillingSchema,
   CBSLineItem,
   DocumentType,
 } from './schema'
+
+// This module is PURE and client-safe: regex/transform helpers with no external
+// SDKs. It is imported by client-reachable code (deadlines/forCase → the case and
+// letter pages), so it must NEVER import @anthropic-ai/sdk. The multimodal EOB
+// extraction that needs Anthropic lives in the server-only sibling
+// ./eobExtractor, which imports extractToCBS + EOB_MEDIA_TYPES from here.
 
 // ─── Document type detection ──────────────────────────────────────────────────
 
@@ -273,64 +278,14 @@ export function billExtractionToCBS(
   }
 }
 
-// ─── Multimodal EOB extraction (Component I → CBS) ─────────────────────────────
-// Reads an Explanation of Benefits image/PDF with the Anthropic multimodal API,
-// transcribing it verbatim to text, then runs the EOB-aware text parser above to
-// produce a CanonicalBillingSchema. This is the EOB counterpart to the bill
-// extractor in src/lib/extraction.ts and feeds the cross-document normalizer.
+// ─── Extractable file types ───────────────────────────────────────────────────
+// Shared by isExtractableExt (here) and the server-only ./eobExtractor, which
+// reuses this map for the multimodal media types.
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-const EOB_MEDIA_TYPES: Record<string, 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'> = {
+export const EOB_MEDIA_TYPES: Record<string, 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'> = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif',
 }
 
 export function isExtractableExt(ext: string): boolean {
   return ext === 'pdf' || ext in EOB_MEDIA_TYPES
-}
-
-const EOB_TRANSCRIBE_SYSTEM = `You transcribe Explanation of Benefits (EOB) / remittance documents to plain text.
-Transcribe EVERYTHING you can read VERBATIM — never summarize, interpret, round, or invent values.
-Preserve every labeled field on its own line so it can be parsed, for example:
-  Claim Number: ...
-  Provider: ...   NPI: ...
-  Member ID: ...
-  Date of Service: MM/DD/YYYY
-  Processed/EOB Date: MM/DD/YYYY
-  Total Billed: $...   Total Allowed: $...   Plan Paid: $...   Patient Responsibility: $...
-  Appeal by: MM/DD/YYYY
-Then transcribe each service line on its own line with its CPT/HCPCS code followed by the
-billed, allowed, paid, and patient-responsibility dollar amounts as printed.
-Return ONLY the transcribed text, no commentary.`
-
-// Extract an EOB document (base64 image or PDF) into CBS via the multimodal API.
-export async function extractEOBToCBS(
-  base64: string,
-  ext: string,
-  documentId: string
-): Promise<CanonicalBillingSchema> {
-  let documentBlock: Anthropic.ContentBlockParam
-  if (ext === 'pdf') {
-    documentBlock = { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-  } else if (EOB_MEDIA_TYPES[ext]) {
-    documentBlock = { type: 'image', source: { type: 'base64', media_type: EOB_MEDIA_TYPES[ext], data: base64 } }
-  } else {
-    throw new Error(`Unsupported EOB file type: .${ext}. Upload a PDF, PNG, JPG, or WEBP.`)
-  }
-
-  const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 2000,
-    system: EOB_TRANSCRIBE_SYSTEM,
-    messages: [
-      {
-        role: 'user',
-        content: [documentBlock, { type: 'text', text: 'Transcribe this Explanation of Benefits document verbatim.' }],
-      },
-    ],
-  })
-
-  const textOut = message.content.find((b) => b.type === 'text')
-  const rawText = textOut && textOut.type === 'text' ? textOut.text : ''
-  return extractToCBS(rawText, documentId, 'eob')
 }
