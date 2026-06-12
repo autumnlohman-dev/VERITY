@@ -138,6 +138,11 @@ interface CaseRow {
   bill_data: BillData | null;
   errors_found: BillingError[] | null;
   created_at: string;
+  lob_letter_id?: string | null;
+  mail_status?: string | null;
+  mail_test_mode?: boolean | null;
+  mail_certified?: boolean | null;
+  mail_expected_delivery?: string | null;
 }
 
 interface LetterRow {
@@ -794,6 +799,34 @@ export default function CaseDetailPage({
                 </span>
               </Link>
             </div>
+            {caseRow.lob_letter_id && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  marginTop: "4px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: "6px",
+                    height: "6px",
+                    borderRadius: "50%",
+                    backgroundColor: caseRow.mail_test_mode ? "#C8A97E" : "#7A9E87",
+                  }}
+                />
+                <span style={{ ...sans("12px", caseRow.mail_test_mode ? "#C8A97E" : "#7A9E87") }}>
+                  {caseRow.mail_test_mode
+                    ? "Mailed in TEST MODE — no physical letter sent"
+                    : caseRow.mail_certified
+                    ? "Letter mailed (certified)"
+                    : "Letter mailed"}
+                </span>
+              </div>
+            )}
           </div>
         ) : caseRow.status === "error_found" ? (
           <div

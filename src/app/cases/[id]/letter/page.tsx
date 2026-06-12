@@ -16,6 +16,7 @@ import {
 } from "@/lib/letterFields";
 import { generateLetterPdf } from "@/lib/letterPdf";
 import { deadlinesForCase } from "@/lib/deadlines/forCase";
+import { MailItPanel, type MailState, type MailAddress } from "@/components/MailItPanel";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -63,6 +64,12 @@ interface CaseRow {
   bill_data: { userNotes?: string } | null;
   created_at: string;
   patient_info: PatientInfo | null;
+  lob_letter_id: string | null;
+  mail_status: string | null;
+  mail_test_mode: boolean | null;
+  mail_certified: boolean | null;
+  mail_expected_delivery: string | null;
+  mail_to: Partial<MailAddress> | null;
 }
 
 interface LetterRow {
@@ -1079,7 +1086,7 @@ export default function LetterPage({
     const { data: caseData, error: caseErr } = await supabase
       .from("cases")
       .select(
-        "id, status, provider_name, insurance_type, amount_billed, amount_expected, errors_found, bill_data, created_at, patient_info"
+        "id, status, provider_name, insurance_type, amount_billed, amount_expected, errors_found, bill_data, created_at, patient_info, lob_letter_id, mail_status, mail_test_mode, mail_certified, mail_expected_delivery, mail_to"
       )
       .eq("id", id)
       .eq("user_id", user.id)
@@ -1628,6 +1635,35 @@ export default function LetterPage({
           receipt within 10 business days and respond within 30.
         </p>
       </motion.div>
+
+      {/* Mail it for me (Lob) */}
+      <MailItPanel
+        caseId={caseRow.id}
+        providerName={caseRow.provider_name}
+        patientInfo={{ name: patientInfo.name, address: patientInfo.address }}
+        initial={{
+          lobLetterId: caseRow.lob_letter_id,
+          status: caseRow.mail_status,
+          testMode: !!caseRow.mail_test_mode,
+          certified: !!caseRow.mail_certified,
+          expectedDelivery: caseRow.mail_expected_delivery,
+          to: caseRow.mail_to,
+        }}
+        onMailed={(next: MailState) =>
+          setCaseRow((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  lob_letter_id: next.lobLetterId,
+                  mail_status: next.status,
+                  mail_test_mode: next.testMode,
+                  mail_certified: next.certified,
+                  mail_expected_delivery: next.expectedDelivery,
+                }
+              : prev
+          )
+        }
+      />
 
       {/* Upsell card */}
       <motion.div
