@@ -5,7 +5,7 @@ import type { DragEvent, ChangeEvent } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, CheckCircle, Camera } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { CBSDiscrepancy } from "@/lib/cbs/schema";
 
@@ -415,6 +415,7 @@ function RadioCard({
 // ─── Inner component (uses useSearchParams) ───────────────────────────────────
 function UploadPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [tier, setTier] = useState<"audit" | "dispute" | "membership" | null>(() => {
@@ -428,7 +429,6 @@ function UploadPageInner() {
   const [insuranceType, setInsuranceType] = useState<string | null>(null);
   const [gfe, setGfe] = useState<string | null>(null);
   const [userNotes, setUserNotes] = useState<string>("");
-  const [submitted, setSubmitted] = useState(false);
 const [loading, setLoading] = useState(false);
 const [error, setError] = useState<string | null>(null);
   const [guestResults, setGuestResults] = useState<GuestAudit | null>(null);
@@ -588,61 +588,6 @@ const [error, setError] = useState<string | null>(null);
             Verity flags potential billing errors and the rule behind each. This is not legal or medical advice.
           </p>
         </div>
-      </div>
-    );
-  }
-
-  if (submitted) {
-    return (
-      <div
-        style={{
-          background: "#EBE5D9",
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          paddingTop: "128px",
-          paddingBottom: "96px",
-          textAlign: "center",
-        }}
-      >
-        <div style={{ ...serif("48px", { lineHeight: 1.1 }) }}>
-          Your audit
-          <br />
-          is underway.
-        </div>
-        <div
-          style={{
-            width: "48px",
-            height: "1px",
-            backgroundColor: "#D8CFBE",
-            margin: "32px auto",
-          }}
-        />
-        <p
-          style={{
-            ...sans("15px", "#5F5648"),
-            maxWidth: "340px",
-            lineHeight: 1.7,
-          }}
-        >
-          We&apos;ll email you within 24 hours with your full error report.
-          Billing errors are more common than you think — we&apos;ll find them.
-        </p>
-        <Link
-          href="/dashboard"
-          style={{
-            ...sans("12px", "#C8A97E"),
-            textDecoration: "none",
-            letterSpacing: "0.1em",
-            marginTop: "40px",
-            display: "inline-block",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#221C14")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#C8A97E")}
-        >
-          View your dashboard →
-        </Link>
       </div>
     );
   }
@@ -987,7 +932,7 @@ const [error, setError] = useState<string | null>(null);
                   <div style={{ borderTop: "1px solid #D8CFBE", margin: "16px 0" }} />
                   {[
                     "Scan every charge against your plan",
-                    "Error report within 24 hours",
+                    "Full error report in minutes",
                     "No dispute filed",
                   ].map((f) => (
                     <div
@@ -1263,9 +1208,11 @@ const [error, setError] = useState<string | null>(null);
         return
       }
 
-      // Run the proprietary extraction + audit pipeline on the uploaded document.
-      // Send the bill (and the EOB when present, for the cross-document
-      // comparison) as base64 — the same input shape the guest pipeline uses.
+      // Run the proprietary extraction + audit pipeline on the uploaded document,
+      // exactly like the guest flow — but persisted. Send the bill (and the EOB
+      // when present, for the cross-document comparison) as base64, the same
+      // input shape the guest pipeline uses, and await the full audit so the
+      // case page already has findings to show when we land on it.
       if (data.caseId) {
         try {
           const billFileBase64 = await fileToBase64(file)
@@ -1282,12 +1229,16 @@ const [error, setError] = useState<string | null>(null);
             }),
           })
         } catch (extractErr) {
-          // The case is created; the audit can be retried from the dashboard.
+          // The case is created and still opens — if the audit didn't finish, the
+          // case page shows its own live "Audit in progress" state (no email promise).
           console.error('Extraction error:', extractErr)
         }
       }
 
-      setSubmitted(true)
+      // Land straight on the case page with the full audit results + letter CTA.
+      // No "we'll email you" dead end — the audit already ran above, and the case
+      // page renders a live progress state if anything is still processing.
+      router.push(`/cases/${data.caseId}`)
 
     } catch (err) {
       console.error(err)
