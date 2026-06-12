@@ -444,20 +444,27 @@ export default function CaseDetailPage({
     const supabase = createClient();
 
     (async () => {
-      // Beta: auth gate removed. `user` may be null; user_id filter is
-      // applied only when authenticated.
+      // A case is visible only to its owner. Require a session and always
+      // scope by user_id — an unauthenticated viewer (or one who doesn't own
+      // this case) gets the not-found state, never another user's data.
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (cancelled) return;
 
-      let caseQuery = supabase
+      if (!user) {
+        setFetchError("Please sign in to view this case.");
+        setLoading(false);
+        return;
+      }
+
+      const { data: caseData, error: caseErr } = await supabase
         .from("cases")
         .select("*")
-        .eq("id", id);
-      if (user) caseQuery = caseQuery.eq("user_id", user.id);
-      const { data: caseData, error: caseErr } = await caseQuery.maybeSingle();
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .maybeSingle();
 
       if (cancelled) return;
 

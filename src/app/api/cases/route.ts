@@ -4,9 +4,14 @@ import { NextResponse } from 'next/server'
 export async function POST(request: Request) {
   try {
     const supabase = await createClient()
-    // Beta: auth gate removed. `user` may be null; user_id is omitted from
-    // the insert when no session is present.
+    // A persisted case must have an owner. Guests use the stateless
+    // /api/audit-guest path (which writes nothing); only authenticated users
+    // create rows here. Without this gate, RLS rejects the insert anyway —
+    // failing fast with 401 is the honest response.
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
 
     const {
       careType,
@@ -36,7 +41,7 @@ export async function POST(request: Request) {
     const { data: newCase, error } = await supabase
       .from('cases')
       .insert({
-        ...(user ? { user_id: user.id } : {}),
+        user_id: user.id,
         status: 'auditing',
         insurance_type: insuranceType,
         provider_name: normalizedProvider,

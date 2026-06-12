@@ -12,36 +12,62 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  // Once a session exists, claim any guest-accumulated records, resume a pending
+  // checkout if the user came here to buy, otherwise land on the dashboard.
+  async function completeSignedIn() {
+    await Promise.all([syncOutcomes(), syncWorkflows()])
+    if (resumePendingCheckout()) return
+    router.push('/dashboard')
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setNotice('')
 
     if (isSignUp) {
-      const { error } = await supabase.auth.signUp({ email, password })
+      const { data, error } = await supabase.auth.signUp({ email, password })
       if (error) {
         setError(error.message)
-      } else {
-        // Push any records this person accumulated as a guest up to Supabase.
-        await Promise.all([syncOutcomes(), syncWorkflows()])
-        // If they came here to buy a paid tier, resume that checkout instead of
-        // dropping them on the dashboard — the redirect to Stripe takes over.
-        if (resumePendingCheckout()) return
-        router.push('/dashboard')
+        setLoading(false)
+        return
       }
+      // Supabase returns a user with an EMPTY `identities` array (and no error,
+      // to avoid leaking which emails exist) when the address is already
+      // registered. Treat that as "use a different email or sign in".
+      const identities = data.user?.identities
+      if (identities && identities.length === 0) {
+        setError('An account with this email already exists. Try signing in instead.')
+        setLoading(false)
+        return
+      }
+      // No session means email confirmation is on: the account isn't usable yet
+      // and there is nothing to redirect to. Tell them to confirm — do NOT push
+      // them onto /dashboard, where an unauthenticated session would otherwise
+      // render with no data.
+      if (!data.session) {
+        setNotice(
+          `Check your email — we sent a confirmation link to ${email}. Click it to activate your account, then sign in.`
+        )
+        setLoading(false)
+        return
+      }
+      // Confirmation disabled: we have a live session, proceed.
+      await completeSignedIn()
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         setError(error.message)
-      } else {
-        await Promise.all([syncOutcomes(), syncWorkflows()])
-        if (resumePendingCheckout()) return
-        router.push('/dashboard')
+        setLoading(false)
+        return
       }
+      await completeSignedIn()
     }
     setLoading(false)
   }
@@ -126,6 +152,15 @@ export default function LoginPage() {
             </p>
           )}
 
+          {notice && (
+            <p
+              role="status"
+              style={{ color: '#7A9E87', fontSize: '14px', marginBottom: '16px', lineHeight: 1.6 }}
+            >
+              {notice}
+            </p>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -148,7 +183,11 @@ export default function LoginPage() {
           <p style={{ color: '#A89F96', fontSize: '14px', textAlign: 'center' }}>
             {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
             <span
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={() => {
+                setIsSignUp(!isSignUp)
+                setError('')
+                setNotice('')
+              }}
               style={{ color: '#C8A97E', cursor: 'pointer' }}
             >
               {isSignUp ? 'Sign in' : 'Sign up free'}

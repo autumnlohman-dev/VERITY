@@ -174,12 +174,11 @@ The letter should:
     // Update case status to letter_ready. If this fails the letter is still
     // saved and returned — but the case status will be stale, so report to
     // Sentry so we can reconcile.
-    let statusUpdate = supabase
+    const { error: statusErr } = await supabase
       .from('cases')
       .update({ status: 'letter_ready' })
       .eq('id', caseId)
-    if (user) statusUpdate = statusUpdate.eq('user_id', user.id)
-    const { error: statusErr } = await statusUpdate
+      .eq('user_id', user.id)
     if (statusErr) {
       console.error('Case status update failed:', statusErr)
       Sentry.captureException(statusErr, {

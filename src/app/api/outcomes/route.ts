@@ -1,11 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-// Dispute-outcome submission. Mirrors the cases route's beta posture: the
-// auth gate is removed, user_id is attached only when a session is present,
-// and the client treats failure as non-fatal (localStorage stays the
-// offline fallback). Upserts on the client-generated outcome id so the same
-// record can be created pending and later resolved.
+// Dispute-outcome submission. Requires a session and stamps the row with the
+// owner's user_id so outcomes are isolated per user. Guests accumulate records
+// in localStorage; syncOutcomes() replays them here once the user logs in. The
+// client treats a non-2xx (incl. 401 while a guest) as non-fatal — localStorage
+// stays the offline fallback. Upserts on the client-generated outcome id so the
+// same record can be created pending and later resolved.
 
 interface OutcomeBody {
   outcomeId: string
@@ -37,6 +38,9 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
 
     const body = (await request.json()) as OutcomeBody
     if (!isUuid(body.outcomeId)) {
@@ -46,7 +50,7 @@ export async function POST(request: Request) {
     const row = {
       id: body.outcomeId,
       ...(isUuid(body.caseId) ? { case_id: body.caseId } : {}),
-      ...(user ? { user_id: user.id } : {}),
+      user_id: user.id,
       ...(body.createdAt ? { created_at: body.createdAt } : {}),
       resolved_at: body.resolvedAt ?? null,
       discrepancy_type: body.discrepancyType ?? null,
