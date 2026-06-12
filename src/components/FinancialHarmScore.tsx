@@ -146,14 +146,22 @@ export function FinancialHarmScoreDisplay({ fhs }: FHSDisplayProps) {
 
 // ─── Quick intake form for FHS inputs ─────────────────────────────────────────
 
-interface IntakeFormProps {
-  onSubmit: (inputs: { hasActiveCollectionActivity: boolean; hasCreditReportingImpact: boolean; hasInsuranceDenial: boolean }) => void
+interface FHSInputs {
+  hasActiveCollectionActivity: boolean
+  hasCreditReportingImpact: boolean
+  hasInsuranceDenial: boolean
 }
 
-export function FHSIntakeForm({ onSubmit }: IntakeFormProps) {
-  const [collection, setCollection] = useState<boolean | null>(null)
-  const [credit, setCredit] = useState<boolean | null>(null)
-  const [denial, setDenial] = useState<boolean | null>(null)
+interface IntakeFormProps {
+  onSubmit: (inputs: FHSInputs) => void
+  // When re-editing a previously answered questionnaire, prefill the answers.
+  initial?: FHSInputs | null
+}
+
+export function FHSIntakeForm({ onSubmit, initial }: IntakeFormProps) {
+  const [collection, setCollection] = useState<boolean | null>(initial?.hasActiveCollectionActivity ?? null)
+  const [credit, setCredit] = useState<boolean | null>(initial?.hasCreditReportingImpact ?? null)
+  const [denial, setDenial] = useState<boolean | null>(initial?.hasInsuranceDenial ?? null)
 
   const allAnswered = collection !== null && credit !== null && denial !== null
 

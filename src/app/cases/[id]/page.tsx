@@ -123,6 +123,12 @@ interface BillData {
   date_of_service?: string;
   em_review?: EmReview;
   lineItems?: Array<{ cpt_code?: string }>;
+  // Persisted questionnaire state so completed panels survive a refresh and
+  // hydrate from the DB instead of re-prompting (see /api/case-state).
+  fhs_inputs?: FHSUserInputs;
+  fhs_score?: FinancialHarmScore;
+  advocacy_workflow?: AdvocacyWorkflow;
+  outcome_id?: string;
 }
 
 interface CaseRow {
@@ -462,7 +468,10 @@ export default function CaseDetailPage({
   const [deadlines, setDeadlines] = useState<DeadlineResult[]>([]);
   const [fhs, setFhs] = useState<FinancialHarmScore | null>(null);
   const [fhsInputs, setFhsInputs] = useState<FHSUserInputs | null>(null);
-  const [outcomeId] = useState(() => (typeof window === 'undefined' ? 'pending' : crypto.randomUUID()));
+  // True while re-editing an already-answered FHS questionnaire (shows the form
+  // prefilled instead of the saved score).
+  const [editingFhs, setEditingFhs] = useState(false);
+  const [outcomeId, setOutcomeId] = useState(() => (typeof window === 'undefined' ? 'pending' : crypto.randomUUID()));
   const [predictions, setPredictions] = useState<FinancialOutcomePrediction[]>([]);
   const [workflow, setWorkflow] = useState<AdvocacyWorkflow | null>(null);
 
@@ -519,12 +528,36 @@ export default function CaseDetailPage({
           caseData.provider_name,
           caseData.id
         );
+        const bd = caseData.bill_data as BillData | null;
         if (set) {
           setCbsSet(set);
-          setDeadlines(calculateDeadlines(set));
+          const dls = calculateDeadlines(set);
+          setDeadlines(dls);
+          // Hydrate a previously-answered Financial Harm Score questionnaire so
+          // the saved score renders instead of the blank form. We recompute from
+          // the saved inputs (deterministic) so the score tracks the current CBS.
+          if (bd?.fhs_inputs) {
+            setFhsInputs(bd.fhs_inputs);
+            setFhs(calculateFinancialHarmScore(set, dls, bd.fhs_inputs));
+            setPredictions(
+              predictAll(set, {
+                hasActiveCollection: bd.fhs_inputs.hasActiveCollectionActivity,
+                hasCreditReporting: bd.fhs_inputs.hasCreditReportingImpact,
+              })
+            );
+          }
+        } else if (bd?.fhs_inputs && bd?.fhs_score) {
+          // CBS couldn't be rebuilt, but we have a saved snapshot — show it.
+          setFhsInputs(bd.fhs_inputs);
+          setFhs(bd.fhs_score);
         }
+        // Reattach the persisted outcome id so the outcome follow-up tracker
+        // reloads its recorded status, and hydrate the advocacy workflow.
+        if (bd?.outcome_id) setOutcomeId(bd.outcome_id);
+        const wf = bd?.advocacy_workflow ?? getWorkflowForCase(String(caseData.id));
+        if (wf) setWorkflow(wf);
       } catch {
-        // CBS build is non-blocking — if it fails, page still works
+        // CBS build / hydration is non-blocking — if it fails, page still works
       }
 
       // Letter query is scoped by case_id; ownership was just verified above.
@@ -563,9 +596,25 @@ export default function CaseDetailPage({
     ...(caseRow.bill_data?.lineItems ?? []),
   ];
 
+  // Durably persist per-case panel state onto the case (bill_data) so it
+  // survives a refresh / dashboard round-trip. Optimistically updates the local
+  // caseRow so the in-memory state matches, then writes server-side (ownership
+  // checked, RLS-scoped). Best-effort: a network failure leaves local state set.
+  const persistCaseState = (patch: Record<string, unknown>) => {
+    setCaseRow((prev) =>
+      prev ? { ...prev, bill_data: { ...(prev.bill_data ?? {}), ...patch } as BillData } : prev
+    );
+    void fetch("/api/case-state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caseId: id, patch }),
+    }).catch((err) => console.error("Failed to persist case state:", err));
+  };
+
   // FHS computation handler (called after intake form answers)
   const handleFHSIntake = (inputs: FHSUserInputs) => {
     setFhsInputs(inputs);
+    setEditingFhs(false);
     if (cbsSet) {
       const computed = calculateFinancialHarmScore(cbsSet, deadlines, inputs);
       setFhs(computed);
@@ -576,13 +625,16 @@ export default function CaseDetailPage({
       });
       setPredictions(preds);
       // v8: Advocacy Agent workflow (Component N) — existing or freshly planned
+      let wfToPersist: AdvocacyWorkflow | undefined;
       const existing = getWorkflowForCase(String(caseRow.id));
       if (existing) {
         setWorkflow(existing);
+        wfToPersist = existing;
       } else if (cbsSet.crossDocumentDiscrepancies.length > 0) {
         const wf = generateWorkflow(String(caseRow.id), cbsSet, deadlines, preds, false);
         saveWorkflow(wf);
         setWorkflow(wf);
+        wfToPersist = wf;
       }
       // Create pending outcome record for this case
       const topDisc = cbsSet.crossDocumentDiscrepancies[0];
@@ -597,6 +649,14 @@ export default function CaseDetailPage({
         regulationsCited: cbsSet.crossDocumentDiscrepancies.flatMap(d => d.applicableRegulations).slice(0, 3),
       });
       saveOutcome(outcome);
+      // Durably save the answers, computed score, the outcome id (so the
+      // follow-up tracker reattaches), and the workflow if one was planned.
+      persistCaseState({
+        fhs_inputs: inputs,
+        fhs_score: computed,
+        outcome_id: outcomeId,
+        ...(wfToPersist ? { advocacy_workflow: wfToPersist } : {}),
+      });
     }
   };
 
@@ -605,6 +665,7 @@ export default function CaseDetailPage({
     const authorized = { ...workflow, consumerAuthorized: true };
     saveWorkflow(authorized);
     setWorkflow(authorized);
+    persistCaseState({ advocacy_workflow: authorized });
   };
 
   const handleActionUpdate = (actionId: string, status: AdvocacyAction["status"]) => {
@@ -613,6 +674,7 @@ export default function CaseDetailPage({
     updated = checkTermination(updated);
     saveWorkflow(updated);
     setWorkflow(updated);
+    persistCaseState({ advocacy_workflow: updated });
   };
 
   // H3: re-run the audit on this case from a freshly re-selected bill file.
@@ -946,11 +1008,29 @@ export default function CaseDetailPage({
           {/* ── VERITY v2: FHS intake → score, deadlines, timeline ── */}
           {(errors.length > 0 || (cbsSet && (cbsSet.totalDiscrepancies ?? 0) > 0)) && (
             <>
-              {/* Financial Harm Score */}
-              {fhs ? (
-                <FinancialHarmScoreDisplay fhs={fhs} />
+              {/* Financial Harm Score — saved score (with edit) or the form */}
+              {fhs && !editingFhs ? (
+                <>
+                  <FinancialHarmScoreDisplay fhs={fhs} />
+                  <button
+                    onClick={() => setEditingFhs(true)}
+                    style={{
+                      ...sans("11px", "#A89F96"),
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      letterSpacing: "0.15em",
+                      textTransform: "uppercase",
+                      padding: 0,
+                      marginTop: "-16px",
+                      marginBottom: "32px",
+                    }}
+                  >
+                    ✎ Edit answers
+                  </button>
+                </>
               ) : (
-                <FHSIntakeForm onSubmit={handleFHSIntake} />
+                <FHSIntakeForm initial={fhsInputs} onSubmit={handleFHSIntake} />
               )}
 
               {/* v8: Outcome Prediction (Component O) */}
