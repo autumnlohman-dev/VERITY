@@ -172,6 +172,9 @@ export async function createLetter(args: {
     file: args.html,
     color: false,
     address_placement: 'top_first_page',
+    // Dispute letters are transactional mail tied to the user's own bill — never
+    // marketing. Lob requires use_type to be 'operational' or 'marketing'.
+    use_type: 'operational',
   }
   if (args.certified) body.extra_service = 'certified'
 
