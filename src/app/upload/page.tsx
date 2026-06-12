@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload, CheckCircle, Camera } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { saveGuestClaim } from "@/lib/guestClaim";
 import type { CBSDiscrepancy } from "@/lib/cbs/schema";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
@@ -1217,6 +1218,10 @@ const [error, setError] = useState<string | null>(null);
           setLoading(false)
           return
         }
+        // Persist the full audit under a claim ID so it survives the signup
+        // round trip and can be imported as a real case once they have an
+        // account — no re-upload. (Guests have no DB rows under RLS.)
+        saveGuestClaim(result, { careType, insuranceType, gfe, tier, userNotes })
         setGuestResults(result as GuestAudit)
         setLoading(false)
         return

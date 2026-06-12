@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
+import { claimPendingGuestAudit } from "@/lib/guestClaim";
 import { DigitalTwinView } from "@/components/DigitalTwinView";
 
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -365,6 +366,17 @@ export default function DashboardPage() {
 
       if (!user) {
         router.replace("/login");
+        return;
+      }
+
+      // Fallback for the carry-through-signup flow: if a guest audit claim is
+      // still pending (e.g. the email-confirmation path landed here, or the user
+      // was already signed in), import it into a real case and jump to it. The
+      // import is idempotent and clears the claim on success.
+      const claimedCaseId = await claimPendingGuestAudit();
+      if (cancelled) return;
+      if (claimedCaseId) {
+        router.replace(`/cases/${claimedCaseId}`);
         return;
       }
 

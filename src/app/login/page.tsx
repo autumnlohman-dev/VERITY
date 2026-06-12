@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { syncOutcomes } from '@/lib/outcomes/store'
 import { syncWorkflows } from '@/lib/agent/advocacyAgent'
 import { resumePendingCheckout } from '@/lib/checkout'
+import { claimPendingGuestAudit } from '@/lib/guestClaim'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -18,10 +19,18 @@ export default function LoginPage() {
   const supabase = createClient()
 
   // Once a session exists, claim any guest-accumulated records, resume a pending
-  // checkout if the user came here to buy, otherwise land on the dashboard.
+  // checkout if the user came here to buy, import a pending guest audit into a
+  // real case (landing them on it), otherwise land on the dashboard.
   async function completeSignedIn() {
     await Promise.all([syncOutcomes(), syncWorkflows()])
     if (resumePendingCheckout()) return
+    // Carry a guest audit through signup: turn it into a saved case and go
+    // straight there, so the user sees the exact audit they ran — now saved.
+    const claimedCaseId = await claimPendingGuestAudit()
+    if (claimedCaseId) {
+      router.push(`/cases/${claimedCaseId}`)
+      return
+    }
     router.push('/dashboard')
   }
 
