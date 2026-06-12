@@ -10,6 +10,8 @@ import { startSingleDisputeCheckout, startMembershipCheckout } from "@/lib/check
 import {
   buildSubstitutionMap,
   getMissingFields,
+  hasUnfilledPlaceholders,
+  REDUNDANT_ADDRESS_PLACEHOLDERS,
   todayLongDate,
   type MissingField,
   type MissingFieldKey,
@@ -125,6 +127,10 @@ function substitutePlaceholders(
       if (dropLineWhenEmpty.has(normalized) && !map[normalized]) {
         return false;
       }
+      // Redundant address component line — the full address renders via [ADDRESS].
+      if (REDUNDANT_ADDRESS_PLACEHOLDERS.has(normalized)) {
+        return false;
+      }
     }
     return true;
   });
@@ -180,7 +186,18 @@ type Block =
   | { kind: "h1" | "h2" | "h3"; text: string }
   | { kind: "p"; text: string }
   | { kind: "ul" | "ol"; items: string[] }
+  | { kind: "table"; headers: string[]; rows: string[][] }
   | { kind: "hr" };
+
+// A markdown table separator row, e.g. `|---|---|` or `| :-- | --: |`.
+function isTableSeparator(line: string): boolean {
+  const s = line.trim();
+  return /\|/.test(s) && /^[\s|:-]+$/.test(s) && (s.match(/-/g)?.length ?? 0) >= 2;
+}
+
+function splitTableRow(line: string): string[] {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+}
 
 function parseMarkdown(src: string): Block[] {
   const lines = src.replace(/\r\n/g, "\n").split("\n");
@@ -242,6 +259,19 @@ function parseMarkdown(src: string): Block[] {
       continue;
     }
 
+    // Table: a header row followed by a |---|---| separator, then data rows.
+    if (trimmed.includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+      const headers = splitTableRow(trimmed);
+      i += 2; // consume header + separator
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].trim() && lines[i].includes("|")) {
+        rows.push(splitTableRow(lines[i]));
+        i++;
+      }
+      blocks.push({ kind: "table", headers, rows });
+      continue;
+    }
+
     const paraLines: string[] = [];
     while (i < lines.length) {
       const t = lines[i].trim();
@@ -252,7 +282,8 @@ function parseMarkdown(src: string): Block[] {
         t.startsWith("### ") ||
         isBullet(t) ||
         isNumbered(t) ||
-        isHr(t)
+        isHr(t) ||
+        (t.includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1]))
       )
         break;
       paraLines.push(lines[i]);
@@ -380,6 +411,56 @@ function MarkdownLetter({ content }: { content: string }) {
                 ))}
               </ol>
             );
+          case "table":
+            return (
+              <table
+                key={idx}
+                style={{
+                  borderCollapse: "collapse",
+                  width: "100%",
+                  margin: "0 0 16px",
+                  fontSize: "13px",
+                }}
+              >
+                <thead>
+                  <tr>
+                    {b.headers.map((h, hi) => (
+                      <th
+                        key={hi}
+                        style={{
+                          textAlign: "left",
+                          borderBottom: "2px solid #D8D2C8",
+                          padding: "6px 10px",
+                          color: "#1A1A1A",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {renderInline(h, `th-${idx}-${hi}`)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {b.rows.map((row, ri) => (
+                    <tr key={ri}>
+                      {row.map((cell, ci) => (
+                        <td
+                          key={ci}
+                          style={{
+                            borderBottom: "1px solid #ECE8E1",
+                            padding: "6px 10px",
+                            verticalAlign: "top",
+                            color: "#2A2520",
+                          }}
+                        >
+                          {renderInline(cell, `td-${idx}-${ri}-${ci}`)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
           case "hr":
             return (
               <hr
@@ -411,7 +492,7 @@ function formatLongDate(iso: string | null): string {
   }
 }
 
-const SUBMISSION_OPTIONS = [
+const INSURED_SUBMISSION_OPTIONS = [
   {
     method: "Submit online",
     color: "#4A90D9",
@@ -432,16 +513,39 @@ const SUBMISSION_OPTIONS = [
   },
 ];
 
+const SELF_PAY_SUBMISSION_OPTIONS = [
+  {
+    method: "Send to the provider's billing office",
+    color: "#7A9E87",
+    detail:
+      "Mail this letter to the patient billing / accounts-receivable department shown on your itemized statement. Use certified mail with return receipt for dated proof of delivery — or use “Mail it for me” below to have us print and send it.",
+  },
+  {
+    method: "Dispute under the No Surprises Act",
+    color: "#4A90D9",
+    detail:
+      "If your final charges exceed your Good Faith Estimate by $400 or more, you can use the federal Patient-Provider Dispute Resolution process at cms.gov/nosurprises or 1-800-985-3059 — generally within 120 days of the bill.",
+  },
+  {
+    method: "Request itemization and a self-pay discount",
+    color: "#C8A97E",
+    detail:
+      "Ask the billing office in writing for a fully itemized statement and their self-pay / prompt-pay discount and financial-assistance policy before paying any disputed amount.",
+  },
+];
+
 // ─── Patient info panel ──────────────────────────────────────────────────────
 function PatientInfoPanel({
   caseId,
   initial,
   defaultOpen,
+  isSelfPay,
   onSaved,
 }: {
   caseId: string;
   initial: PatientInfo;
   defaultOpen: boolean;
+  isSelfPay: boolean;
   onSaved: (next: PatientInfo) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -470,11 +574,16 @@ function PatientInfoPanel({
       placeholder: "jane@example.com",
       type: "email",
     },
-    {
-      key: "member_id",
-      label: "Insurance member ID",
-      placeholder: "XYZ123456789",
-    },
+    // Insurance member ID is meaningless for self-pay/uninsured patients — omit it.
+    ...(isSelfPay
+      ? []
+      : [
+          {
+            key: "member_id" as keyof PatientInfo,
+            label: "Insurance member ID",
+            placeholder: "From your insurance card",
+          },
+        ]),
     {
       key: "account_number",
       label: "Provider account number",
@@ -1434,9 +1543,14 @@ export default function LetterPage({
     caseDeadlines.find((d) => d.daysRemaining >= 0) ?? caseDeadlines[0] ?? null;
   const patientInfo = caseRow.patient_info ?? {};
   const patientInfoFilled = Boolean(patientInfo.name?.trim());
+  const isSelfPay = /self|uninsured/i.test(caseRow.insurance_type ?? "");
+  const submissionOptions = isSelfPay ? SELF_PAY_SUBMISSION_OPTIONS : INSURED_SUBMISSION_OPTIONS;
   const displayContent = substitutePlaceholders(letter.letter_content, patientInfo, {
     provider_name: caseRow.provider_name,
   });
+  // Gate download / print / mail: never ship a letter that still has an unfilled
+  // [BRACKET] placeholder. true → safe to download/print/mail.
+  const letterReady = !hasUnfilledPlaceholders(displayContent);
 
   return (
     <div style={{ background: "#0D0D0D", minHeight: "100vh" }}>
@@ -1473,7 +1587,9 @@ export default function LetterPage({
         </span>
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <button
-            onClick={() => window.print()}
+            onClick={() => { if (letterReady) window.print(); }}
+            disabled={!letterReady}
+            title={letterReady ? "" : "Fill in the highlighted details below before printing"}
             style={{
               ...sans("11px", "#A89F96"),
               letterSpacing: "0.15em",
@@ -1481,30 +1597,27 @@ export default function LetterPage({
               border: "1px solid #242424",
               backgroundColor: "transparent",
               padding: "8px 16px",
-              cursor: "pointer",
+              cursor: letterReady ? "pointer" : "not-allowed",
+              opacity: letterReady ? 1 : 0.45,
               transition: "color 0.2s, border-color 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = "#F5F0E8";
-              e.currentTarget.style.borderColor = "#3A3530";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = "#A89F96";
-              e.currentTarget.style.borderColor = "#242424";
             }}
           >
             Print
           </button>
           <button
             onClick={() => {
-              const missing = getMissingFields(letter.letter_content, {
-                name: patientInfo.name,
-                address: patientInfo.address,
-                account_number: patientInfo.account_number,
-                member_id: patientInfo.member_id,
-                provider_name: caseRow.provider_name,
-              });
-              if (missing.length === 0) {
+              const missing = getMissingFields(
+                letter.letter_content,
+                {
+                  name: patientInfo.name,
+                  address: patientInfo.address,
+                  account_number: patientInfo.account_number,
+                  member_id: patientInfo.member_id,
+                  provider_name: caseRow.provider_name,
+                },
+                { isSelfPay }
+              );
+              if (missing.length === 0 && letterReady) {
                 generateLetterPdf(displayContent, `dispute-letter-${caseShortId}.pdf`);
                 return;
               }
@@ -1559,6 +1672,7 @@ export default function LetterPage({
         caseId={caseRow.id}
         initial={patientInfo}
         defaultOpen={!patientInfoFilled}
+        isSelfPay={isSelfPay}
         onSaved={(next) =>
           setCaseRow((prev) => (prev ? { ...prev, patient_info: next } : prev))
         }
@@ -1611,13 +1725,13 @@ export default function LetterPage({
       >
         <div style={{ ...label("#6B635C"), marginBottom: "32px" }}>How to submit this letter</div>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          {SUBMISSION_OPTIONS.map((opt, i) => (
+          {submissionOptions.map((opt, i) => (
             <div
               key={opt.method}
               style={{
-                borderBottom: i < SUBMISSION_OPTIONS.length - 1 ? "1px solid #1C1C1C" : "none",
-                paddingBottom: i < SUBMISSION_OPTIONS.length - 1 ? "24px" : "0",
-                marginBottom: i < SUBMISSION_OPTIONS.length - 1 ? "24px" : "0",
+                borderBottom: i < submissionOptions.length - 1 ? "1px solid #1C1C1C" : "none",
+                paddingBottom: i < submissionOptions.length - 1 ? "24px" : "0",
+                marginBottom: i < submissionOptions.length - 1 ? "24px" : "0",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
@@ -1645,39 +1759,60 @@ export default function LetterPage({
           ))}
         </div>
         <p style={{ ...sans("12px", "#6B635C"), fontStyle: "italic", marginTop: "24px", lineHeight: 1.65 }}>
-          Keep copies of everything you send and note the date submitted. Your insurer is required by law to acknowledge
-          receipt within 10 business days and respond within 30.
+          {isSelfPay
+            ? "Keep copies of everything you send and note the date submitted. Request a written response and an itemized, corrected statement before paying any disputed amount."
+            : "Keep copies of everything you send and note the date submitted. Your insurer is required by law to acknowledge receipt within 10 business days and respond within 30."}
         </p>
       </motion.div>
 
-      {/* Mail it for me (Lob) */}
-      <MailItPanel
-        caseId={caseRow.id}
-        providerName={caseRow.provider_name}
-        patientInfo={{ name: patientInfo.name, address: patientInfo.address }}
-        initial={{
-          lobLetterId: caseRow.lob_letter_id,
-          status: caseRow.mail_status,
-          testMode: !!caseRow.mail_test_mode,
-          certified: !!caseRow.mail_certified,
-          expectedDelivery: caseRow.mail_expected_delivery,
-          to: caseRow.mail_to,
-        }}
-        onMailed={(next: MailState) =>
-          setCaseRow((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  lob_letter_id: next.lobLetterId,
-                  mail_status: next.status,
-                  mail_test_mode: next.testMode,
-                  mail_certified: next.certified,
-                  mail_expected_delivery: next.expectedDelivery,
-                }
-              : prev
-          )
-        }
-      />
+      {/* Mail it for me (Lob) — blocked until the letter has no [placeholders] */}
+      {caseRow.lob_letter_id || letterReady ? (
+        <MailItPanel
+          caseId={caseRow.id}
+          providerName={caseRow.provider_name}
+          patientInfo={{ name: patientInfo.name, address: patientInfo.address }}
+          initial={{
+            lobLetterId: caseRow.lob_letter_id,
+            status: caseRow.mail_status,
+            testMode: !!caseRow.mail_test_mode,
+            certified: !!caseRow.mail_certified,
+            expectedDelivery: caseRow.mail_expected_delivery,
+            to: caseRow.mail_to,
+          }}
+          onMailed={(next: MailState) =>
+            setCaseRow((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    lob_letter_id: next.lobLetterId,
+                    mail_status: next.status,
+                    mail_test_mode: next.testMode,
+                    mail_certified: next.certified,
+                    mail_expected_delivery: next.expectedDelivery,
+                  }
+                : prev
+            )
+          }
+        />
+      ) : (
+        <div
+          style={{
+            maxWidth: "720px",
+            margin: "32px auto 0",
+            backgroundColor: "#111111",
+            border: "1px solid #242424",
+            borderLeft: "4px solid #C8A97E",
+            padding: "32px",
+          }}
+        >
+          <div style={{ ...serif("22px") }}>Complete your letter to mail it.</div>
+          <p style={{ ...sans("13px", "#A89F96"), marginTop: "10px", lineHeight: 1.65, maxWidth: "560px" }}>
+            Your letter still has details to fill in. Add your information above (look for the
+            highlighted fields), and the “Mail it for me” option will unlock — so we never mail a
+            letter with blank placeholders.
+          </p>
+        </div>
+      )}
 
       {/* Upsell card */}
       <motion.div

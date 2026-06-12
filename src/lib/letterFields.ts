@@ -55,7 +55,9 @@ const FIELD_DEFS: Record<
   },
   member_id: {
     label: "Insurance member ID",
-    placeholder: "XYZ123456789",
+    // A neutral hint, never a realistic-looking demo value that could be
+    // mistaken for a real ID and shipped into a letter.
+    placeholder: "From your insurance card",
     placeholderPatterns: [
       "member id",
       "member number",
@@ -81,9 +83,35 @@ function letterContainsPlaceholder(letter: string, patterns: string[]): boolean 
   return patterns.some((p) => lower.includes(`[${p}]`));
 }
 
+// Address sub-line placeholders a model sometimes emits in addition to the
+// single [ADDRESS] block. The full address renders once via [ADDRESS] /
+// [Address Line 1], so any remaining component line is redundant and dropped.
+export const REDUNDANT_ADDRESS_PLACEHOLDERS = new Set([
+  "city, state, zip",
+  "city, st zip",
+  "city/state/zip",
+  "city state zip",
+  "city",
+  "state",
+  "zip",
+  "zip code",
+  "state, zip",
+  "state zip",
+  "address line 2",
+  "address line 3",
+]);
+
+// True if the letter still contains ANY unfilled [Bracketed] placeholder after
+// substitution. This is the hard gate for download / print / mail — a paying
+// customer must never ship a letter with a leftover [ACCOUNT NUMBER] etc.
+export function hasUnfilledPlaceholders(content: string): boolean {
+  return /\[[A-Za-z][^\]\n]{0,60}\]/.test(content);
+}
+
 export function getMissingFields(
   letterContent: string,
-  sources: LetterFieldSources
+  sources: LetterFieldSources,
+  opts?: { isSelfPay?: boolean }
 ): MissingField[] {
   const missing: MissingField[] = [];
 
@@ -101,8 +129,9 @@ export function getMissingFields(
     }
   }
 
-  // Member ID — only ask if the letter actually references it.
-  {
+  // Member ID — only ask if the letter references it AND the patient is insured.
+  // Self-pay patients have no insurer, so never prompt for an insurance ID.
+  if (!opts?.isSelfPay) {
     const def = FIELD_DEFS.member_id;
     const hasPlaceholder = letterContainsPlaceholder(letterContent, def.placeholderPatterns);
     const value = sources.member_id?.trim();
@@ -249,6 +278,8 @@ export function applyLetterSubstitutions(
     for (const m of line.matchAll(/\[([^\[\]\n]{2,40})\]/g)) {
       const normalized = m[1].trim().toLowerCase();
       if (DROP_LINE_WHEN_EMPTY.has(normalized) && !map[normalized]) return false;
+      // Redundant address component line — the full address renders via [ADDRESS].
+      if (REDUNDANT_ADDRESS_PLACEHOLDERS.has(normalized)) return false;
     }
     return true;
   });

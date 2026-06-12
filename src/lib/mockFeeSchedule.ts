@@ -13,6 +13,9 @@ export interface FeeScheduleRow {
   non_facility_amount: number | null
   allowed_amount: number | null
   locality: string | null
+  // Which CMS schedule priced this code. Lab codes resolve via the Clinical
+  // Laboratory Fee Schedule fallback, and the audit must cite CLFS (not PFS).
+  schedule?: 'PFS' | 'CLFS'
 }
 
 export interface PtpEditRow {
@@ -137,7 +140,7 @@ export async function batchFeeSchedule(
 
   if (error) throw new Error(`Fee schedule lookup failed: ${error.message}`)
   for (const row of (data ?? []) as FeeScheduleRow[]) {
-    map.set(normalize(row.cpt_code), row)
+    map.set(normalize(row.cpt_code), { ...row, schedule: 'PFS' })
   }
 
   // Clinical Lab Fee Schedule fallback: lab codes (e.g. CMP 80053, CBC 85025)
@@ -183,7 +186,8 @@ export async function batchClfsFeeSchedule(
       facility_amount: null,
       non_facility_amount: null,
       allowed_amount: row.allowed_amount ?? null,
-      locality: row.locality ?? NATIONAL_LOCALITY
+      locality: row.locality ?? NATIONAL_LOCALITY,
+      schedule: 'CLFS'
     })
   }
   return map

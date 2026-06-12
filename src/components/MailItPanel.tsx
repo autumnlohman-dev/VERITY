@@ -220,6 +220,14 @@ export function MailItPanel({
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
+        // In Lob test mode, address verification is simulated; never surface the
+        // raw "set primary_line to 'deliverable'" developer guidance to the user.
+        if (json.testMode) {
+          setError(
+            "Test mode: address verification is simulated — the address wasn't actually checked. Connect a live Lob key to verify and mail for real."
+          );
+          return;
+        }
         if (res.status === 422 && json.code === "undeliverable") {
           setError(json.error || "The provider's address couldn't be verified as deliverable.");
           if (json.suggestion) {

@@ -139,10 +139,19 @@ E&M DISPUTE GUIDANCE:
 - If the outcome is 'confirmed', request that the charge be adjusted to the E&M level supported by the visit's complexity and time.`
         : ''
 
+    // Self-pay letters address the provider's billing office and omit insurer
+    // fields; insured letters address the payer.
+    const isSelfPay = /self|uninsured/i.test(safeCaseData.insurance_type || '')
+    // The prose count must match the itemized list EXACTLY (a real letter said
+    // "ten (10)" for an 11-error bill). Inject the authoritative count.
+    const errorCount = safeErrors.length
+
     // Generate the dispute letter with Claude
     const message = await anthropic().messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2000,
+      // Enough headroom for every error section (tables included) — 2000 tokens
+      // truncated multi-error letters mid-table.
+      max_tokens: 8000,
       system: `You are a medical billing advocate generating a formal dispute letter
 on behalf of a patient. Use precise regulatory language. Cite the specific federal
 rule violated for each error. Be firm but professional. Never threaten legal action.
@@ -162,19 +171,26 @@ Insurance Type: ${safeCaseData.insurance_type}
 Total Billed: $${safeCaseData.amount_billed}
 Expected Amount: $${safeCaseData.amount_expected}
 Date of Service: ${safeCaseData.date_of_service || 'See attached bill'}
-Patient: [PATIENT NAME]
-Account Number: [ACCOUNT NUMBER]
-Member ID: [MEMBER ID]
+
+This bill contains exactly ${errorCount} billing ${errorCount === 1 ? 'error' : 'errors'}, itemized below. When you state the number of errors anywhere in the letter, use exactly this number (${errorCount}) — do not recount, round, or summarize to a different figure. Write a clearly formatted section for EVERY one of the ${errorCount} errors; do not omit, merge, or stop early.
 
 Errors Found:
 ${JSON.stringify(safeErrors, null, 2)}${userNotesSection}${emReviewSection}
 
+SENDER BLOCK — begin the letter with exactly these placeholder tokens, each on its own line:
+[PATIENT NAME]
+[ADDRESS]
+[PHONE]
+[EMAIL]
+
+The ONLY bracketed placeholders allowed anywhere in the letter are: [PATIENT NAME], [ADDRESS], [PHONE], [EMAIL], [ACCOUNT NUMBER]${isSelfPay ? '' : ', [MEMBER ID]'}. Represent the patient's full mailing address with the single token [ADDRESS] — never split it into separate street / city / state / ZIP lines, and never add a "[City, State, ZIP]" line. Reference the account number as [ACCOUNT NUMBER] where appropriate.${isSelfPay ? ' This is a SELF-PAY / uninsured patient: do NOT include a Member ID line or any insurer/member-portal references.' : ''}
+
 The letter should:
-1. Be addressed to the insurance company claims review department
-2. Clearly state each billing error with the specific rule violated
+1. Be addressed to ${isSelfPay ? "the provider's patient billing / accounts-receivable department" : "the insurance company's claims review department"}
+2. State each billing error with the specific rule violated, citing the EXACT "rule_violated" text provided for each error verbatim — in particular, do NOT relabel a Clinical Laboratory Fee Schedule citation as the Physician Fee Schedule (or vice versa)
 3. Request correction of each error with the correct amount
-4. Reference the No Surprises Act and applicable patient rights
-5. Include a professional closing requesting response within 30 days`
+4. Reference ${isSelfPay ? "the No Surprises Act good-faith-estimate protections and the Hospital Price Transparency Rule" : "the No Surprises Act and applicable patient rights"}
+5. Include a professional closing requesting a corrected statement within 30 days`
       }]
     })
 

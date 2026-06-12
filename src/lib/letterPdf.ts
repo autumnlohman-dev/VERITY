@@ -892,6 +892,7 @@ const STATUTE_MAP: Statute[] = [
   { match: ["100-04", "medicare claims processing", "redetermination", "medicare"], name: "Medicare Appeals (Pub. 100-04)", summary: "Medicare Claims Processing Manual. Establishes the multi-level Medicare appeal process beginning with redetermination by the Medicare Administrative Contractor." },
   { match: ["ncci", "ptp"], name: "NCCI Procedure-to-Procedure Edits", summary: "CMS National Correct Coding Initiative edits identify code pairs that should not be billed together (unbundling)." },
   { match: ["mue", "medically unlikely"], name: "Medically Unlikely Edits (MUE)", summary: "CMS per-line unit limits that identify quantities exceeding the clinically supportable maximum for a code." },
+  { match: ["clinical laboratory fee schedule", "clfs", "1395l(h)", "1833(h)", "subpart g"], name: "Medicare Clinical Laboratory Fee Schedule", summary: "Social Security Act § 1833(h) (42 U.S.C. § 1395l(h)); 42 CFR Part 414, Subpart G. CMS benchmark allowable amounts for clinical laboratory tests, used to identify lab charges priced above the Medicare-allowed rate." },
   { match: ["physician fee schedule", "pfs", "cms rate", "allowed amount", "fee schedule"], name: "Medicare Physician Fee Schedule", summary: "CMS benchmark allowable amounts used to identify charges priced above the Medicare-allowed rate." },
   { match: ["transparency in coverage"], name: "Transparency in Coverage Rule", summary: "Requires payers to disclose negotiated in-network rates, supporting comparison of billed charges to contracted rates." },
 ];

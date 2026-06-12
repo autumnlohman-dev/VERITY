@@ -105,6 +105,16 @@ function checkOvercharge(
     const confidence: Confidence =
       ratio >= 2 ? 'HIGH' : ratio >= 1.5 ? 'MEDIUM' : 'LOW'
 
+    // Cite the schedule that actually priced the code. Lab codes resolve via the
+    // CLFS fallback and must NOT be cited as the Physician Fee Schedule.
+    const isClfs = row.schedule === 'CLFS'
+    const scheduleName = isClfs
+      ? 'Medicare Clinical Laboratory Fee Schedule'
+      : 'Medicare Physician Fee Schedule'
+    const ruleViolated = isClfs
+      ? 'Medicare Clinical Laboratory Fee Schedule (Social Security Act § 1833(h), 42 U.S.C. § 1395l(h); 42 CFR Part 414, Subpart G) — charges materially above the CLFS allowed amount for the same lab HCPCS/CPT code.'
+      : 'Medicare Physician Fee Schedule (42 CFR § 414) — charges materially above the PFS allowed amount for the same CPT code and locality.'
+
     errors.push({
       cpt_code: code,
       description: item.description ?? row.description ?? '',
@@ -112,9 +122,8 @@ function checkOvercharge(
       billed_amount: billed,
       expected_amount: expectedTotal,
       confidence,
-      explanation: `Provider billed $${billed.toFixed(2)} for CPT ${code}, which is ${((ratio - 1) * 100).toFixed(0)}% above the Medicare Physician Fee Schedule allowed amount of $${expectedTotal.toFixed(2)}. Overcharge of $${overcharge.toFixed(2)}.`,
-      rule_violated:
-        'Medicare Physician Fee Schedule (42 CFR § 414) — charges materially above the PFS allowed amount for the same CPT code and locality.'
+      explanation: `Provider billed $${billed.toFixed(2)} for CPT ${code}, which is ${((ratio - 1) * 100).toFixed(0)}% above the ${scheduleName} allowed amount of $${expectedTotal.toFixed(2)}. Overcharge of $${overcharge.toFixed(2)}.`,
+      rule_violated: ruleViolated
     })
   }
   return errors

@@ -75,6 +75,14 @@ function inline(text: string): string {
     .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
 }
 
+function isTableSep(l: string): boolean {
+  const s = l.trim()
+  return /\|/.test(s) && /^[\s|:-]+$/.test(s) && (s.match(/-/g)?.length ?? 0) >= 2
+}
+function tableCells(l: string): string[] {
+  return l.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim())
+}
+
 function markdownToHtml(md: string): string {
   const lines = md.replace(/\r\n/g, '\n').split('\n')
   const out: string[] = []
@@ -85,6 +93,22 @@ function markdownToHtml(md: string): string {
     const t = raw.trim()
     if (!t) {
       i++
+      continue
+    }
+    // Table: header row + |---|---| separator + data rows.
+    if (t.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+      const headers = tableCells(t)
+      i += 2
+      const rows: string[][] = []
+      while (i < lines.length && lines[i].trim() && lines[i].includes('|')) {
+        rows.push(tableCells(lines[i]))
+        i++
+      }
+      const thead = `<thead><tr>${headers.map((h) => `<th>${inline(h)}</th>`).join('')}</tr></thead>`
+      const tbody = `<tbody>${rows
+        .map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`)
+        .join('')}</tbody>`
+      out.push(`<table>${thead}${tbody}</table>`)
       continue
     }
     if (/^###\s+/.test(t)) { out.push(`<h3>${inline(t.replace(/^###\s+/, ''))}</h3>`); i++; continue }
@@ -104,7 +128,14 @@ function markdownToHtml(md: string): string {
     const para: string[] = []
     while (i < lines.length) {
       const pl = lines[i].trim()
-      if (!pl || /^#{1,3}\s+/.test(pl) || isBullet(pl) || /^(-{3,}|_{3,}|\*{3,})$/.test(pl)) break
+      if (
+        !pl ||
+        /^#{1,3}\s+/.test(pl) ||
+        isBullet(pl) ||
+        /^(-{3,}|_{3,}|\*{3,})$/.test(pl) ||
+        (pl.includes('|') && i + 1 < lines.length && isTableSep(lines[i + 1]))
+      )
+        break
       para.push(inline(lines[i]))
       i++
     }
@@ -130,6 +161,9 @@ function buildLetterHtml(bodyMarkdown: string): string {
     ul { margin: 0 0 10pt 18pt; padding: 0; }
     li { margin: 0 0 4pt; }
     hr { border: none; border-top: 1px solid #cccccc; margin: 14pt 0; }
+    table { border-collapse: collapse; width: 100%; margin: 0 0 10pt; font-size: 10pt; }
+    th { text-align: left; border-bottom: 1.5px solid #999999; padding: 4pt 6pt; }
+    td { border-bottom: 0.5px solid #dddddd; padding: 4pt 6pt; vertical-align: top; }
   </style></head><body><div class="page"><div class="addr-reserve"></div>${body}</div></body></html>`
 }
 
@@ -215,9 +249,17 @@ export async function POST(request: Request) {
       )
     }
 
+    // In Lob test mode, address verification is simulated — real addresses come
+    // back "undeliverable" with developer guidance to use magic test values.
+    // Don't run (or block on) verification in test mode, and never surface that
+    // raw guidance to the user.
+    const testMode = isLobTestKey()
+
     // Verify the recipient (provider) address first; block on a definitive
-    // undeliverable so we never pay to mail into the void.
-    const verification = await verifyUsAddress(toParsed)
+    // undeliverable so we never pay to mail into the void. (Live mode only.)
+    const verification = testMode
+      ? { deliverable: true, deliverability: 'unverified' as const, normalized: undefined }
+      : await verifyUsAddress(toParsed)
     if (!verification.deliverable) {
       return NextResponse.json(
         {
@@ -289,8 +331,11 @@ export async function POST(request: Request) {
       if (lobErr instanceof LobError && status >= 400 && status < 500) {
         return NextResponse.json(
           {
-            error: `The mail service couldn't accept this letter: ${humanizeLobMessage(lobErr.message)}`,
+            error: testMode
+              ? 'Test mode: address verification is simulated, so the mail service rejected this test send. Connect a live Lob key to mail for real.'
+              : `The mail service couldn't accept this letter: ${humanizeLobMessage(lobErr.message)}`,
             code: 'lob_rejected',
+            testMode,
           },
           { status: 422 }
         )
@@ -300,8 +345,6 @@ export async function POST(request: Request) {
         { status: 502 }
       )
     }
-
-    const testMode = isLobTestKey()
 
     // Persist mail state via the service role (these columns are server-only).
     const admin = createAdminClient()
