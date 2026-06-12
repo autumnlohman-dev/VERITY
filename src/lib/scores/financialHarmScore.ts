@@ -8,6 +8,18 @@ export interface FHSUserInputs {
   estimatedMonthlyIncome?: number
 }
 
+// The case's real dollar stakes, so the score reflects what the patient actually
+// faces — not just what the cross-document CBS layer happened to compute (which
+// is $0 for a single self-pay bill, where billExtractionToCBS never sets a
+// patient-responsibility figure).
+export interface CaseStakes {
+  amountBilled?: number
+  potentialSavings?: number
+  // Outstanding balance the patient is actually being asked to pay, when known.
+  patientResponsibility?: number
+  isSelfPay?: boolean
+}
+
 export interface FHSComponent {
   name: string
   weight: number
@@ -28,13 +40,17 @@ export interface FinancialHarmScore {
 }
 
 function normalizeDollarAmount(amount: number): number {
+  // More sensitive across the $1k–5k band: for most households a ~$2k medical
+  // bill is a serious stake, not a "dispute when convenient" footnote.
   if (amount <= 0) return 0
   if (amount >= 10000) return 100
-  if (amount >= 5000) return 80
-  if (amount >= 2500) return 60
-  if (amount >= 1000) return 40
-  if (amount >= 500) return 20
-  return 10
+  if (amount >= 5000) return 85
+  if (amount >= 2500) return 70
+  if (amount >= 1500) return 60
+  if (amount >= 1000) return 50
+  if (amount >= 500) return 30
+  if (amount >= 100) return 15
+  return 8
 }
 
 function normalizeDeadlineUrgency(deadlines: DeadlineResult[]): number {
@@ -60,10 +76,26 @@ function regulatoryStrength(cbsSet: NormalizedCBSSet): number {
 export function calculateFinancialHarmScore(
   cbsSet: NormalizedCBSSet,
   deadlines: DeadlineResult[],
-  userInputs: FHSUserInputs
+  userInputs: FHSUserInputs,
+  caseStakes?: CaseStakes
 ): FinancialHarmScore {
-  const totalDollarAtRisk = cbsSet.totalDollarAtRisk +
+  // What the CBS cross-document layer derived (EOB patient-responsibility +
+  // cross-document discrepancy impact). This is $0 for a single self-pay bill.
+  const cbsDerived = cbsSet.totalDollarAtRisk +
     cbsSet.documents.reduce((sum, d) => sum + (d.totalPatientResponsibility || 0), 0)
+
+  // What the actual case says is at stake. For a self-pay patient the whole
+  // outstanding bill is their exposure (they owe it all); for an insured patient
+  // it's the disputed overcharge / balance-billed amount. Use the patient's
+  // known outstanding responsibility when we have it, else the billed total.
+  const billed = Math.max(0, caseStakes?.amountBilled ?? 0)
+  const savings = Math.max(0, caseStakes?.potentialSavings ?? 0)
+  const patientResp = Math.max(0, caseStakes?.patientResponsibility ?? 0)
+  const caseAtRisk = caseStakes?.isSelfPay
+    ? Math.max(patientResp, billed)
+    : Math.max(patientResp, savings)
+
+  const totalDollarAtRisk = Math.max(cbsDerived, caseAtRisk)
 
   const components: FHSComponent[] = [
     {

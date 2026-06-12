@@ -18,6 +18,7 @@ import {
 } from "@/lib/letterFields";
 import { generateLetterPdf } from "@/lib/letterPdf";
 import { deadlinesForCase } from "@/lib/deadlines/forCase";
+import { isSelfPay } from "@/lib/insuranceMapping";
 import { filterOutEmErrors, type EmReview } from "@/lib/emReview";
 import type { BillingError } from "@/lib/errorDetection";
 import { MailItPanel, type MailState, type MailAddress } from "@/components/MailItPanel";
@@ -1534,17 +1535,21 @@ export default function LetterPage({
   // L2: derive the submission deadline from the same per-rule calculator the
   // case page's DeadlineTracker uses, instead of a hardcoded letter-date + 30.
   // Show the most pressing one (soonest still-open, else the most overdue).
+  // Shared self-pay detection (lib/insuranceMapping) drives BOTH the submission
+  // guide and the deadline content, so a self-pay patient gets the GFE/PPDR path
+  // in both places instead of insurer cost-sharing guidance.
+  const selfPay = isSelfPay(caseRow.insurance_type);
   const caseDeadlines = deadlinesForCase(
     caseRow.bill_data as Record<string, unknown> | null,
     caseRow.provider_name,
-    caseRow.id
+    caseRow.id,
+    { selfPay }
   );
   const topDeadline =
     caseDeadlines.find((d) => d.daysRemaining >= 0) ?? caseDeadlines[0] ?? null;
   const patientInfo = caseRow.patient_info ?? {};
   const patientInfoFilled = Boolean(patientInfo.name?.trim());
-  const isSelfPay = /self|uninsured/i.test(caseRow.insurance_type ?? "");
-  const submissionOptions = isSelfPay ? SELF_PAY_SUBMISSION_OPTIONS : INSURED_SUBMISSION_OPTIONS;
+  const submissionOptions = selfPay ? SELF_PAY_SUBMISSION_OPTIONS : INSURED_SUBMISSION_OPTIONS;
   const displayContent = substitutePlaceholders(letter.letter_content, patientInfo, {
     provider_name: caseRow.provider_name,
   });
@@ -1615,7 +1620,7 @@ export default function LetterPage({
                   member_id: patientInfo.member_id,
                   provider_name: caseRow.provider_name,
                 },
-                { isSelfPay }
+                { isSelfPay: selfPay }
               );
               if (missing.length === 0 && letterReady) {
                 generateLetterPdf(displayContent, `dispute-letter-${caseShortId}.pdf`);
@@ -1672,7 +1677,7 @@ export default function LetterPage({
         caseId={caseRow.id}
         initial={patientInfo}
         defaultOpen={!patientInfoFilled}
-        isSelfPay={isSelfPay}
+        isSelfPay={selfPay}
         onSaved={(next) =>
           setCaseRow((prev) => (prev ? { ...prev, patient_info: next } : prev))
         }
@@ -1759,7 +1764,7 @@ export default function LetterPage({
           ))}
         </div>
         <p style={{ ...sans("12px", "#6B635C"), fontStyle: "italic", marginTop: "24px", lineHeight: 1.65 }}>
-          {isSelfPay
+          {selfPay
             ? "Keep copies of everything you send and note the date submitted. Request a written response and an itemized, corrected statement before paying any disputed amount."
             : "Keep copies of everything you send and note the date submitted. Your insurer is required by law to acknowledge receipt within 10 business days and respond within 30."}
         </p>

@@ -13,6 +13,7 @@ import { FinancialTimeline } from "@/components/FinancialTimeline";
 import { OutcomeFollowUp } from "@/components/OutcomeFollowUp";
 import { calculateFinancialHarmScore, type FHSUserInputs } from "@/lib/scores/financialHarmScore";
 import { calculateDeadlines } from "@/lib/deadlines/calculator";
+import { isSelfPay } from "@/lib/insuranceMapping";
 import { cbsSetForCase } from "@/lib/deadlines/forCase";
 import type { NormalizedCBSSet } from "@/lib/cbs/schema";
 import type { DeadlineResult } from "@/lib/deadlines/calculator";
@@ -453,11 +454,11 @@ export default function CaseDetailPage({
   const [unlocked, setUnlocked] = useState(false);
   // Set when we arrived here because the uploaded/imported bill was already in
   // the dashboard (?dup=1) — the audit was collapsed onto this existing case.
-  const [alreadyInDashboard, setAlreadyInDashboard] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setAlreadyInDashboard(new URLSearchParams(window.location.search).get("dup") === "1");
-  }, []);
+  // Read once from the URL via a lazy initializer (no setState-in-effect).
+  const [alreadyInDashboard] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("dup") === "1";
+  });
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   // H3: re-run control for a case stranded in 'auditing' (extraction failed or
@@ -533,16 +534,22 @@ export default function CaseDetailPage({
           caseData.id
         );
         const bd = caseData.bill_data as BillData | null;
+        const selfPay = isSelfPay(caseData.insurance_type ?? bd?.insuranceType);
+        const stakes = {
+          amountBilled: Number(caseData.amount_billed ?? 0),
+          potentialSavings: Number(caseData.potential_savings ?? 0),
+          isSelfPay: selfPay,
+        };
         if (set) {
           setCbsSet(set);
-          const dls = calculateDeadlines(set);
+          const dls = calculateDeadlines(set, { selfPay });
           setDeadlines(dls);
           // Hydrate a previously-answered Financial Harm Score questionnaire so
           // the saved score renders instead of the blank form. We recompute from
           // the saved inputs (deterministic) so the score tracks the current CBS.
           if (bd?.fhs_inputs) {
             setFhsInputs(bd.fhs_inputs);
-            setFhs(calculateFinancialHarmScore(set, dls, bd.fhs_inputs));
+            setFhs(calculateFinancialHarmScore(set, dls, bd.fhs_inputs, stakes));
             setPredictions(
               predictAll(set, {
                 hasActiveCollection: bd.fhs_inputs.hasActiveCollectionActivity,
@@ -631,7 +638,11 @@ export default function CaseDetailPage({
     setFhsInputs(inputs);
     setEditingFhs(false);
     if (cbsSet) {
-      const computed = calculateFinancialHarmScore(cbsSet, deadlines, inputs);
+      const computed = calculateFinancialHarmScore(cbsSet, deadlines, inputs, {
+        amountBilled: Number(caseRow.amount_billed ?? 0),
+        potentialSavings: Number(caseRow.potential_savings ?? 0),
+        isSelfPay: isSelfPay(caseRow.insurance_type ?? caseRow.bill_data?.insuranceType),
+      });
       setFhs(computed);
       // v8: Financial Outcome Prediction (Component O)
       const preds = predictAll(cbsSet, {

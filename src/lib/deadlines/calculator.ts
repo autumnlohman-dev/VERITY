@@ -100,6 +100,41 @@ const DEADLINE_RULES: DeadlineRule[] = [
   },
 ]
 
+// Self-pay / uninsured patients have no insurer, so the default NSA balance-
+// billing guidance ("submit to your insurer / request in-network cost-sharing")
+// is wrong for them. Their No Surprises Act protection is the Good Faith
+// Estimate + the federal Patient-Provider Dispute Resolution (PPDR) process.
+// Same branch the letter-page submission guide uses (SELF_PAY_SUBMISSION_OPTIONS).
+const NSA_SELF_PAY = {
+  deadlineType: 'No Surprises Act — Good Faith Estimate Dispute',
+  description: 'Dispute a self-pay bill that exceeds your Good Faith Estimate',
+  actionRequired:
+    'If your final bill is at least $400 more than your Good Faith Estimate, file a dispute through the federal Patient-Provider Dispute Resolution (PPDR) process at cms.gov/nosurprises (or call 1-800-985-3059), generally within 120 days of the bill. First request a fully itemized statement and the provider\'s self-pay / financial-assistance policy in writing.',
+  escalationPath: 'Submit the PPDR dispute at cms.gov/nosurprises or call 1-800-985-3059',
+  federalBasis:
+    'No Surprises Act — Good Faith Estimate & Patient-Provider Dispute Resolution (45 C.F.R. §§ 149.610, 149.620)',
+}
+
+// Resolve a rule's patient-facing content, branching the NSA rule for self-pay.
+function resolveRule(rule: DeadlineRule, selfPay: boolean) {
+  if (selfPay && rule.ruleId === 'nsa_balance_billing') {
+    return {
+      deadlineType: NSA_SELF_PAY.deadlineType,
+      description: NSA_SELF_PAY.description,
+      actionRequired: NSA_SELF_PAY.actionRequired,
+      escalationPath: NSA_SELF_PAY.escalationPath,
+      federalBasis: NSA_SELF_PAY.federalBasis,
+    }
+  }
+  return {
+    deadlineType: rule.deadlineType,
+    description: rule.description,
+    actionRequired: rule.actionRequired,
+    escalationPath: rule.escalationPath,
+    federalBasis: rule.federalBasis,
+  }
+}
+
 function addDays(dateStr: string, days: number): string {
   try {
     const d = new Date(dateStr)
@@ -128,7 +163,11 @@ function classifyUrgency(daysRemaining: number): UrgencyLevel {
   return 'informational'
 }
 
-export function calculateDeadlines(cbsSet: NormalizedCBSSet): DeadlineResult[] {
+export function calculateDeadlines(
+  cbsSet: NormalizedCBSSet,
+  opts?: { selfPay?: boolean }
+): DeadlineResult[] {
+  const selfPay = opts?.selfPay ?? false
   const results: DeadlineResult[] = []
   const seen = new Set<string>()
 
@@ -182,17 +221,18 @@ export function calculateDeadlines(cbsSet: NormalizedCBSSet): DeadlineResult[] {
       // Skip informational deadlines that have years left — reduce noise
       if (urgencyLevel === 'informational' && daysRemaining > 365) continue
 
+      const content = resolveRule(rule, selfPay)
       results.push({
         deadlineId: crypto.randomUUID(),
-        deadlineType: rule.deadlineType,
-        description: rule.description,
+        deadlineType: content.deadlineType,
+        description: content.description,
         triggerDate,
         deadlineDate,
         daysRemaining,
         urgencyLevel,
-        actionRequired: rule.actionRequired,
-        escalationPath: rule.escalationPath,
-        applicableRegulation: rule.federalBasis,
+        actionRequired: content.actionRequired,
+        escalationPath: content.escalationPath,
+        applicableRegulation: content.federalBasis,
         estimatedRecovery: doc.totalBilled || doc.totalPatientResponsibility,
       })
     }
@@ -203,6 +243,7 @@ export function calculateDeadlines(cbsSet: NormalizedCBSSet): DeadlineResult[] {
     )
     if (hasBalanceBillingViolation && doc.billDate) {
       const rule = DEADLINE_RULES.find(r => r.ruleId === 'nsa_balance_billing')!
+      const content = resolveRule(rule, selfPay)
       const dedupeKey = `nsa_${doc.billDate}`
       if (!seen.has(dedupeKey)) {
         seen.add(dedupeKey)
@@ -210,15 +251,15 @@ export function calculateDeadlines(cbsSet: NormalizedCBSSet): DeadlineResult[] {
         const daysRemaining = daysUntilDate(deadlineDate)
         results.push({
           deadlineId: crypto.randomUUID(),
-          deadlineType: rule.deadlineType,
-          description: rule.description,
+          deadlineType: content.deadlineType,
+          description: content.description,
           triggerDate: doc.billDate,
           deadlineDate,
           daysRemaining,
           urgencyLevel: classifyUrgency(daysRemaining),
-          actionRequired: rule.actionRequired,
-          escalationPath: rule.escalationPath,
-          applicableRegulation: rule.federalBasis,
+          actionRequired: content.actionRequired,
+          escalationPath: content.escalationPath,
+          applicableRegulation: content.federalBasis,
           estimatedRecovery: cbsSet.crossDocumentDiscrepancies
             .filter(d => d.type === 'balance_billing_violation')
             .reduce((sum, d) => sum + d.estimatedDollarImpact, 0),

@@ -35,3 +35,12 @@ export function normalizeInsuranceType(input: unknown): InsuranceType {
   if (VALID.has(key as InsuranceType)) return key as InsuranceType
   return DISPLAY_TO_ENUM[key] ?? 'other'
 }
+
+// Shared self-pay / uninsured detector. A self-pay patient has no insurer, so
+// guidance that says "submit to your insurer / request in-network cost-sharing"
+// is wrong for them — they get the Good Faith Estimate + Patient-Provider
+// Dispute Resolution path instead. Used by the deadline calculator and the
+// letter-page submission guide so both branch the same way.
+export function isSelfPay(input: unknown): boolean {
+  return normalizeInsuranceType(input) === 'self-pay'
+}
