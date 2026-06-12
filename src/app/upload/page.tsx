@@ -1230,14 +1230,22 @@ const [error, setError] = useState<string | null>(null);
       }
 
       // Run the proprietary extraction + audit pipeline on the uploaded document.
-      // Forward the EOB (when present) so the cross-document comparison runs.
-      if (billPath && data.caseId) {
+      // Send the bill (and the EOB when present, for the cross-document
+      // comparison) as base64 — the same input shape the guest pipeline uses.
+      if (data.caseId) {
         try {
+          const billFileBase64 = await fileToBase64(file)
           const eobFileBase64 = eobFile ? await fileToBase64(eobFile) : undefined
           await fetch('/api/extract', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ caseId: data.caseId, eobFileBase64, eobFileName: eobFile?.name }),
+            body: JSON.stringify({
+              caseId: data.caseId,
+              billFileBase64,
+              billFileName: file.name,
+              eobFileBase64,
+              eobFileName: eobFile?.name,
+            }),
           })
         } catch (extractErr) {
           // The case is created; the audit can be retried from the dashboard.
