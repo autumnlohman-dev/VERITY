@@ -2,10 +2,16 @@ import { createClient } from '@/lib/supabase/server'
 import { extractFromBase64, isSupportedExt } from '@/lib/extraction'
 import { type InsuranceType } from '@/lib/errorDetection'
 import { runFullAudit } from '@/lib/audit/runFullAudit'
+import { MAX_FILE_BYTES } from '@/lib/billExtractor'
+import { checkRateLimit, clientIp, decodedBase64Bytes } from '@/lib/rateLimit'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
+
+// Public route → throttle per source IP: 15 audits / 10 minutes.
+const GUEST_RATE_LIMIT = 15
+const GUEST_RATE_WINDOW_SECONDS = 600
 
 const VALID: InsuranceType[] = ['commercial', 'medicare', 'medicaid', 'self-pay', 'tricare', 'other']
 
@@ -35,6 +41,31 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: `Unsupported file type. Upload a PDF, PNG, JPG, or WEBP (HEIC isn't supported yet).` },
         { status: 400 }
+      )
+    }
+
+    // Reject oversized payloads BEFORE spending an Anthropic vision call on them.
+    if (
+      decodedBase64Bytes(fileBase64) > MAX_FILE_BYTES ||
+      (typeof eobFileBase64 === 'string' && decodedBase64Bytes(eobFileBase64) > MAX_FILE_BYTES)
+    ) {
+      return NextResponse.json(
+        { error: 'That file is too large (20 MB max). Upload a smaller PDF or photo.' },
+        { status: 413 }
+      )
+    }
+
+    // Per-IP throttle so the free, unauthenticated audit can't be used to run up
+    // an unbounded Anthropic bill.
+    const rl = await checkRateLimit({
+      bucket: `audit-guest:${clientIp(request)}`,
+      limit: GUEST_RATE_LIMIT,
+      windowSeconds: GUEST_RATE_WINDOW_SECONDS,
+    })
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many audits from your network right now. Please wait a few minutes and try again.' },
+        { status: 429 }
       )
     }
 

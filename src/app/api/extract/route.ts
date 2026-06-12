@@ -3,10 +3,16 @@ import { extractFromBase64, isSupportedExt } from '@/lib/extraction'
 import { type InsuranceType } from '@/lib/errorDetection'
 import { runFullAudit } from '@/lib/audit/runFullAudit'
 import { findDuplicateCase } from '@/lib/audit/dedup'
+import { MAX_FILE_BYTES } from '@/lib/billExtractor'
+import { checkRateLimit, decodedBase64Bytes } from '@/lib/rateLimit'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
+
+// Signed-in route → throttle per user: 30 audits / 10 minutes.
+const EXTRACT_RATE_LIMIT = 30
+const EXTRACT_RATE_WINDOW_SECONDS = 600
 
 const VALID: InsuranceType[] = ['commercial', 'medicare', 'medicaid', 'self-pay', 'tricare', 'other']
 
@@ -44,6 +50,30 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: `Unsupported file type. Upload a PDF, PNG, JPG, or WEBP (HEIC isn't supported yet).` },
         { status: 400 }
+      )
+    }
+
+    // Reject oversized payloads BEFORE spending an Anthropic vision call on them.
+    if (
+      decodedBase64Bytes(billFileBase64) > MAX_FILE_BYTES ||
+      (typeof eobFileBase64 === 'string' && decodedBase64Bytes(eobFileBase64) > MAX_FILE_BYTES)
+    ) {
+      return NextResponse.json(
+        { error: 'That file is too large (20 MB max). Upload a smaller PDF or photo.' },
+        { status: 413 }
+      )
+    }
+
+    // Per-user throttle on the signed-in audit.
+    const rl = await checkRateLimit({
+      bucket: `extract:${user.id}`,
+      limit: EXTRACT_RATE_LIMIT,
+      windowSeconds: EXTRACT_RATE_WINDOW_SECONDS,
+    })
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many audits in a short period. Please wait a few minutes and try again.' },
+        { status: 429 }
       )
     }
 
