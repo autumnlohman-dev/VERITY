@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
+import { claimPendingGuestAudit } from "@/lib/guestClaim";
 import { DigitalTwinView } from "@/components/DigitalTwinView";
 
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -342,6 +344,7 @@ function EmptyState() {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [cases, setCases] = useState<CaseRow[]>([]);
@@ -351,22 +354,39 @@ export default function DashboardPage() {
     const supabase = createClient();
 
     (async () => {
-      // Beta: auth gate removed. `user` may be null; if so we just render
-      // the dashboard with whatever cases RLS allows (typically none).
+      // The dashboard shows a user's own cases and nothing else. Require a
+      // session and always scope the query to auth.uid(); if there's no user
+      // (e.g. an unconfirmed signup with no session), send them to sign in
+      // rather than running an unscoped query.
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (cancelled) return;
 
-      let casesQuery = supabase
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+
+      // Fallback for the carry-through-signup flow: if a guest audit claim is
+      // still pending (e.g. the email-confirmation path landed here, or the user
+      // was already signed in), import it into a real case and jump to it. The
+      // import is idempotent and clears the claim on success.
+      const claimedCaseId = await claimPendingGuestAudit();
+      if (cancelled) return;
+      if (claimedCaseId) {
+        router.replace(`/cases/${claimedCaseId}`);
+        return;
+      }
+
+      const { data, error } = await supabase
         .from("cases")
         .select(
           "id, user_id, status, provider_name, insurance_type, amount_billed, amount_recovered, potential_savings, bill_data, created_at"
         )
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
-      if (user) casesQuery = casesQuery.eq("user_id", user.id);
-      const { data, error } = await casesQuery;
 
       if (cancelled) return;
 
@@ -383,7 +403,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
   const totals = cases.reduce(
     (acc, c) => {

@@ -484,11 +484,14 @@ function PatientInfoPanel({
     setSaving(true);
     setSaveError(null);
     const supabase = createClient();
-    // Beta: auth gate removed. `user` may be null; user_id filter is
-    // applied only when authenticated.
     const {
       data: { user },
     } = await supabase.auth.getUser();
+    if (!user) {
+      setSaving(false);
+      setSaveError("Your session expired. Please sign in again.");
+      return;
+    }
     const payload: PatientInfo = {
       name: form.name?.trim() || undefined,
       address: form.address?.trim() || undefined,
@@ -497,12 +500,11 @@ function PatientInfoPanel({
       member_id: form.member_id?.trim() || undefined,
       account_number: form.account_number?.trim() || undefined,
     };
-    let updateQuery = supabase
+    const { error } = await supabase
       .from("cases")
       .update({ patient_info: payload })
-      .eq("id", caseId);
-    if (user) updateQuery = updateQuery.eq("user_id", user.id);
-    const { error } = await updateQuery;
+      .eq("id", caseId)
+      .eq("user_id", user.id);
     setSaving(false);
     if (error) {
       setSaveError(error.message);
@@ -1069,20 +1071,26 @@ export default function LetterPage({
   const load = useCallback(async () => {
     const supabase = createClient();
 
-    // Beta: auth gate removed. `user` may be null; user_id filter is
-    // applied only when authenticated.
+    // The dispute package belongs to the case owner. Require a session and
+    // always scope by user_id so no one can load another user's case/letter.
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    let caseQuery = supabase
+    if (!user) {
+      setFetchError("Please sign in to view this case.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: caseData, error: caseErr } = await supabase
       .from("cases")
       .select(
         "id, status, provider_name, insurance_type, amount_billed, amount_expected, errors_found, bill_data, created_at, patient_info"
       )
-      .eq("id", id);
-    if (user) caseQuery = caseQuery.eq("user_id", user.id);
-    const { data: caseData, error: caseErr } = await caseQuery.maybeSingle();
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .maybeSingle();
 
     if (caseErr) {
       setFetchError(caseErr.message);
@@ -1100,12 +1108,10 @@ export default function LetterPage({
     // active membership or a paid Single Dispute for this case. The audit
     // (error report) itself is free and lives elsewhere.
     let entitled = false;
-    if (user) {
-      try {
-        entitled = await disputeUnlocked(supabase, user.id, id);
-      } catch {
-        entitled = false;
-      }
+    try {
+      entitled = await disputeUnlocked(supabase, user.id, id);
+    } catch {
+      entitled = false;
     }
     setUnlocked(entitled);
 
