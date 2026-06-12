@@ -8,6 +8,7 @@ import { Upload, CheckCircle, Camera } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { saveGuestClaim } from "@/lib/guestClaim";
+import { AuditProgress } from "@/components/AuditProgress";
 import type { CBSDiscrepancy } from "@/lib/cbs/schema";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
@@ -430,9 +431,138 @@ function UploadPageInner() {
   const [insuranceType, setInsuranceType] = useState<string | null>(null);
   const [gfe, setGfe] = useState<string | null>(null);
   const [userNotes, setUserNotes] = useState<string>("");
-const [loading, setLoading] = useState(false);
-const [error, setError] = useState<string | null>(null);
+  // 'form' = collecting inputs; 'running' = audit in flight (staged progress UI);
+  // 'error' = audit failed (progress UI resolves to a retry, never a dead spinner).
+  const [phase, setPhase] = useState<"form" | "running" | "error">("form");
+  const [attempt, setAttempt] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const [guestResults, setGuestResults] = useState<GuestAudit | null>(null);
+  const loading = phase === "running";
+
+  // Runs the audit (guest or signed-in). Extracted so the progress screen's
+  // "Try again" can re-invoke it. Drives `phase`: success either shows the guest
+  // results inline or navigates to the case page; failure flips to 'error'.
+  async function runAudit() {
+    if (!tier) return;
+    // Validate the bill against React state — the single source of truth that
+    // survives the step-1 DropZones unmounting on later steps.
+    const file = billFile;
+    if (!file) {
+      setError("Please upload your bill to run the audit.");
+      return;
+    }
+
+    setError(null);
+    setAttempt((a) => a + 1);
+    setPhase("running");
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      // ── Guest path: run a free, anonymous audit and show results inline ──
+      if (!user) {
+        const fileBase64 = await fileToBase64(file);
+        const eobFileBase64 = eobFile ? await fileToBase64(eobFile) : undefined;
+        const res = await fetch("/api/audit-guest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileBase64,
+            fileName: file.name,
+            insuranceType,
+            eobFileBase64,
+            eobFileName: eobFile?.name,
+          }),
+        });
+        const result = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(
+            result.error ||
+              "We couldn't read that document. Try a clearer photo or the itemized bill."
+          );
+          setPhase("error");
+          return;
+        }
+        // Persist the full audit under a claim ID so it survives the signup
+        // round trip and can be imported as a real case once they have an
+        // account — no re-upload. (Guests have no DB rows under RLS.)
+        saveGuestClaim(result, { careType, insuranceType, gfe, tier, userNotes });
+        setGuestResults(result as GuestAudit);
+        return;
+      }
+
+      // ── Signed-in path: save the case so it persists + generates letters ──
+      let billPath: string | null = null;
+      const filePath = `${user.id}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage.from("bills").upload(filePath, file);
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        // Continue anyway — file upload failure shouldn't block case creation.
+      } else {
+        billPath = filePath;
+      }
+
+      const response = await fetch("/api/cases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          careType,
+          insuranceType,
+          gfe,
+          tier,
+          userNotes,
+          amountBilled: 0,
+          billPath,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(data.error || "Something went wrong. Please try again.");
+        setPhase("error");
+        return;
+      }
+
+      // Run the extraction + audit pipeline and await it so the case page already
+      // has findings when we land on it. A failure here still has a saved case —
+      // surface it as a retryable error rather than dropping the user silently.
+      if (data.caseId) {
+        const billFileBase64 = await fileToBase64(file);
+        const eobFileBase64 = eobFile ? await fileToBase64(eobFile) : undefined;
+        const extractRes = await fetch("/api/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            caseId: data.caseId,
+            billFileBase64,
+            billFileName: file.name,
+            eobFileBase64,
+            eobFileName: eobFile?.name,
+          }),
+        });
+        if (!extractRes.ok) {
+          const extractJson = await extractRes.json().catch(() => ({}));
+          setError(
+            extractJson.error ||
+              "We saved your bill but couldn't finish the audit. Try again."
+          );
+          setPhase("error");
+          return;
+        }
+      }
+
+      // Land on the case page with the full audit results + letter CTA. If the
+      // extract collapsed this into an existing case (same bill already audited),
+      // it returns { duplicate, caseId } pointing at the original.
+      router.push(data.duplicate ? `/cases/${data.caseId}?dup=1` : `/cases/${data.caseId}`);
+    } catch (err) {
+      console.error(err);
+      setError("Something went wrong. Please try again.");
+      setPhase("error");
+    }
+  }
 
   const tierLabel =
     tier === "audit"
@@ -588,6 +718,27 @@ const [error, setError] = useState<string | null>(null);
           <p style={{ ...sans("11px", "#8A7F6E"), fontStyle: "italic", marginTop: "24px", lineHeight: 1.6 }}>
             Verity flags potential billing errors and the rule behind each. This is not legal or medical advice.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Audit in flight (or failed): staged progress, never a frozen spinner ──
+  if (phase === "running" || phase === "error") {
+    return (
+      <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
+        <Nav />
+        <div style={{ maxWidth: "672px", margin: "0 auto", padding: "200px 24px 96px" }}>
+          <AuditProgress
+            key={attempt}
+            phase={phase}
+            error={error}
+            onRetry={runAudit}
+            onBack={() => {
+              setPhase("form");
+              setError(null);
+            }}
+          />
         </div>
       </div>
     );
@@ -1117,144 +1268,7 @@ const [error, setError] = useState<string | null>(null);
   </p>
 )}
 <button
-  onClick={async () => {
-    if (!tier) return
-
-    // Validate the bill against React state — the single source of truth that
-    // survives the step-1 DropZones unmounting on later steps. (Reading a DOM
-    // <input> here returns nothing because that input no longer exists on step
-    // 3.) Capture it into `file` up front so the rest of the handler can never
-    // pick up a different document.
-    const file = billFile
-    if (!file) {
-      setError("Please upload your bill to run the audit.")
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const supabase = createClient()
-
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser()
-
-      // ── Guest path: run a free, anonymous audit and show results inline ──
-      if (!user) {
-        const fileBase64 = await fileToBase64(file)
-        // Include the EOB when provided so the backend can run the cross-document
-        // (bill vs EOB) comparison. Omitted cleanly when no EOB was uploaded.
-        const eobFileBase64 = eobFile ? await fileToBase64(eobFile) : undefined
-        const res = await fetch('/api/audit-guest', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileBase64,
-            fileName: file.name,
-            insuranceType,
-            eobFileBase64,
-            eobFileName: eobFile?.name,
-          }),
-        })
-        const result = await res.json()
-        if (!res.ok) {
-          setError(result.error || "We couldn't read that document. Try a clearer photo or the itemized bill.")
-          setLoading(false)
-          return
-        }
-        // Persist the full audit under a claim ID so it survives the signup
-        // round trip and can be imported as a real case once they have an
-        // account — no re-upload. (Guests have no DB rows under RLS.)
-        saveGuestClaim(result, { careType, insuranceType, gfe, tier, userNotes })
-        setGuestResults(result as GuestAudit)
-        setLoading(false)
-        return
-      }
-
-      // ── Signed-in path: save the case so it persists + generates letters ──
-      // Upload bill file to Supabase Storage
-
-      let billPath: string | null = null
-      if (file) {
-        const filePath = `${user.id}/${Date.now()}-${file.name}`
-        const { error: uploadError } = await supabase.storage
-          .from('bills')
-          .upload(filePath, file)
-
-        if (uploadError) {
-          console.error('Upload error:', uploadError)
-          // Continue anyway — file upload failure shouldn't block case creation
-        } else {
-          billPath = filePath
-        }
-      }
-
-      // Create the case in the database
-      const response = await fetch('/api/cases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          careType,
-          insuranceType,
-          gfe,
-          tier,
-          userNotes,
-          amountBilled: 0,
-          billPath,
-        })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || "Something went wrong. Please try again.")
-        setLoading(false)
-        return
-      }
-
-      // Run the proprietary extraction + audit pipeline on the uploaded document,
-      // exactly like the guest flow — but persisted. Send the bill (and the EOB
-      // when present, for the cross-document comparison) as base64, the same
-      // input shape the guest pipeline uses, and await the full audit so the
-      // case page already has findings to show when we land on it.
-      if (data.caseId) {
-        try {
-          const billFileBase64 = await fileToBase64(file)
-          const eobFileBase64 = eobFile ? await fileToBase64(eobFile) : undefined
-          await fetch('/api/extract', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              caseId: data.caseId,
-              billFileBase64,
-              billFileName: file.name,
-              eobFileBase64,
-              eobFileName: eobFile?.name,
-            }),
-          })
-        } catch (extractErr) {
-          // The case is created and still opens — if the audit didn't finish, the
-          // case page shows its own live "Audit in progress" state (no email promise).
-          console.error('Extraction error:', extractErr)
-        }
-      }
-
-      // Land straight on the case page with the full audit results + letter CTA.
-      // No "we'll email you" dead end — the audit already ran above, and the case
-      // page renders a live progress state if anything is still processing. If the
-      // extract collapsed this into an existing case (same bill already audited),
-      // /api/extract returns { duplicate, caseId } pointing at the original — go
-      // there with a flag so the case page can say it's already in the dashboard.
-      router.push(data.duplicate ? `/cases/${data.caseId}?dup=1` : `/cases/${data.caseId}`)
-
-    } catch (err) {
-      console.error(err)
-      setError("Something went wrong. Please try again.")
-    }
-
-    setLoading(false)
-  }}
+  onClick={runAudit}
   disabled={!tier || !billFile || loading}
   style={{
     marginTop: "24px",
