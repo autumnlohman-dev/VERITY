@@ -412,7 +412,9 @@ export default function DashboardPage() {
       const recovered = Number(c.amount_recovered ?? 0);
       acc.totalBilled += billed;
       acc.totalPotentialSavings += potential;
-      if (recovered > 0) acc.totalSaved += potential;
+      // M4: "total recovered" must sum what was actually recovered, not the
+      // potential-savings estimate (which would overstate recoveries).
+      if (recovered > 0) acc.totalSaved += recovered;
       const b = bucketOf(c);
       acc.counts[b] += 1;
       return acc;

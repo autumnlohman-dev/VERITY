@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
 // Dispute-outcome submission. Requires a session and stamps the row with the
@@ -45,6 +46,21 @@ export async function POST(request: Request) {
     const body = (await request.json()) as OutcomeBody
     if (!isUuid(body.outcomeId)) {
       return NextResponse.json({ error: 'Invalid outcomeId' }, { status: 400 })
+    }
+
+    // M3: ownership check. The upsert keys on the client-supplied outcomeId, so
+    // verify it isn't already owned by a different user before writing. RLS would
+    // reject the cross-user UPDATE, but it does so opaquely (and a SELECT under
+    // RLS can't even see another user's row to check) — so we look it up with the
+    // service role and return a clean 403. Defense in depth on top of RLS.
+    const admin = createAdminClient()
+    const { data: existingOwner } = await admin
+      .from('dispute_outcomes')
+      .select('user_id')
+      .eq('id', body.outcomeId)
+      .maybeSingle()
+    if (existingOwner && existingOwner.user_id !== user.id) {
+      return NextResponse.json({ error: 'Not authorized for this outcome' }, { status: 403 })
     }
 
     const row = {
