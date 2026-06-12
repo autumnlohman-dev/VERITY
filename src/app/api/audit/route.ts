@@ -90,15 +90,25 @@ export async function POST(request: Request) {
     ])
     const errors = [...ruleErrors, ...disputeErrors]
 
-    const totalExpected = errors.reduce(
+    // Recoverable counts ONLY priced findings — lines we couldn't price
+    // (rate_unavailable) and the systemic reference-data notice are surfaced for
+    // manual review, never summed into the savings figure — and is capped at the
+    // billed total so we never claim more recoverable than the bill itself.
+    const MANUAL_REVIEW_TYPES = new Set(['rate_unavailable', 'reference_data_missing'])
+    const totalBilled = normalizedItems.reduce(
+      (sum, li) => sum + Number(li.billed_amount || 0),
+      0
+    )
+    const pricedErrors = errors.filter((err) => !MANUAL_REVIEW_TYPES.has(err.error_type))
+    const totalExpected = pricedErrors.reduce(
       (sum, err) => sum + Number(err.expected_amount || 0),
       0
     )
-    const totalBilledInErrors = errors.reduce(
-      (sum, err) => sum + Number(err.billed_amount || 0),
+    const recoverable = pricedErrors.reduce(
+      (sum, err) => sum + Math.max(0, Number(err.billed_amount || 0) - Number(err.expected_amount || 0)),
       0
     )
-    const potentialSavings = Math.max(0, totalBilledInErrors - totalExpected)
+    const potentialSavings = Math.min(totalBilled, recoverable)
 
     const nextStatus = errors.length > 0 ? 'error_found' : 'no_errors'
 

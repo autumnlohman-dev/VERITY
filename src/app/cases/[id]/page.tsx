@@ -123,6 +123,7 @@ interface BillData {
   userNotes?: string;
   date_of_service?: string;
   em_review?: EmReview;
+  lineItems?: Array<{ cpt_code?: string }>;
 }
 
 interface CaseRow {
@@ -541,6 +542,16 @@ export default function CaseDetailPage({
 
   const errors = caseRow.errors_found ?? [];
 
+  // The E&M complexity review should be offered whenever an E&M visit code
+  // (99201–99215 / 99281–99285) appears on the bill — even when it produced no
+  // pricing error (E&M codes are routed to this review instead of a PFS
+  // overcharge). So consider the extracted/mapped line-item codes, not just the
+  // flagged errors. Both arrays expose `cpt_code`, which is all the helpers read.
+  const emFlagSource = [
+    ...errors,
+    ...(caseRow.bill_data?.lineItems ?? []),
+  ];
+
   // FHS computation handler (called after intake form answers)
   const handleFHSIntake = (inputs: FHSUserInputs) => {
     setFhsInputs(inputs);
@@ -940,14 +951,14 @@ export default function CaseDetailPage({
           )}
 
           {/* E&M review: questionnaire if unanswered, outcome callout if answered */}
-          {hasEmFlag(errors) &&
+          {hasEmFlag(emFlagSource) &&
             (caseRow.bill_data?.em_review ? (
               <EmOutcomeCallout review={caseRow.bill_data.em_review} />
             ) : (
               <div style={{ marginBottom: "48px" }}>
                 <EmReviewPanel
                   caseId={caseRow.id}
-                  flaggedCodes={getEmFlaggedCodes(errors)}
+                  flaggedCodes={getEmFlaggedCodes(emFlagSource)}
                   errors={errors}
                   caseData={{
                     provider_name: caseRow.provider_name ?? "Provider on file",

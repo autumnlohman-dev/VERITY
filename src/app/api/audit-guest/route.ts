@@ -52,9 +52,19 @@ export async function POST(request: Request) {
     const errors = await runAudit(lineItems, mapInsuranceType(insuranceType), { supabase })
 
     const totalBilled = lineItems.reduce((s, li) => s + li.billed_amount, 0)
-    const totalBilledInErrors = errors.reduce((s, e) => s + Number(e.billed_amount || 0), 0)
-    const totalExpected = errors.reduce((s, e) => s + Number(e.expected_amount || 0), 0)
-    const potentialSavings = Math.max(0, totalBilledInErrors - totalExpected)
+
+    // Headline recoverable counts ONLY priced findings. Lines we couldn't price
+    // (rate_unavailable) and the systemic reference-data notice are never summed
+    // into the recoverable figure — they surface separately as "needs review".
+    const MANUAL_REVIEW_TYPES = new Set(['rate_unavailable', 'reference_data_missing'])
+    const pricedErrors = errors.filter((e) => !MANUAL_REVIEW_TYPES.has(e.error_type))
+    const needsReviewCount = errors.filter((e) => e.error_type === 'rate_unavailable').length
+    const recoverable = pricedErrors.reduce(
+      (s, e) => s + Math.max(0, Number(e.billed_amount || 0) - Number(e.expected_amount || 0)),
+      0
+    )
+    // Never claim more recoverable than the bill itself.
+    const potentialSavings = Math.min(totalBilled, recoverable)
 
     // ── CBS cross-document layer ────────────────────────────────────────────
     // Normalize the bill into the Canonical Billing Schema, and — when an EOB was
@@ -107,7 +117,8 @@ export async function POST(request: Request) {
       provider,
       lineItems,
       errors,
-      errorCount: errors.length,
+      errorCount: pricedErrors.length,
+      needsReviewCount,
       totalBilled,
       potentialSavings,
       lowConfidence,

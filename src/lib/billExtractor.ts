@@ -62,7 +62,25 @@ export const DESCRIPTION_TO_CPT: Array<{ pattern: RegExp; cpt: string }> = [
   { pattern: /\blipase\b/i, cpt: '83690' },
   { pattern: /c[-\s]?reactive\s+protein|\bcrp\b/i, cpt: '86140' },
   { pattern: /\bvenipuncture\b|routine\s+venipuncture/i, cpt: '36415' },
-  { pattern: /gram\s+stain/i, cpt: '87205' }
+  { pattern: /gram\s+stain/i, cpt: '87205' },
+  // Stool culture for Salmonella and Shigella species (either order, with or
+  // without a slash) → 87045.
+  { pattern: /(salmonell\w*\s*\/?\s*shigell\w*)|(shigell\w*\s*\/?\s*salmonell\w*)/i, cpt: '87045' },
+  // Multiplex GI / stool pathogen panel (nucleic acid, 12–25 targets) → 87507.
+  { pattern: /stool\s+pathogens?\b[^\n]*\bpanel\b/i, cpt: '87507' },
+  // Professional emergency-department E&M, moderate medical decision-making.
+  // Only the moderate level is mapped (conservative); 99284 per 2023 ED MDM.
+  { pattern: /\bed\s+visit\b[^\n]*\bmod(?:erate)?\s+mdm\b/i, cpt: '99284' },
+  // Type A emergency-department facility levels: "Emergency Class I–V" map to
+  // the ED E&M code range 99281–99285. The trailing \b keeps the roman numerals
+  // mutually exclusive (e.g. "class i" never matches "class iii"). These share
+  // the professional E&M codes but are facility fees, so the audit routes them
+  // to the E&M complexity review rather than a blunt PFS overcharge check.
+  { pattern: /emergency\s+class\s+iii\b/i, cpt: '99283' },
+  { pattern: /emergency\s+class\s+iv\b/i, cpt: '99284' },
+  { pattern: /emergency\s+class\s+v\b/i, cpt: '99285' },
+  { pattern: /emergency\s+class\s+ii\b/i, cpt: '99282' },
+  { pattern: /emergency\s+class\s+i\b/i, cpt: '99281' }
 ]
 
 export function mapDescriptionToCpt(description: string): string | null {

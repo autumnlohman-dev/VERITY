@@ -143,17 +143,23 @@ type GuestError = {
   billed_amount: number;
   expected_amount: number;
   confidence: string;
+  error_type?: string;
 };
 
 type GuestAudit = {
   provider: string | null;
   errors: GuestError[];
   errorCount: number;
+  needsReviewCount?: number;
   totalBilled: number;
   potentialSavings: number;
   hasEob?: boolean;
   crossDocumentDiscrepancies?: CBSDiscrepancy[];
 };
+
+// Findings the audit couldn't price (e.g. proprietary facility codes) aren't
+// overcharges — they're flagged for manual review, never summed into recoverable.
+const MANUAL_REVIEW_ERROR_TYPES = new Set(["rate_unavailable", "reference_data_missing"]);
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -439,6 +445,11 @@ const [error, setError] = useState<string | null>(null);
   if (guestResults) {
     const r = guestResults;
     const hasErrors = r.errorCount > 0;
+    const needsReview = r.needsReviewCount ?? 0;
+    const reviewNote =
+      needsReview > 0
+        ? `${needsReview} line${needsReview === 1 ? "" : "s"} couldn't be priced automatically and ${needsReview === 1 ? "needs" : "need"} manual review.`
+        : null;
     return (
       <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
         <Nav />
@@ -447,7 +458,11 @@ const [error, setError] = useState<string | null>(null);
             Your free audit{r.provider ? ` · ${r.provider}` : ""}
           </div>
           <h1 style={{ ...serif("clamp(40px, 5vw, 64px)", { lineHeight: 1.05, marginBottom: "16px" }) }}>
-            {hasErrors ? `We found ${r.errorCount} ${r.errorCount === 1 ? "error" : "errors"}.` : "No errors found."}
+            {hasErrors
+              ? `We found ${r.errorCount} ${r.errorCount === 1 ? "error" : "errors"}.`
+              : needsReview > 0
+              ? "No clear overcharges — a few lines need review."
+              : "No errors found."}
           </h1>
           {hasErrors ? (
             <p style={{ ...sans("16px", "#5F5648") }}>
@@ -455,6 +470,14 @@ const [error, setError] = useState<string | null>(null);
                 ${Math.round(r.potentialSavings).toLocaleString()}
               </span>{" "}
               in potential overcharges on a ${Math.round(r.totalBilled).toLocaleString()} bill.
+              {reviewNote && (
+                <span style={{ ...sans("14px", "#8A7F6E") }}> {reviewNote}</span>
+              )}
+            </p>
+          ) : needsReview > 0 ? (
+            <p style={{ ...sans("15px", "#5F5648"), maxWidth: "460px", lineHeight: 1.7 }}>
+              No charges exceeded your plan&apos;s expected rates. {reviewNote} These are
+              usually facility or proprietary charge codes we price by hand.
             </p>
           ) : (
             <p style={{ ...sans("15px", "#5F5648"), maxWidth: "460px", lineHeight: 1.7 }}>
@@ -462,28 +485,39 @@ const [error, setError] = useState<string | null>(null);
             </p>
           )}
 
-          {hasErrors && (
+          {r.errors.length > 0 && (
             <div style={{ marginTop: "48px", borderTop: "1px solid #D8CFBE" }}>
-              {r.errors.map((e, i) => (
-                <div
-                  key={i}
-                  className="r-grid-1"
-                  style={{ borderBottom: "1px solid #E2DACB", padding: "24px 0", display: "grid", gridTemplateColumns: "90px 1fr 130px", gap: "20px", alignItems: "baseline" }}
-                >
-                  <div style={{ ...sans("13px", "#8A7F6E") }}>{e.cpt_code}</div>
-                  <div>
-                    <div style={{ ...serif("20px", { lineHeight: 1.2 }) }}>{e.description}</div>
-                    <div style={{ ...sans("13px", "#2A2520"), marginTop: "6px", lineHeight: 1.5 }}>{e.explanation}</div>
-                    <div style={{ ...sans("11px", "#B3A28A"), marginTop: "4px" }}>{e.rule_violated}</div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ ...serif("22px", { color: "#C8A97E" }) }}>
-                      ${Math.round(Math.max(0, e.billed_amount - e.expected_amount)).toLocaleString()}
+              {r.errors.map((e, i) => {
+                const isManualReview = MANUAL_REVIEW_ERROR_TYPES.has(e.error_type ?? "");
+                return (
+                  <div
+                    key={i}
+                    className="r-grid-1"
+                    style={{ borderBottom: "1px solid #E2DACB", padding: "24px 0", display: "grid", gridTemplateColumns: "90px 1fr 130px", gap: "20px", alignItems: "baseline" }}
+                  >
+                    <div style={{ ...sans("13px", "#8A7F6E") }}>{e.cpt_code}</div>
+                    <div>
+                      <div style={{ ...serif("20px", { lineHeight: 1.2 }) }}>{e.description}</div>
+                      <div style={{ ...sans("13px", "#2A2520"), marginTop: "6px", lineHeight: 1.5 }}>{e.explanation}</div>
+                      <div style={{ ...sans("11px", "#B3A28A"), marginTop: "4px" }}>{e.rule_violated}</div>
                     </div>
-                    <div style={{ ...sans("10px", "#8A7F6E"), letterSpacing: "0.1em", textTransform: "uppercase" }}>recoverable</div>
+                    <div style={{ textAlign: "right" }}>
+                      {isManualReview ? (
+                        <div style={{ ...sans("10px", "#8A7F6E"), letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                          needs review
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ ...serif("22px", { color: "#C8A97E" }) }}>
+                            ${Math.round(Math.max(0, e.billed_amount - e.expected_amount)).toLocaleString()}
+                          </div>
+                          <div style={{ ...sans("10px", "#8A7F6E"), letterSpacing: "0.1em", textTransform: "uppercase" }}>recoverable</div>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

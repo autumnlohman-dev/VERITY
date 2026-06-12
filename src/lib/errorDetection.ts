@@ -11,6 +11,7 @@ import {
   type MueEditRow,
   type PtpEditRow
 } from '@/lib/mockFeeSchedule'
+import { EM_CPT_CODES } from '@/lib/emReview'
 
 export interface LineItem {
   cpt_code: string
@@ -83,6 +84,12 @@ function checkOvercharge(
   const errors: BillingError[] = []
   for (const item of items) {
     const code = normalizeCode(item.cpt_code)
+    // E&M visit codes (99201–99215, 99281–99285) are not flagged on a blunt PFS
+    // ratio. Level/complexity appropriateness is assessed by the dedicated E&M
+    // review flow (emReview); and emergency-department FACILITY levels share
+    // these codes but are paid under OPPS, not the professional fee schedule, so
+    // a PFS comparison would manufacture large false overcharges.
+    if (EM_CPT_CODES.has(code)) continue
     const row = feeSchedule.get(code)
     if (!row) continue
 
