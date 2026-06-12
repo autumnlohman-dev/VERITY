@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { LineItem } from './errorDetection'
+import { CPT_CODE_PATTERN, mapDescriptionToCpt } from './billExtractor'
 
 // Component I: multimodal unstructured → structured extraction (proprietary).
 // Shared by the authenticated case pipeline (/api/extract) and the public
@@ -81,14 +82,31 @@ export async function extractFromBase64(base64: string, ext: string): Promise<Ex
   const rawItems = Array.isArray(parsed.line_items) ? parsed.line_items : []
   const lineItems: LineItem[] = rawItems
     .filter((li) => li && typeof li.cpt_code === 'string')
-    .map((li) => ({
-      cpt_code: String(li.cpt_code),
-      description: typeof li.description === 'string' ? li.description : undefined,
-      date_of_service: typeof li.date_of_service === 'string' ? li.date_of_service : '',
-      units: Number(li.units) || 1,
-      billed_amount: Number(li.billed_amount) || 0,
-      modifiers: Array.isArray(li.modifiers) ? li.modifiers.map((m) => String(m)) : undefined,
-    }))
+    .map((li) => {
+      const description = typeof li.description === 'string' ? li.description : undefined
+      const extractedCode = String(li.cpt_code).trim().toUpperCase()
+
+      // Facility bills list proprietary chargemaster IDs (e.g. "401000018")
+      // that match no PFS/CLFS/NCCI entry, so every lookup misses and the audit
+      // falls back to its "reference data unavailable" path. When the code isn't
+      // in standard CPT/HCPCS format, resolve it from the service description so
+      // the downstream Supabase lookups have a real code to price. Same mapping
+      // used by /api/extract-line-items — kept in one place in billExtractor.
+      let cptCode = extractedCode
+      if (extractedCode && !CPT_CODE_PATTERN.test(extractedCode)) {
+        const mapped = mapDescriptionToCpt(description ?? '')
+        if (mapped) cptCode = mapped
+      }
+
+      return {
+        cpt_code: cptCode,
+        description,
+        date_of_service: typeof li.date_of_service === 'string' ? li.date_of_service : '',
+        units: Number(li.units) || 1,
+        billed_amount: Number(li.billed_amount) || 0,
+        modifiers: Array.isArray(li.modifiers) ? li.modifiers.map((m) => String(m)) : undefined,
+      }
+    })
 
   const lowConfidence = rawItems
     .filter((li) => li?.field_confidence === 'low')
