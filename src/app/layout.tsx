@@ -19,6 +19,14 @@ export const metadata: Metadata = {
   title: "Verity™ — Medical Bill Advocacy",
   description:
     "Verity audits every line item on your medical bill against published billing rules, finds the errors, and gives you dispute letters ready to send.",
+  // Private preview: keep the site out of search indexes while the password
+  // gate is active. Remove alongside SITE_ACCESS_PASSWORD at launch.
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: { index: false, follow: false },
+  },
 };
 
 export default function RootLayout({
