@@ -1138,7 +1138,19 @@ const [error, setError] = useState<string | null>(null);
 )}
 <button
   onClick={async () => {
-    if (!tier || !billFile) return
+    if (!tier) return
+
+    // Validate the bill against React state — the single source of truth that
+    // survives the step-1 DropZones unmounting on later steps. (Reading a DOM
+    // <input> here returns nothing because that input no longer exists on step
+    // 3.) Capture it into `file` up front so the rest of the handler can never
+    // pick up a different document.
+    const file = billFile
+    if (!file) {
+      setError("Please upload your bill to run the audit.")
+      return
+    }
+
     setLoading(true)
     setError(null)
 
@@ -1148,17 +1160,8 @@ const [error, setError] = useState<string | null>(null);
       // Get current user
       const { data: { user } } = await supabase.auth.getUser()
 
-      // Use the bill File tracked in state — the step-1 DropZones are unmounted
-      // by this point, so we cannot read it back from a DOM <input>.
-      const file = billFile
-
       // ── Guest path: run a free, anonymous audit and show results inline ──
       if (!user) {
-        if (!file) {
-          setError("Please upload your bill to run the audit.")
-          setLoading(false)
-          return
-        }
         const fileBase64 = await fileToBase64(file)
         // Include the EOB when provided so the backend can run the cross-document
         // (bill vs EOB) comparison. Omitted cleanly when no EOB was uploaded.
@@ -1251,16 +1254,16 @@ const [error, setError] = useState<string | null>(null);
 
     setLoading(false)
   }}
-  disabled={!tier || loading}
+  disabled={!tier || !billFile || loading}
   style={{
     marginTop: "24px",
     width: "100%",
-    backgroundColor: tier && !loading ? "#C8A97E" : "#EFE9DD",
-    color: tier && !loading ? "#221C14" : "#8A7F6E",
+    backgroundColor: tier && billFile && !loading ? "#C8A97E" : "#EFE9DD",
+    color: tier && billFile && !loading ? "#221C14" : "#8A7F6E",
     border: "none",
     padding: "16px",
-    cursor: tier && !loading ? "pointer" : "not-allowed",
-    ...sans("11px", tier && !loading ? "#221C14" : "#8A7F6E"),
+    cursor: tier && billFile && !loading ? "pointer" : "not-allowed",
+    ...sans("11px", tier && billFile && !loading ? "#221C14" : "#8A7F6E"),
     letterSpacing: "0.2em",
     textTransform: "uppercase",
     transition: "background-color 0.2s",
