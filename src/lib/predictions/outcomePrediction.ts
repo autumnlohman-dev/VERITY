@@ -9,7 +9,7 @@
 // predictions blend in real outcome data and report their evidence base.
 
 import type { NormalizedCBSSet, CBSDiscrepancy } from '../cbs/schema'
-import { getAggregateStats } from '../outcomes/store'
+import { getAggregateStats, type OutcomeStats } from '../outcomes/store'
 
 export interface FinancialOutcomePrediction {
   discrepancyId: string
@@ -58,14 +58,19 @@ export function predictOutcome(
     hasActiveCollection?: boolean
     hasCreditReporting?: boolean
     documentCount: number
-  }
+  },
+  // M7: outcome stats can be injected. The default reads the client localStorage
+  // store, which is empty server-side (window undefined) — server callers pass
+  // stats fetched from Supabase via aggregateStatsFromSupabase() so the blend
+  // uses real data instead of silently zero.
+  injectedStats?: OutcomeStats
 ): FinancialOutcomePrediction {
   const prior = TYPE_PRIORS[discrepancy.type] ?? DEFAULT_PRIOR
   const amount = Math.max(0, discrepancy.estimatedDollarImpact)
 
   // Blend with real outcome data when available (simple shrinkage:
   // weight real data by n/(n+20) so small samples don't dominate).
-  const stats = getAggregateStats()
+  const stats = injectedStats ?? getAggregateStats()
   const typeStats = stats.byDiscrepancyType[discrepancy.type]
   let recoveryRate = prior.recoveryRate
   let basedOnRealOutcomes = 0
@@ -127,10 +132,12 @@ export function predictOutcome(
 
 export function predictAll(
   cbsSet: NormalizedCBSSet,
-  context: { hasActiveCollection?: boolean; hasCreditReporting?: boolean }
+  context: { hasActiveCollection?: boolean; hasCreditReporting?: boolean },
+  // M7: pass server-fetched stats here when running outside the browser.
+  stats?: OutcomeStats
 ): FinancialOutcomePrediction[] {
   return cbsSet.crossDocumentDiscrepancies.map(d =>
-    predictOutcome(d, { ...context, documentCount: cbsSet.documents.length })
+    predictOutcome(d, { ...context, documentCount: cbsSet.documents.length }, stats)
   )
 }
 

@@ -288,8 +288,8 @@ function buildTimelineFromDocs(
 
 // ─── Main normalizer ──────────────────────────────────────────────────────────
 
-export function normalizeCBSSet(documents: CanonicalBillingSchema[]): NormalizedCBSSet {
-  if (documents.length === 0) {
+export function normalizeCBSSet(inputDocuments: CanonicalBillingSchema[]): NormalizedCBSSet {
+  if (inputDocuments.length === 0) {
     return {
       documents: [],
       linkedEpisodes: [],
@@ -299,6 +299,17 @@ export function normalizeCBSSet(documents: CanonicalBillingSchema[]): Normalized
       totalDollarAtRisk: 0,
     }
   }
+
+  // M6: work on shallow clones with FRESH discrepancy/temporal arrays. This
+  // function attaches computed discrepancies back onto the documents; doing that
+  // on the caller's objects mutated their input, so re-running an audit on an
+  // already-normalized/persisted set double-appended discrepancies and flags.
+  // Recompute from a clean slate every call, and never touch the input.
+  const documents: CanonicalBillingSchema[] = inputDocuments.map((d) => ({
+    ...d,
+    discrepancies: [] as CBSDiscrepancy[],
+    temporalInconsistencies: [] as CBSTemporalFlag[],
+  }))
 
   const linkedEpisodes = groupIntoEpisodes(documents)
 

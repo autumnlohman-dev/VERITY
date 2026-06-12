@@ -1,6 +1,6 @@
 "use client";
 
-import React, { use, useEffect, useState } from "react";
+import React, { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
@@ -233,6 +233,15 @@ function formatDate(iso: string): string {
   }
 }
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+    reader.onerror = () => reject(new Error("Could not read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
 function errorTypeLabel(type: string): string {
   switch (type) {
     case "overcharge": return "Overcharge";
@@ -441,6 +450,13 @@ export default function CaseDetailPage({
   }, []);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  // H3: re-run control for a case stranded in 'auditing' (extraction failed or
+  // never finished). The original file isn't persisted, so the user re-selects
+  // it and we run /api/extract again on the existing case.
+  const rerunInputRef = useRef<HTMLInputElement>(null);
+  const [rerunning, setRerunning] = useState(false);
+  const [rerunError, setRerunError] = useState<string | null>(null);
+
   // VERITY v2 — CBS, FHS, deadlines
   const [cbsSet, setCbsSet] = useState<NormalizedCBSSet | null>(null);
   const [deadlines, setDeadlines] = useState<DeadlineResult[]>([]);
@@ -597,6 +613,34 @@ export default function CaseDetailPage({
     updated = checkTermination(updated);
     saveWorkflow(updated);
     setWorkflow(updated);
+  };
+
+  // H3: re-run the audit on this case from a freshly re-selected bill file.
+  const handleRerun = async (file: File) => {
+    setRerunning(true);
+    setRerunError(null);
+    try {
+      const billFileBase64 = await fileToBase64(file);
+      const res = await fetch("/api/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseId: id, billFileBase64, billFileName: file.name }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRerunError(
+          json.error || "We couldn't finish the audit. Try a clearer photo or the itemized bill."
+        );
+        setRerunning(false);
+        return;
+      }
+      // Re-load the case with the freshly computed findings.
+      if (typeof window !== "undefined") window.location.reload();
+    } catch (err) {
+      console.error("Re-run audit failed:", err);
+      setRerunError("Something went wrong. Please try again.");
+      setRerunning(false);
+    }
   };
   const tierLabel = caseRow.bill_data?.tier
     ? caseRow.bill_data.tier.charAt(0).toUpperCase() + caseRow.bill_data.tier.slice(1)
@@ -1023,21 +1067,53 @@ export default function CaseDetailPage({
           {caseRow.status === "auditing" ? (
             <div style={{ textAlign: "center", paddingTop: "80px", paddingBottom: "80px" }}>
               <div style={{ ...serif("32px", { fontStyle: "italic", color: "#A89F96" }) }}>
-                Audit in progress.
+                This audit didn&apos;t finish.
               </div>
-              <p style={{ ...sans("14px", "#6B635C"), marginTop: "16px" }}>
-                Your error report will populate here as soon as it&apos;s ready.
-              </p>
-              <div
-                className="dot-pulse"
+              <p
                 style={{
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  backgroundColor: "#4A90D9",
-                  margin: "24px auto 0",
+                  ...sans("14px", "#6B635C"),
+                  marginTop: "16px",
+                  maxWidth: "440px",
+                  marginLeft: "auto",
+                  marginRight: "auto",
+                  lineHeight: 1.6,
+                }}
+              >
+                We saved your case but the bill audit didn&apos;t complete. Re-run it
+                with your bill to get your findings now.
+              </p>
+              {rerunError && (
+                <p style={{ ...sans("13px", "#C47C6A"), marginTop: "12px" }}>{rerunError}</p>
+              )}
+              <input
+                ref={rerunInputRef}
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,.webp"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleRerun(f);
+                  e.target.value = "";
                 }}
               />
+              <button
+                onClick={() => rerunInputRef.current?.click()}
+                disabled={rerunning}
+                style={{
+                  ...sans("11px", "#0D0D0D"),
+                  backgroundColor: "#C8A97E",
+                  border: "none",
+                  padding: "14px 28px",
+                  letterSpacing: "0.2em",
+                  textTransform: "uppercase",
+                  fontWeight: 500,
+                  cursor: rerunning ? "wait" : "pointer",
+                  opacity: rerunning ? 0.6 : 1,
+                  marginTop: "24px",
+                }}
+              >
+                {rerunning ? "Re-running audit…" : "Re-run audit"}
+              </button>
             </div>
           ) : errors.length === 0 ? (
             expected === 0 ? (
