@@ -5,16 +5,20 @@ import { NextResponse } from 'next/server'
 import { renderEmReviewForPrompt, type EmReview } from '@/lib/emReview'
 import { disputeUnlocked } from '@/lib/entitlements'
 
-// The Anthropic SDK needs the Node runtime (never edge), and generation runs
-// longer than Vercel's short default — give it the full 60s window.
+// The Anthropic SDK needs the Node runtime (never edge). A full evidentiary
+// letter is ~6000 output tokens (≈90–120s at Sonnet speeds), so the old 60s
+// window timed out and surfaced as the "temporarily unavailable" error. Vercel
+// Pro allows up to 300s — give generation room to finish.
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 300
 
 // Constructed lazily inside the handler, never at module scope (a module-scope
-// SDK client evaluates on import; keep all construction in-handler).
+// SDK client evaluates on import; keep all construction in-handler). The SDK
+// request timeout must sit just under maxDuration — at 60s it aborted long
+// letters before they completed.
 let _client: Anthropic | null = null
 function anthropic(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 60_000 })
+  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 290_000 })
   return _client
 }
 
@@ -245,13 +249,20 @@ The letter should:
 
   } catch (error) {
     if (error instanceof Anthropic.APIError) {
+      // Includes APIConnectionTimeoutError (the SDK request timeout) — capture it
+      // so a recurring timeout/limit is visible in Sentry, not just function logs.
       console.error('Letter generation (Anthropic) error:', error.status, error.message)
+      Sentry.captureException(error, {
+        tags: { route: 'generate-letter', stage: 'anthropic' },
+        extra: { status: error.status },
+      })
       return NextResponse.json(
         { error: 'Letter generation is temporarily unavailable. Please try again in a few minutes.' },
         { status: 503 }
       )
     }
     console.error('Letter generation error:', error)
+    Sentry.captureException(error, { tags: { route: 'generate-letter', stage: 'handler' } })
     return NextResponse.json({ error: 'Failed to generate letter' }, { status: 500 })
   }
 }
