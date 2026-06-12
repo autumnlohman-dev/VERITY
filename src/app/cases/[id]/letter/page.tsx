@@ -1,6 +1,6 @@
 "use client";
 
-import React, { use, useCallback, useEffect, useState } from "react";
+import React, { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import * as Sentry from "@sentry/nextjs";
@@ -16,6 +16,8 @@ import {
 } from "@/lib/letterFields";
 import { generateLetterPdf } from "@/lib/letterPdf";
 import { deadlinesForCase } from "@/lib/deadlines/forCase";
+import { filterOutEmErrors, type EmReview } from "@/lib/emReview";
+import type { BillingError } from "@/lib/errorDetection";
 import { MailItPanel, type MailState, type MailAddress } from "@/components/MailItPanel";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
@@ -61,7 +63,7 @@ interface CaseRow {
   amount_billed: number | null;
   amount_expected: number | null;
   errors_found: unknown[] | null;
-  bill_data: { userNotes?: string } | null;
+  bill_data: { userNotes?: string; date_of_service?: string; em_review?: EmReview } | null;
   created_at: string;
   patient_info: PatientInfo | null;
   lob_letter_id: string | null;
@@ -1052,12 +1054,18 @@ export default function LetterPage({
     return new URLSearchParams(window.location.search).get("promo") === "1";
   });
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [genFailed, setGenFailed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return new URLSearchParams(window.location.search).get("genFailed") === "1";
+  // Letter generation is a synchronous call. `generating` is true while the
+  // request is in flight; `genError` holds a failure message. autoTriedRef
+  // ensures we auto-kick generation at most once per mount (failures surface a
+  // manual Retry rather than auto-looping the Anthropic call).
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("genFailed") === "1"
+      ? "Letter generation didn't finish. Try again."
+      : null;
   });
-  const [retrying, setRetrying] = useState(false);
-  const [retryError, setRetryError] = useState<string | null>(null);
+  const autoTriedRef = useRef(false);
   const [pendingMissing, setPendingMissing] = useState<MissingField[] | null>(null);
   const [fieldOverrides, setFieldOverrides] = useState<Record<MissingFieldKey, string>>({
     name: "",
@@ -1169,13 +1177,22 @@ export default function LetterPage({
     return () => clearInterval(iv);
   }, [paidPending, unlocked, load]);
 
-  const handleRetry = useCallback(async () => {
-    if (!caseRow) return;
-    setRetrying(true);
-    setRetryError(null);
+  // Generate (or regenerate) the dispute letter for this case. This is the
+  // single, authoritative trigger: a paying customer who lands here without a
+  // letter — whether they paid at the paywall after the E&M flow hit a 402, or
+  // simply have no E&M step — gets their letter generated on the spot instead of
+  // staring at a "check back" screen that never calls the API.
+  const generate = useCallback(async () => {
+    if (!caseRow || generating) return;
+    setGenerating(true);
+    setGenError(null);
     try {
-      const errors = Array.isArray(caseRow.errors_found) ? caseRow.errors_found : [];
-      const userNotes = caseRow.bill_data?.userNotes ?? "";
+      const allErrors = (Array.isArray(caseRow.errors_found) ? caseRow.errors_found : []) as BillingError[];
+      const emReview = caseRow.bill_data?.em_review;
+      // Mirror EmReviewPanel: a 'cleared' E&M flag drops the E&M codes from the
+      // letter; otherwise every finding is included and a confirmed/borderline
+      // review feeds the E&M argument.
+      const errors = emReview?.outcome === "cleared" ? filterOutEmErrors(allErrors) : allErrors;
       const res = await fetch("/api/generate-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1187,19 +1204,24 @@ export default function LetterPage({
             insurance_type: caseRow.insurance_type ?? "",
             amount_billed: caseRow.amount_billed ?? 0,
             amount_expected: caseRow.amount_expected ?? 0,
-            date_of_service: "",
-            userNotes,
+            date_of_service: caseRow.bill_data?.date_of_service ?? "",
+            userNotes: caseRow.bill_data?.userNotes ?? "",
           },
+          emReview: emReview && emReview.outcome !== "cleared" ? emReview : undefined,
         }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setRetryError(
-          json.error ?? "Letter generation is temporarily unavailable. Please try again in a few minutes."
-        );
+        const msg =
+          json.error ?? "Letter generation is temporarily unavailable. Please try again in a few minutes.";
+        setGenError(msg);
+        Sentry.captureMessage("generate-letter failed on letter page", {
+          level: "error",
+          tags: { location: "letter-page", stage: "generate" },
+          extra: { caseId: caseRow.id, status: res.status, body: json },
+        });
         return;
       }
-      setGenFailed(false);
       if (typeof window !== "undefined") {
         const url = new URL(window.location.href);
         url.searchParams.delete("genFailed");
@@ -1207,15 +1229,27 @@ export default function LetterPage({
       }
       await load();
     } catch (err) {
-      console.error("Letter retry failed:", err);
+      console.error("Letter generation failed:", err);
       Sentry.captureException(err, {
-        tags: { location: "letter-page", stage: "retry" },
+        tags: { location: "letter-page", stage: "generate" },
       });
-      setRetryError("Letter generation is temporarily unavailable. Please try again in a few minutes.");
+      setGenError("Letter generation is temporarily unavailable. Please try again in a few minutes.");
     } finally {
-      setRetrying(false);
+      setGenerating(false);
     }
-  }, [caseRow, load]);
+  }, [caseRow, generating, load]);
+
+  // Auto-kick generation once when an entitled user has no letter yet. This is
+  // what un-sticks a paid case whose letter was never generated (e.g. the E&M
+  // flow hit the paywall, the user paid, and nothing re-triggered generation).
+  // On failure genError is set, which blocks the auto-retry and surfaces a
+  // manual "Retry generation" button — so we never loop the Anthropic call.
+  useEffect(() => {
+    if (loading || !unlocked || letter || generating || genError || autoTriedRef.current) return;
+    if (!caseRow) return;
+    autoTriedRef.current = true;
+    void generate();
+  }, [loading, unlocked, letter, generating, genError, caseRow, generate]);
 
   // ─── Loading state ─────────────────────────────────────────────────────────
   if (loading) {
@@ -1295,9 +1329,9 @@ export default function LetterPage({
     );
   }
 
-  // ─── Letter still generating / generation failed ───────────────────────────
+  // ─── No letter yet: generating, or generation failed ───────────────────────
   if (!letter) {
-    const showFailureState = genFailed || retryError !== null;
+    const failed = genError !== null;
     return (
       <div
         style={{
@@ -1314,7 +1348,7 @@ export default function LetterPage({
           @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
           .dot-pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
         `}</style>
-        {showFailureState ? (
+        {failed ? (
           <div
             style={{
               width: "10px",
@@ -1337,54 +1371,34 @@ export default function LetterPage({
           />
         )}
         <div style={{ ...serif("40px", { lineHeight: 1.1 }), maxWidth: "460px" }}>
-          {showFailureState
-            ? "Letter generation is temporarily unavailable."
-            : "Your letter is being generated."}
+          {failed ? "We couldn't generate your letter." : "Building your dispute package."}
         </div>
         <p
-          role={showFailureState ? "alert" : undefined}
-          style={{ ...sans("14px", "#A89F96"), marginTop: "16px", maxWidth: "420px", lineHeight: 1.65 }}
+          role={failed ? "alert" : undefined}
+          style={{ ...sans("14px", "#A89F96"), marginTop: "16px", maxWidth: "440px", lineHeight: 1.65 }}
         >
-          {showFailureState
-            ? (retryError ?? "Please try again in a few minutes.")
-            : "Check back in a moment."}
+          {failed
+            ? `${genError} Your purchase is safe — you can retry as many times as you need.`
+            : "This takes up to a minute — drafting your insurer-specific letter, regulatory citations, and evidence. This page updates automatically when it's ready."}
         </p>
         <div style={{ display: "flex", gap: "12px", marginTop: "32px" }}>
-          {showFailureState ? (
-            <button
-              onClick={handleRetry}
-              disabled={retrying || !caseRow}
-              style={{
-                ...sans("11px", "#0D0D0D"),
-                backgroundColor: "#C8A97E",
-                padding: "12px 24px",
-                letterSpacing: "0.2em",
-                textTransform: "uppercase",
-                fontWeight: 500,
-                border: "none",
-                cursor: retrying ? "wait" : "pointer",
-                opacity: retrying ? 0.6 : 1,
-              }}
-            >
-              {retrying ? "Retrying..." : "Retry"}
-            </button>
-          ) : (
-            <button
-              onClick={load}
-              style={{
-                ...sans("11px", "#0D0D0D"),
-                backgroundColor: "#C8A97E",
-                padding: "12px 24px",
-                letterSpacing: "0.2em",
-                textTransform: "uppercase",
-                fontWeight: 500,
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              Refresh
-            </button>
-          )}
+          <button
+            onClick={() => void generate()}
+            disabled={generating}
+            style={{
+              ...sans("11px", "#0D0D0D"),
+              backgroundColor: "#C8A97E",
+              padding: "12px 24px",
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              fontWeight: 500,
+              border: "none",
+              cursor: generating ? "wait" : "pointer",
+              opacity: generating ? 0.6 : 1,
+            }}
+          >
+            {generating ? "Generating…" : failed ? "Retry generation" : "Generate now"}
+          </button>
           <Link href={`/cases/${id}`} style={{ textDecoration: "none" }}>
             <span
               style={{

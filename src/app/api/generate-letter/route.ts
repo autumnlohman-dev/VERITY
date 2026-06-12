@@ -5,7 +5,9 @@ import { NextResponse } from 'next/server'
 import { renderEmReviewForPrompt, type EmReview } from '@/lib/emReview'
 import { disputeUnlocked } from '@/lib/entitlements'
 
-// Anthropic generation runs longer than Vercel's 10s Hobby / 15s Pro default.
+// The Anthropic SDK needs the Node runtime (never edge), and generation runs
+// longer than Vercel's short default — give it the full 60s window.
+export const runtime = 'nodejs'
 export const maxDuration = 60
 
 // Constructed lazily inside the handler, never at module scope (a module-scope
