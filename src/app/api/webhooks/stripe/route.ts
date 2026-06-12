@@ -26,20 +26,37 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient()
 
-  // Idempotency: never process the same event twice.
-  const { data: seen } = await admin
+  // Idempotency (M2): claim the event by inserting its id FIRST. stripe_event_id
+  // is the primary key, so concurrent or retried deliveries collide — a
+  // duplicate-key error means another delivery already owns this event and we
+  // acknowledge it without running the handler again. (The previous
+  // select-then-insert-at-the-end left a race window where two simultaneous
+  // deliveries both passed the check and double-processed the payment.)
+  const { error: claimErr } = await admin
     .from('webhook_events')
-    .select('stripe_event_id')
-    .eq('stripe_event_id', event.id)
-    .maybeSingle()
-  if (seen) return NextResponse.json({ received: true, duplicate: true })
+    .insert({ stripe_event_id: event.id, type: event.type })
+  if (claimErr) {
+    if (claimErr.code === '23505') {
+      return NextResponse.json({ received: true, duplicate: true })
+    }
+    // Some other DB error recording the claim — log and proceed rather than drop
+    // a real event because the idempotency store hiccuped.
+    console.error('webhook_events claim insert failed (non-duplicate):', claimErr)
+  }
 
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
 
-        if (session.mode === 'payment' && session.metadata?.kind === 'single_dispute') {
+        if (
+          session.mode === 'payment' &&
+          session.metadata?.kind === 'single_dispute' &&
+          // M1: only unlock once the money is actually collected. A completed
+          // session can still be payment_status 'unpaid' (e.g. async payment
+          // methods) — paying out access on that would comp the dispute for free.
+          session.payment_status === 'paid'
+        ) {
           const userId = session.metadata.userId
           const caseId = session.metadata.caseId
           const paymentIntentId =
@@ -121,10 +138,12 @@ export async function POST(request: Request) {
         // Unhandled event types are acknowledged so Stripe stops retrying.
         break
     }
-
-    await admin.from('webhook_events').insert({ stripe_event_id: event.id, type: event.type })
   } catch (err) {
     console.error('Webhook handler error:', event.type, err)
+    // Processing failed after we claimed the event up front — release the claim
+    // so Stripe's retry can re-run the handler instead of seeing it as a
+    // duplicate and skipping it.
+    await admin.from('webhook_events').delete().eq('stripe_event_id', event.id)
     // 500 → Stripe retries later.
     return NextResponse.json({ error: 'Handler error' }, { status: 500 })
   }
