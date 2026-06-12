@@ -257,6 +257,16 @@ function emptyMetadata(): ExtractedBillMetadata {
   }
 }
 
+// H1 NOTE: this tool-use extractor is more robust than the live text-JSON
+// parser in extraction.ts (structured output, plus richer metadata — patient
+// name/address and provider NPI for letter generation). It is currently UNUSED
+// (its only caller, /api/extract-line-items, was removed). It is deliberately
+// retained — not swapped into the live audit path yet — because that swap
+// changes extraction behaviour for every upload, drops the lowConfidence signal
+// the live path stores, and can only be validated against real bill uploads. It
+// belongs in its own change, not bundled with a security/cleanup pass. The CPT
+// mapping helpers below (DESCRIPTION_TO_CPT / mapDescriptionToCpt /
+// CPT_CODE_PATTERN) ARE live — extraction.ts imports them.
 export async function extractBillContent(
   file: File,
   anthropic?: Anthropic

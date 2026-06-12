@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { runAudit, type BillingError, type InsuranceType, type LineItem } from '@/lib/errorDetection'
+import { analyzeDisputedProcedures } from '@/lib/patientDisputes'
 import { billExtractionToCBS, extractEOBToCBS, isExtractableExt } from '@/lib/cbs/extractor'
 import { normalizeCBSSet } from '@/lib/cbs/normalizer'
 import type { CanonicalBillingSchema, NormalizedCBSSet } from '@/lib/cbs/schema'
@@ -31,6 +32,9 @@ export interface FullAuditInput {
   lowConfidence?: string[]
   /** Namespaces the CBS document ids: `bill_${docIdBase}` / `eob_${docIdBase}`. */
   docIdBase: string
+  /** Patient's free-text note. When present, an LLM flags line items the patient
+   *  reports as not-rendered / disputed (error_type 'patient_disputed'). */
+  userNotes?: string
   /** Stamped onto the bill CBS metadata (the case id when persisting, else ''). */
   accountNumber?: string
   /** Optional EOB to drive the cross-document (bill vs EOB) comparison. */
@@ -79,12 +83,26 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
     docIdBase,
     accountNumber = '',
     eob = null,
+    userNotes,
     supabase,
   } = input
 
   // Rules engine (NCCI PTP/MUE, PFS/CLFS pricing, coverage). Same call, same
   // graceful degradation when the reference tables are empty, for all callers.
   const errors = await runAudit(lineItems, insuranceType, supabase ? { supabase } : {})
+
+  // Patient-reported disputes (Component: patient_disputed). When the patient
+  // wrote a note, an LLM flags line items they say weren't rendered / are wrong.
+  // Best-effort: a failure here (e.g. Anthropic rate limit) must not sink the
+  // whole audit, so we log and continue with the rules findings only.
+  if (userNotes && userNotes.trim()) {
+    try {
+      const disputeErrors = await analyzeDisputedProcedures(lineItems, userNotes)
+      if (disputeErrors.length > 0) errors.push(...disputeErrors)
+    } catch (err) {
+      console.error('patient-dispute analysis failed (non-fatal):', err)
+    }
+  }
 
   const totalBilled = lineItems.reduce((s, li) => s + Number(li.billed_amount || 0), 0)
   const potentialSavings = computeRecoverable(errors, totalBilled)

@@ -120,6 +120,9 @@ export async function POST(request: Request) {
       docIdBase: caseId,
       accountNumber: caseId,
       eob: typeof eobFileBase64 === 'string' && eobFileBase64 ? { base64: eobFileBase64, ext: eobExt } : null,
+      // The patient's note (collected at case creation) drives patient-dispute
+      // flagging — ported here from the now-removed /api/audit route.
+      userNotes: typeof existingBillData.userNotes === 'string' ? existingBillData.userNotes : undefined,
       supabase,
     })
 
