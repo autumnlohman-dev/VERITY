@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { claimPendingGuestAudit } from "@/lib/guestClaim";
+import { getEntitlements } from "@/lib/entitlements";
 import { DigitalTwinView } from "@/components/DigitalTwinView";
 
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -133,6 +134,7 @@ interface CaseRow {
   potential_savings: number | null;
   bill_data: BillData | null;
   errors_found: unknown[] | null;
+  dispute_paid: boolean | null;
   created_at: string;
 }
 
@@ -349,6 +351,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [cases, setCases] = useState<CaseRow[]>([]);
+  // Membership entitles every case to letter generation; non-members are
+  // entitled per case via dispute_paid. Fetched once to keep row CTAs cheap.
+  const [isMember, setIsMember] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -384,7 +389,7 @@ export default function DashboardPage() {
       const { data, error } = await supabase
         .from("cases")
         .select(
-          "id, user_id, status, provider_name, insurance_type, amount_billed, amount_recovered, potential_savings, bill_data, errors_found, created_at"
+          "id, user_id, status, provider_name, insurance_type, amount_billed, amount_recovered, potential_savings, bill_data, errors_found, dispute_paid, created_at"
         )
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
@@ -398,6 +403,16 @@ export default function DashboardPage() {
       }
 
       setCases((data ?? []) as CaseRow[]);
+
+      // One membership check for the whole dashboard (drives the row letter CTAs).
+      try {
+        const { isMember: member } = await getEntitlements(supabase, user.id);
+        if (!cancelled) setIsMember(member);
+      } catch {
+        // leave isMember = false; per-case dispute_paid still drives CTAs
+      }
+
+      if (cancelled) return;
       setLoading(false);
     })();
 
@@ -638,7 +653,7 @@ export default function DashboardPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "minmax(220px, 2fr) 160px 140px 160px 160px 110px",
+              gridTemplateColumns: "minmax(220px, 2fr) 160px 140px 160px 160px 150px",
               gap: "16px",
               paddingBottom: "12px",
               borderBottom: "1px solid #242424",
@@ -664,6 +679,18 @@ export default function DashboardPage() {
             const billed = Number(c.amount_billed ?? 0);
             const potential = Number(c.potential_savings ?? 0);
 
+            // State-aware letter action, same logic as the case page. status
+            // 'letter_ready' means a letter exists; 'error_found' means findings
+            // but no letter yet (buy vs generate by entitlement). Clean/auditing
+            // cases get no letter action.
+            const entitled = isMember || c.dispute_paid === true;
+            const letterCta =
+              c.status === "letter_ready"
+                ? { label: "View letter →" }
+                : c.status === "error_found"
+                ? { label: entitled ? "Generate letter →" : "Get package →" }
+                : null;
+
             return (
               <motion.div
                 key={c.id}
@@ -672,7 +699,7 @@ export default function DashboardPage() {
                 transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.25 + i * 0.05 }}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "minmax(220px, 2fr) 160px 140px 160px 160px 110px",
+                  gridTemplateColumns: "minmax(220px, 2fr) 160px 140px 160px 160px 150px",
                   gap: "16px",
                   alignItems: "center",
                   padding: "20px 0",
@@ -698,20 +725,38 @@ export default function DashboardPage() {
                   {potential > 0 ? formatCurrency(potential) : "—"}
                 </div>
                 <StatusPill c={c} />
-                <Link
-                  href={`/cases/${c.id}`}
-                  style={{
-                    ...sans("12px", "#C8A97E"),
-                    textDecoration: "none",
-                    letterSpacing: "0.1em",
-                    transition: "color 0.2s",
-                    textAlign: "right",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "#C8A97E")}
-                >
-                  View →
-                </Link>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
+                  <Link
+                    href={`/cases/${c.id}`}
+                    style={{
+                      ...sans("12px", "#C8A97E"),
+                      textDecoration: "none",
+                      letterSpacing: "0.1em",
+                      transition: "color 0.2s",
+                      textAlign: "right",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#C8A97E")}
+                  >
+                    View →
+                  </Link>
+                  {letterCta && (
+                    <Link
+                      href={`/cases/${c.id}/letter`}
+                      style={{
+                        ...sans("11px", "#8A7F6E"),
+                        textDecoration: "none",
+                        letterSpacing: "0.05em",
+                        transition: "color 0.2s",
+                        textAlign: "right",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = "#C8A97E")}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = "#8A7F6E")}
+                    >
+                      {letterCta.label}
+                    </Link>
+                  )}
+                </div>
               </motion.div>
             );
           })}

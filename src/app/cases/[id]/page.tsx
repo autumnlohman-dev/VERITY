@@ -23,6 +23,7 @@ import { generateWorkflow, getWorkflowForCase, saveWorkflow, recordActionUpdate,
 import { OutcomePredictionPanel, AdvocacyWorkflowPanel } from "@/components/AdvocacyPanels";
 import { generateEvidentiaryPackage } from "@/lib/letterPdf";
 import { applyLetterSubstitutions, evidentiaryPackageFilename, todayLongDate } from "@/lib/letterFields";
+import { disputeUnlocked } from "@/lib/entitlements";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -447,6 +448,9 @@ export default function CaseDetailPage({
   const [loading, setLoading] = useState(true);
   const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
   const [letter, setLetter] = useState<LetterRow | null>(null);
+  // Whether the dispute package is unlocked for this case (paid or membership) —
+  // drives the letter CTA copy (buy vs generate).
+  const [unlocked, setUnlocked] = useState(false);
   // Set when we arrived here because the uploaded/imported bill was already in
   // the dashboard (?dup=1) — the audit was collapsed onto this existing case.
   const [alreadyInDashboard, setAlreadyInDashboard] = useState(false);
@@ -573,6 +577,17 @@ export default function CaseDetailPage({
       if (letterData && letterData.length > 0) {
         setLetter(letterData[0] as LetterRow);
       }
+
+      // Entitlement drives the letter CTA copy (buy vs generate). Non-blocking:
+      // a failure just defaults to the "get your dispute package" path.
+      try {
+        const entitled = await disputeUnlocked(supabase, user.id, id);
+        if (!cancelled) setUnlocked(entitled);
+      } catch {
+        // leave unlocked = false
+      }
+
+      if (cancelled) return;
       setLoading(false);
     })();
 
@@ -938,17 +953,37 @@ export default function CaseDetailPage({
           <div
             style={{
               backgroundColor: "#1A1A1A",
-              borderLeft: "4px solid #C47C6A",
+              borderLeft: "4px solid #C8A97E",
               padding: "20px 24px",
               marginTop: "32px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
             }}
           >
             <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
               {errors.length} {errors.length === 1 ? "error" : "errors"} found.
             </div>
-            <p style={{ ...sans("13px", "#A89F96"), marginTop: "8px" }}>
-              Your dispute letter is being prepared.
+            <p style={{ ...sans("13px", "#A89F96") }}>
+              {unlocked
+                ? "Your dispute package is unlocked. Generate your insurer-ready letter — regulatory citations, chronological timeline, and evidence included."
+                : "Turn these findings into a ready-to-send dispute package: an insurer-specific letter, regulatory citations, and a step-by-step submission guide."}
             </p>
+            <Link href={`/cases/${caseRow.id}/letter`} style={{ textDecoration: "none" }}>
+              <span
+                style={{
+                  ...sans("10px", "#0D0D0D"),
+                  backgroundColor: "#C8A97E",
+                  padding: "12px 24px",
+                  letterSpacing: "0.2em",
+                  textTransform: "uppercase",
+                  fontWeight: 500,
+                  display: "inline-block",
+                }}
+              >
+                {unlocked ? "Generate my dispute letter →" : "Get your dispute package →"}
+              </span>
+            </Link>
           </div>
         ) : caseRow.status === "no_errors" ? (
           <div
