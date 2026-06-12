@@ -528,6 +528,13 @@ function UploadPageInner() {
       // Run the extraction + audit pipeline and await it so the case page already
       // has findings when we land on it. A failure here still has a saved case —
       // surface it as a retryable error rather than dropping the user silently.
+      //
+      // /api/extract is AUTHORITATIVE for where we land. On bill-level dedup it
+      // DELETES this freshly-created shell case and returns the surviving original
+      // case id (+ duplicate:true). So always use the extract response's caseId —
+      // never the shell id from /api/cases, which may have just been deleted.
+      let landingCaseId: string = data.caseId;
+      let isDuplicate = false;
       if (data.caseId) {
         const billFileBase64 = await fileToBase64(file);
         const eobFileBase64 = eobFile ? await fileToBase64(eobFile) : undefined;
@@ -542,8 +549,8 @@ function UploadPageInner() {
             eobFileName: eobFile?.name,
           }),
         });
+        const extractJson = await extractRes.json().catch(() => ({}));
         if (!extractRes.ok) {
-          const extractJson = await extractRes.json().catch(() => ({}));
           setError(
             extractJson.error ||
               "We saved your bill but couldn't finish the audit. Try again."
@@ -551,12 +558,15 @@ function UploadPageInner() {
           setPhase("error");
           return;
         }
+        if (typeof extractJson.caseId === "string" && extractJson.caseId) {
+          landingCaseId = extractJson.caseId;
+        }
+        isDuplicate = extractJson.duplicate === true;
       }
 
-      // Land on the case page with the full audit results + letter CTA. If the
-      // extract collapsed this into an existing case (same bill already audited),
-      // it returns { duplicate, caseId } pointing at the original.
-      router.push(data.duplicate ? `/cases/${data.caseId}?dup=1` : `/cases/${data.caseId}`);
+      // Land on the surviving case with the full audit results + letter CTA.
+      // ?dup=1 surfaces the "already in your dashboard" banner for a re-upload.
+      router.push(isDuplicate ? `/cases/${landingCaseId}?dup=1` : `/cases/${landingCaseId}`);
     } catch (err) {
       console.error(err);
       setError("Something went wrong. Please try again.");
