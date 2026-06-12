@@ -707,7 +707,24 @@ function UploadPageInner() {
                 </span>
               </Link>
               <span
-                onClick={() => { setGuestResults(null); setStep(1); setBillFile(null); }}
+                onClick={() => {
+                  // Reset ALL inputs, not just the bill — otherwise the next audit
+                  // silently reuses the previous EOB / care type / insurance / notes.
+                  setGuestResults(null);
+                  setBillFile(null);
+                  setEobFile(null);
+                  setCardFile(null);
+                  setCareType(null);
+                  setInsuranceType(null);
+                  setGfe(null);
+                  setUserNotes("");
+                  setError(null);
+                  // The guest success path leaves phase === "running" (results
+                  // render on guestResults), so reset it too or clearing the
+                  // results would drop the user onto the progress screen.
+                  setPhase("form");
+                  setStep(1);
+                }}
                 style={{ ...sans("11px", "#221C14"), border: "1px solid #C2B7A3", padding: "16px 32px", letterSpacing: "0.2em", textTransform: "uppercase", display: "inline-block", cursor: "pointer" }}
               >
                 Audit another bill

@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { extractFromBase64, isSupportedExt } from '@/lib/extraction'
-import { type InsuranceType } from '@/lib/errorDetection'
 import { runFullAudit } from '@/lib/audit/runFullAudit'
 import { findDuplicateCase } from '@/lib/audit/dedup'
+import { normalizeInsuranceType } from '@/lib/insuranceMapping'
 import { MAX_FILE_BYTES } from '@/lib/billExtractor'
 import { checkRateLimit, decodedBase64Bytes } from '@/lib/rateLimit'
 import { NextResponse } from 'next/server'
@@ -13,18 +13,6 @@ export const maxDuration = 60
 // Signed-in route → throttle per user: 30 audits / 10 minutes.
 const EXTRACT_RATE_LIMIT = 30
 const EXTRACT_RATE_WINDOW_SECONDS = 600
-
-const VALID: InsuranceType[] = ['commercial', 'medicare', 'medicaid', 'self-pay', 'tricare', 'other']
-
-function mapInsuranceType(raw: unknown): InsuranceType {
-  const v = String(raw ?? '').toLowerCase()
-  if (v.includes('medicare')) return 'medicare'
-  if (v.includes('medicaid')) return 'medicaid'
-  if (v.includes('self')) return 'self-pay'
-  if (v.includes('tricare')) return 'tricare'
-  if (v.includes('commercial') || v.includes('ppo') || v.includes('hmo') || v.includes('epo')) return 'commercial'
-  return VALID.includes(v as InsuranceType) ? (v as InsuranceType) : 'commercial'
-}
 
 // Signed-in bill audit. Runs the shared runFullAudit pipeline (identical to the
 // guest + claim paths) and persists the result onto the case so it renders on
@@ -108,7 +96,7 @@ export async function POST(request: Request) {
         ? (caseRow.bill_data as Record<string, unknown>)
         : {}
 
-    const insuranceType = mapInsuranceType(caseRow.insurance_type ?? existingBillData.insuranceType)
+    const insuranceType = normalizeInsuranceType(caseRow.insurance_type ?? existingBillData.insuranceType)
     const eobExt = String(eobFileName ?? '').split('.').pop()?.toLowerCase() ?? ''
 
     const result = await runFullAudit({

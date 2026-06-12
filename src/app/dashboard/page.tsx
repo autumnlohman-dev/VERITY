@@ -132,6 +132,7 @@ interface CaseRow {
   amount_recovered: number | null;
   potential_savings: number | null;
   bill_data: BillData | null;
+  errors_found: unknown[] | null;
   created_at: string;
 }
 
@@ -383,7 +384,7 @@ export default function DashboardPage() {
       const { data, error } = await supabase
         .from("cases")
         .select(
-          "id, user_id, status, provider_name, insurance_type, amount_billed, amount_recovered, potential_savings, bill_data, created_at"
+          "id, user_id, status, provider_name, insurance_type, amount_billed, amount_recovered, potential_savings, bill_data, errors_found, created_at"
         )
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
@@ -452,7 +453,9 @@ export default function DashboardPage() {
             createdAt: c.created_at,
             totalBilled: Number(c.amount_billed ?? 0),
             potentialSavings: Number(c.potential_savings ?? 0),
-            errorCount: Number(c.potential_savings ?? 0) > 0 ? 1 : 0,
+            // L8: real per-case error count from errors_found, not a 0/1 proxy
+            // derived from potential_savings (which undercounted multi-error bills).
+            errorCount: Array.isArray(c.errors_found) ? c.errors_found.length : 0,
             status: c.status,
           }))}
         />

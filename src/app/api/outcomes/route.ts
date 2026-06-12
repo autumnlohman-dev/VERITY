@@ -63,26 +63,46 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Not authorized for this outcome' }, { status: 403 })
     }
 
+    // L5: don't trust client-supplied timestamps or numbers. created_at is left
+    // to the DB default (now()) so a user can't backdate their own record;
+    // numeric fields are coerced and clamped to a sane range; resolved_at and
+    // status are validated; free-text fields are length-capped.
+    const clampNum = (v: unknown, min: number, max: number): number | null => {
+      const n = Number(v)
+      if (!Number.isFinite(n)) return null
+      return Math.min(max, Math.max(min, n))
+    }
+    const capStr = (v: unknown, max: number): string | null =>
+      typeof v === 'string' && v.trim() ? v.slice(0, max) : null
+    const VALID_STATUSES = new Set(['pending', 'in_progress', 'won', 'partial', 'lost', 'abandoned'])
+    const status =
+      typeof body.status === 'string' && VALID_STATUSES.has(body.status) ? body.status : 'pending'
+    const resolvedAt =
+      typeof body.resolvedAt === 'string' && !Number.isNaN(Date.parse(body.resolvedAt))
+        ? body.resolvedAt
+        : null
+
     const row = {
       id: body.outcomeId,
       ...(isUuid(body.caseId) ? { case_id: body.caseId } : {}),
       user_id: user.id,
-      ...(body.createdAt ? { created_at: body.createdAt } : {}),
-      resolved_at: body.resolvedAt ?? null,
-      discrepancy_type: body.discrepancyType ?? null,
-      discrepancy_severity: body.discrepancySeverity ?? null,
-      dollar_amount_disputed: body.dollarAmountDisputed ?? 0,
-      payer_name: body.payerName ?? null,
-      payer_type: body.payerType ?? null,
-      provider_name: body.providerName ?? null,
-      state_of_service: body.stateOfService ?? null,
-      regulations_cited: body.regulationsCited ?? [],
-      documentation_completeness: body.documentationCompleteness ?? null,
-      resolution_pathway_used: body.resolutionPathwayUsed ?? null,
-      status: body.status ?? 'pending',
-      amount_recovered: body.amountRecovered ?? null,
-      days_to_resolution: body.daysToResolution ?? null,
-      notes: body.notes ?? null,
+      resolved_at: resolvedAt,
+      discrepancy_type: capStr(body.discrepancyType, 80),
+      discrepancy_severity: capStr(body.discrepancySeverity, 40),
+      dollar_amount_disputed: clampNum(body.dollarAmountDisputed, 0, 100_000_000) ?? 0,
+      payer_name: capStr(body.payerName, 200),
+      payer_type: capStr(body.payerType, 40),
+      provider_name: capStr(body.providerName, 200),
+      state_of_service: capStr(body.stateOfService, 40),
+      regulations_cited: Array.isArray(body.regulationsCited)
+        ? body.regulationsCited.slice(0, 50).map((r) => String(r).slice(0, 300))
+        : [],
+      documentation_completeness: capStr(body.documentationCompleteness, 40),
+      resolution_pathway_used: capStr(body.resolutionPathwayUsed, 120),
+      status,
+      amount_recovered: body.amountRecovered != null ? clampNum(body.amountRecovered, 0, 100_000_000) : null,
+      days_to_resolution: body.daysToResolution != null ? clampNum(body.daysToResolution, 0, 100_000) : null,
+      notes: capStr(body.notes, 4000),
     }
 
     const { error } = await supabase

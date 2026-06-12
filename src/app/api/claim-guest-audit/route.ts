@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
-import { type InsuranceType, type LineItem } from '@/lib/errorDetection'
+import { type LineItem } from '@/lib/errorDetection'
 import { runFullAudit } from '@/lib/audit/runFullAudit'
 import { findDuplicateCase } from '@/lib/audit/dedup'
+import { normalizeInsuranceType } from '@/lib/insuranceMapping'
 import type { NormalizedCBSSet } from '@/lib/cbs/schema'
 
 // Turns a guest's localStorage audit claim into a real, user-owned case row.
@@ -18,17 +19,6 @@ import type { NormalizedCBSSet } from '@/lib/cbs/schema'
 // (provider + date of service + amount) collapses re-uploads of the same bill.
 
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
-
-const VALID: InsuranceType[] = ['commercial', 'medicare', 'medicaid', 'self-pay', 'tricare', 'other']
-function mapInsuranceType(raw: unknown): InsuranceType {
-  const v = String(raw ?? '').toLowerCase()
-  if (v.includes('medicare')) return 'medicare'
-  if (v.includes('medicaid')) return 'medicaid'
-  if (v.includes('self')) return 'self-pay'
-  if (v.includes('tricare')) return 'tricare'
-  if (v.includes('commercial') || v.includes('ppo') || v.includes('hmo') || v.includes('epo')) return 'commercial'
-  return VALID.includes(v as InsuranceType) ? (v as InsuranceType) : 'commercial'
-}
 
 interface ClaimBody {
   claimId?: unknown
@@ -119,7 +109,7 @@ export async function POST(request: Request) {
     // Re-audit server-side through the shared pipeline (don't trust client errors).
     const result = await runFullAudit({
       lineItems,
-      insuranceType: mapInsuranceType(insuranceType),
+      insuranceType: normalizeInsuranceType(insuranceType),
       provider,
       dateOfService,
       // Re-audit reads no per-field vision confidence; the guest's boolean flag

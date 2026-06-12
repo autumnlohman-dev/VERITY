@@ -49,6 +49,34 @@ export async function POST(request: Request) {
       )
     }
 
+    // L4: `errors` and `caseData` are interpolated straight into the Anthropic
+    // prompt. Validate the shape and bound the size BEFORE the model call so an
+    // oversized or malformed payload can't inflate the prompt (cost/DoS) or
+    // smuggle in unbounded free text.
+    const capStr = (v: unknown, max: number): string =>
+      typeof v === 'string' ? v.slice(0, max) : ''
+    const MAX_ERRORS = 100
+    const safeErrors = (Array.isArray(errors) ? errors : []).slice(0, MAX_ERRORS).map((e) => {
+      const o = (e ?? {}) as Record<string, unknown>
+      return {
+        cpt_code: capStr(o.cpt_code, 20),
+        description: capStr(o.description, 300),
+        error_type: capStr(o.error_type, 40),
+        billed_amount: Number(o.billed_amount) || 0,
+        expected_amount: Number(o.expected_amount) || 0,
+        confidence: capStr(o.confidence, 16),
+        explanation: capStr(o.explanation, 1200),
+        rule_violated: capStr(o.rule_violated, 600),
+      }
+    })
+    const safeCaseData = {
+      provider_name: capStr(caseData.provider_name, 200),
+      insurance_type: capStr(caseData.insurance_type, 100),
+      amount_billed: Number(caseData.amount_billed) || 0,
+      amount_expected: Number(caseData.amount_expected) || 0,
+      date_of_service: capStr(caseData.date_of_service, 60),
+    }
+
     // Verify this case belongs to the user.
     const { data: caseRecord } = await supabase
       .from('cases')
@@ -73,11 +101,12 @@ export async function POST(request: Request) {
       )
     }
 
-    const userNotes: string =
+    const userNotes: string = (
       (caseData && typeof caseData.userNotes === 'string' && caseData.userNotes) ||
       (caseRecord.bill_data && typeof caseRecord.bill_data.userNotes === 'string'
         ? caseRecord.bill_data.userNotes
         : '')
+    ).slice(0, 4000) // L4: bound the free-text note injected into the prompt.
 
     const userNotesSection = userNotes.trim()
       ? `
@@ -123,17 +152,17 @@ Always include specific CPT codes, dollar amounts, and regulatory citations.`,
         // in by hand before sending. They are NOT leaked test data.
         content: `Generate a formal medical bill dispute letter for the following case:
 
-Provider: ${caseData.provider_name}
-Insurance Type: ${caseData.insurance_type}
-Total Billed: $${caseData.amount_billed}
-Expected Amount: $${caseData.amount_expected}
-Date of Service: ${caseData.date_of_service || 'See attached bill'}
+Provider: ${safeCaseData.provider_name}
+Insurance Type: ${safeCaseData.insurance_type}
+Total Billed: $${safeCaseData.amount_billed}
+Expected Amount: $${safeCaseData.amount_expected}
+Date of Service: ${safeCaseData.date_of_service || 'See attached bill'}
 Patient: [PATIENT NAME]
 Account Number: [ACCOUNT NUMBER]
 Member ID: [MEMBER ID]
 
 Errors Found:
-${JSON.stringify(errors, null, 2)}${userNotesSection}${emReviewSection}
+${JSON.stringify(safeErrors, null, 2)}${userNotesSection}${emReviewSection}
 
 The letter should:
 1. Be addressed to the insurance company claims review department

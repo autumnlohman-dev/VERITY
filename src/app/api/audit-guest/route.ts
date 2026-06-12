@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { extractFromBase64, isSupportedExt } from '@/lib/extraction'
-import { type InsuranceType } from '@/lib/errorDetection'
 import { runFullAudit } from '@/lib/audit/runFullAudit'
+import { normalizeInsuranceType } from '@/lib/insuranceMapping'
 import { MAX_FILE_BYTES } from '@/lib/billExtractor'
 import { checkRateLimit, clientIp, decodedBase64Bytes } from '@/lib/rateLimit'
 import { NextResponse } from 'next/server'
@@ -12,18 +12,6 @@ export const maxDuration = 60
 // Public route → throttle per source IP: 15 audits / 10 minutes.
 const GUEST_RATE_LIMIT = 15
 const GUEST_RATE_WINDOW_SECONDS = 600
-
-const VALID: InsuranceType[] = ['commercial', 'medicare', 'medicaid', 'self-pay', 'tricare', 'other']
-
-function mapInsuranceType(raw: unknown): InsuranceType {
-  const v = String(raw ?? '').toLowerCase()
-  if (v.includes('medicare')) return 'medicare'
-  if (v.includes('medicaid')) return 'medicaid'
-  if (v.includes('self')) return 'self-pay'
-  if (v.includes('tricare')) return 'tricare'
-  if (v.includes('commercial') || v.includes('ppo') || v.includes('hmo') || v.includes('epo')) return 'commercial'
-  return VALID.includes(v as InsuranceType) ? (v as InsuranceType) : 'commercial'
-}
 
 // Public, anonymous bill audit — no account, no stored case.
 // Reads the (public-readable) rules tables only; writes nothing. Shares the
@@ -83,7 +71,7 @@ export async function POST(request: Request) {
     const eobExt = String(eobFileName ?? '').split('.').pop()?.toLowerCase() ?? ''
     const result = await runFullAudit({
       lineItems,
-      insuranceType: mapInsuranceType(insuranceType),
+      insuranceType: normalizeInsuranceType(insuranceType),
       provider,
       dateOfService,
       lowConfidence,

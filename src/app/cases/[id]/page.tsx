@@ -13,8 +13,7 @@ import { FinancialTimeline } from "@/components/FinancialTimeline";
 import { OutcomeFollowUp } from "@/components/OutcomeFollowUp";
 import { calculateFinancialHarmScore, type FHSUserInputs } from "@/lib/scores/financialHarmScore";
 import { calculateDeadlines } from "@/lib/deadlines/calculator";
-import { normalizeCBSSet } from "@/lib/cbs/normalizer";
-import { billExtractionToCBS } from "@/lib/cbs/extractor";
+import { cbsSetForCase } from "@/lib/deadlines/forCase";
 import type { NormalizedCBSSet } from "@/lib/cbs/schema";
 import type { DeadlineResult } from "@/lib/deadlines/calculator";
 import type { FinancialHarmScore } from "@/lib/scores/financialHarmScore";
@@ -491,40 +490,17 @@ export default function CaseDetailPage({
       // Build CBS from available case data and compute deadlines
       // (FHS computed separately after user answers intake questions)
       try {
-        const billData = caseData.bill_data as Record<string, unknown> | null;
-        // Prefer the cross-document set computed server-side (bill + EOB) by the
-        // audit pipeline; fall back to building a single-document set from the
-        // stored bill line items.
-        const persisted = billData?.normalizedCbs as NormalizedCBSSet | undefined;
-        const lineItems = (billData?.lineItems as Array<Record<string, unknown>>) || [];
-        if (persisted && Array.isArray(persisted.documents) && persisted.documents.length > 0) {
-          setCbsSet(persisted);
-          setDeadlines(calculateDeadlines(persisted));
-        } else if (lineItems.length > 0) {
-          const docId = `bill_${caseData.id}`;
-          const cbsDoc = billExtractionToCBS(
-            {
-              lineItems: lineItems.map(li => ({
-                cpt_code: String(li.cpt_code || ''),
-                description: String(li.description || ''),
-                date_of_service: String(li.date_of_service || ''),
-                units: Number(li.units) || 1,
-                billed_amount: Number(li.billed_amount) || 0,
-                modifiers: Array.isArray(li.modifiers) ? li.modifiers.map(String) : [],
-              })),
-              billMetadata: {
-                provider_name: String(caseData.provider_name || ''),
-                provider_npi: '',
-                bill_date: String(billData?.date_of_service || ''),
-                patient_name: '',
-                account_number: String(caseData.id || ''),
-              },
-            },
-            docId
-          );
-          const normalized = normalizeCBSSet([cbsDoc]);
-          setCbsSet(normalized);
-          setDeadlines(calculateDeadlines(normalized));
+        // Single source of truth (lib/deadlines/forCase): prefer the server-
+        // persisted cross-document CBS, else rebuild from the stored line items.
+        // The letter page derives its submission deadline from the same place.
+        const set = cbsSetForCase(
+          caseData.bill_data as Record<string, unknown> | null,
+          caseData.provider_name,
+          caseData.id
+        );
+        if (set) {
+          setCbsSet(set);
+          setDeadlines(calculateDeadlines(set));
         }
       } catch {
         // CBS build is non-blocking — if it fails, page still works

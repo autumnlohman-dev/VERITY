@@ -15,6 +15,7 @@ import {
   type MissingFieldKey,
 } from "@/lib/letterFields";
 import { generateLetterPdf } from "@/lib/letterPdf";
+import { deadlinesForCase } from "@/lib/deadlines/forCase";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -399,14 +400,6 @@ function formatLongDate(iso: string | null): string {
   } catch {
     return iso;
   }
-}
-
-function deadlineFrom(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  d.setDate(d.getDate() + 30);
-  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
 const SUBMISSION_OPTIONS = [
@@ -1408,7 +1401,16 @@ export default function LetterPage({
   const caseShortId = caseRow.id.slice(0, 8).toUpperCase();
   const providerLabel = caseRow.provider_name ?? "Provider on file";
   const generatedDate = formatLongDate(letter.generated_at);
-  const deadline = deadlineFrom(letter.generated_at ?? caseRow.created_at);
+  // L2: derive the submission deadline from the same per-rule calculator the
+  // case page's DeadlineTracker uses, instead of a hardcoded letter-date + 30.
+  // Show the most pressing one (soonest still-open, else the most overdue).
+  const caseDeadlines = deadlinesForCase(
+    caseRow.bill_data as Record<string, unknown> | null,
+    caseRow.provider_name,
+    caseRow.id
+  );
+  const topDeadline =
+    caseDeadlines.find((d) => d.daysRemaining >= 0) ?? caseDeadlines[0] ?? null;
   const patientInfo = caseRow.patient_info ?? {};
   const patientInfoFilled = Boolean(patientInfo.name?.trim());
   const displayContent = substitutePlaceholders(letter.letter_content, patientInfo, {
@@ -1508,8 +1510,8 @@ export default function LetterPage({
         </div>
       </div>
 
-      {/* Deadline banner */}
-      {deadline && (
+      {/* Deadline banner — single source of truth (lib/deadlines/forCase) */}
+      {topDeadline && (
         <div
           style={{
             backgroundColor: "#1A1A1A",
@@ -1519,9 +1521,14 @@ export default function LetterPage({
           }}
         >
           <span style={{ ...sans("13px", "#A89F96") }}>
-            Submission deadline:{" "}
-            <span style={{ color: "#C8A97E", fontWeight: 600 }}>{deadline}</span>
-            {" · "}30 days from letter date. File before this date to preserve your dispute rights.
+            {topDeadline.deadlineType}:{" "}
+            <span style={{ color: "#C8A97E", fontWeight: 600 }}>
+              {formatLongDate(topDeadline.deadlineDate)}
+            </span>
+            {" · "}
+            {topDeadline.daysRemaining < 0
+              ? "This deadline has passed — act immediately to preserve your dispute rights."
+              : "File before this date to preserve your dispute rights."}
           </span>
         </div>
       )}
