@@ -47,6 +47,57 @@ function extractJson(text: string): unknown {
   }
 }
 
+// GET /api/copilot?caseId=… → owner-verified case summary for the "Advising on
+// your case" banner. The page used to read this with the browser Supabase client,
+// which fails on RLS/session timing even for the owner; loading it here with the
+// server client (same ownership check the POST uses) makes the banner reliable.
+export async function GET(request: Request) {
+  try {
+    const caseId = new URL(request.url).searchParams.get('caseId')
+    if (!caseId) {
+      return NextResponse.json({ error: 'Missing caseId' }, { status: 400 })
+    }
+
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+
+    const { data: caseRow, error } = await supabase
+      .from('cases')
+      .select('id, provider_name, insurance_type, errors_found, bill_data')
+      .eq('id', caseId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (error) {
+      console.error('Copilot case summary lookup error:', error)
+      return NextResponse.json({ error: 'Failed to load case' }, { status: 500 })
+    }
+    if (!caseRow) {
+      return NextResponse.json({ error: 'Case not found' }, { status: 404 })
+    }
+
+    const billData = (caseRow.bill_data ?? {}) as Record<string, unknown>
+    const cbsSet = cbsSetForCase(billData, caseRow.provider_name, String(caseRow.id))
+    const fhs = (billData.fhs_score as FinancialHarmScore | undefined) ?? null
+
+    return NextResponse.json({
+      providerName: cap(caseRow.provider_name, 200) || 'Your provider',
+      insurer: cap(caseRow.insurance_type, 100) || cap(billData.insuranceType, 100) || 'Insurance on file',
+      errorCount: Array.isArray(caseRow.errors_found) ? caseRow.errors_found.length : 0,
+      discrepancyCount: cbsSet?.crossDocumentDiscrepancies?.length ?? 0,
+      fhs: fhs ? { score: fhs.score, tier: fhs.tier } : null,
+    })
+  } catch (error) {
+    console.error('Copilot case summary error:', error)
+    return NextResponse.json({ error: 'Failed to load case summary' }, { status: 500 })
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as {

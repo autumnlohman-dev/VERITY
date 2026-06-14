@@ -8,9 +8,6 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
-import { cbsSetForCase } from '@/lib/deadlines/forCase'
-import type { FinancialHarmScore } from '@/lib/scores/financialHarmScore'
 
 const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: 'var(--font-dm-sans), system-ui, sans-serif', fontSize: size, color, ...extra,
@@ -39,17 +36,16 @@ interface ExchangeEntry {
   escalation?: boolean
 }
 
-// Lightweight case context loaded when ?caseId is present, used to (a) show the
-// "advising on your case" banner and (b) tell /api/copilot which case to ground
-// guidance in. The heavy lifting (CBS rebuild, deadlines, FHS prompt) happens
-// server-side; here we only surface a short summary.
+// Lightweight case context for the "advising on your case" banner. Fetched from
+// GET /api/copilot?caseId=… (owner-verified, server Supabase client) — the same
+// case the POST grounds guidance in. The heavy lifting (CBS rebuild, deadlines,
+// FHS) happens server-side; here we only surface a short summary.
 interface CaseContext {
-  caseId: string
   providerName: string
   insurer: string
   discrepancyCount: number
   errorCount: number
-  fhs: FinancialHarmScore | null
+  fhs: { score: number; tier: string } | null
 }
 
 // ─── Assertion → guidance rules (regulatory knowledge base) ──────────────────
@@ -156,43 +152,38 @@ export default function CopilotPage() {
     return new URLSearchParams(window.location.search).get('caseId')
   })
   const [caseContext, setCaseContext] = useState<CaseContext | null>(null)
+  // True when ?caseId is present but the owner-verified summary couldn't be
+  // loaded (not signed in, not the owner, or the case is missing). Drives the
+  // inline "open from your case page" hint instead of silently going generic.
+  const [caseLoadFailed, setCaseLoadFailed] = useState(false)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [exchanges])
 
   // Load a short summary of the case so the copilot can show whose case it's
-  // advising on. Owner-scoped; a signed-out viewer just falls back to general
-  // guidance. Non-blocking — failure leaves caseContext null.
+  // advising on. Owner-verified server-side (GET /api/copilot) — the browser
+  // client used to do this directly and failed on RLS/session timing even for
+  // the owner, which is the bug this fixes.
   useEffect(() => {
     if (!caseId) return
     let cancelled = false
-    const supabase = createClient()
     ;(async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (cancelled || !user) return
-      const { data: row } = await supabase
-        .from('cases')
-        .select('id, provider_name, insurance_type, amount_billed, potential_savings, bill_data, errors_found')
-        .eq('id', caseId)
-        .eq('user_id', user.id)
-        .maybeSingle()
-      if (cancelled || !row) return
-      const billData = (row.bill_data ?? {}) as Record<string, unknown>
-      const cbsSet = cbsSetForCase(billData, row.provider_name, String(row.id))
-      setCaseContext({
-        caseId: String(row.id),
-        providerName: row.provider_name ?? 'your provider',
-        insurer: row.insurance_type ?? (billData.insuranceType as string) ?? 'Insurance on file',
-        discrepancyCount: cbsSet?.crossDocumentDiscrepancies?.length ?? 0,
-        errorCount: Array.isArray(row.errors_found) ? row.errors_found.length : 0,
-        fhs: (billData.fhs_score as FinancialHarmScore | undefined) ?? null,
-      })
-    })().catch(() => {
-      /* non-blocking: keep general-guidance mode */
-    })
+      try {
+        const res = await fetch(`/api/copilot?caseId=${encodeURIComponent(caseId)}`)
+        if (cancelled) return
+        if (!res.ok) {
+          setCaseLoadFailed(true)
+          return
+        }
+        const summary = (await res.json()) as CaseContext
+        if (cancelled) return
+        setCaseContext(summary)
+        setCaseLoadFailed(false)
+      } catch {
+        if (!cancelled) setCaseLoadFailed(true)
+      }
+    })()
     return () => {
       cancelled = true
     }
@@ -281,6 +272,24 @@ export default function CopilotPage() {
               {caseContext.discrepancyCount > 0 && ` · ${caseContext.discrepancyCount} cross-document ${caseContext.discrepancyCount === 1 ? 'discrepancy' : 'discrepancies'}`}
               {caseContext.fhs && ` · Financial Harm ${caseContext.fhs.score}/1000 (${caseContext.fhs.tier})`}
             </div>
+          </div>
+        )}
+
+        {/* ?caseId was passed but we couldn't load it for this viewer — say so
+            explicitly instead of silently dropping to generic guidance. */}
+        {caseId && !caseContext && caseLoadFailed && (
+          <div
+            style={{
+              marginTop: '16px',
+              backgroundColor: '#111111',
+              border: '1px solid #242424',
+              borderLeft: '3px solid #6B635C',
+              padding: '14px 18px',
+              maxWidth: '560px',
+              ...sans('12px', '#A89F96'),
+            }}
+          >
+            Open this from your case page while signed in for case-specific guidance.
           </div>
         )}
 
