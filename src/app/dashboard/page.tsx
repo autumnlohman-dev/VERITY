@@ -73,6 +73,7 @@ function Nav() {
       </Link>
       <div className="hidden md:flex" style={{ gap: "40px" }}>
         {[
+          { label: "Call Copilot", href: "/copilot" },
           { label: "How it works", href: "/how-it-works" },
           { label: "Pricing", href: "/pricing" },
         ].map((link) => (

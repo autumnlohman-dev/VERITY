@@ -773,7 +773,16 @@ export default function CaseDetailPage({
   return (
     <Shell>
       {/* Breadcrumb */}
-      <div style={{ paddingTop: "112px", paddingLeft: "64px", paddingRight: "64px" }}>
+      <div
+        style={{
+          paddingTop: "112px",
+          paddingLeft: "64px",
+          paddingRight: "64px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <Link
           href="/dashboard"
           style={{ ...sans("12px", "#6B635C"), textDecoration: "none", transition: "color 0.2s" }}
@@ -781,6 +790,29 @@ export default function CaseDetailPage({
           onMouseLeave={(e) => (e.currentTarget.style.color = "#6B635C")}
         >
           ← Dashboard
+        </Link>
+        {/* Live Copilot: real-time call guidance grounded in this case's audit. */}
+        <Link
+          href={`/copilot?caseId=${caseRow.id}`}
+          style={{
+            ...sans("10px", "#C8A97E"),
+            textDecoration: "none",
+            letterSpacing: "0.2em",
+            textTransform: "uppercase",
+            border: "1px solid rgba(200,169,126,0.4)",
+            padding: "8px 16px",
+            transition: "all 0.2s",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(200,169,126,0.08)";
+            e.currentTarget.style.color = "#F5F0E8";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "transparent";
+            e.currentTarget.style.color = "#C8A97E";
+          }}
+        >
+          Live Copilot →
         </Link>
       </div>
 

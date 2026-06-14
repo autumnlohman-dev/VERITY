@@ -8,6 +8,9 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
+import { cbsSetForCase } from '@/lib/deadlines/forCase'
+import type { FinancialHarmScore } from '@/lib/scores/financialHarmScore'
 
 const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: 'var(--font-dm-sans), system-ui, sans-serif', fontSize: size, color, ...extra,
@@ -29,6 +32,24 @@ interface ExchangeEntry {
   speaker: 'them' | 'guidance'
   text: string
   cards?: GuidanceCard[]
+  // While true, these are the instant static-rule cards and a live model
+  // response is still in flight (replaces them on arrival).
+  pending?: boolean
+  // Set by the model when the rep's statement contradicts a case finding.
+  escalation?: boolean
+}
+
+// Lightweight case context loaded when ?caseId is present, used to (a) show the
+// "advising on your case" banner and (b) tell /api/copilot which case to ground
+// guidance in. The heavy lifting (CBS rebuild, deadlines, FHS prompt) happens
+// server-side; here we only surface a short summary.
+interface CaseContext {
+  caseId: string
+  providerName: string
+  insurer: string
+  discrepancyCount: number
+  errorCount: number
+  fhs: FinancialHarmScore | null
 }
 
 // ─── Assertion → guidance rules (regulatory knowledge base) ──────────────────
@@ -127,20 +148,95 @@ export default function CopilotPage() {
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
+  // ?caseId arrives via the case page's "Live Copilot" button. Read it once
+  // from the URL (no useSearchParams → no Suspense boundary needed) the same way
+  // the case page reads ?dup.
+  const [caseId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    return new URLSearchParams(window.location.search).get('caseId')
+  })
+  const [caseContext, setCaseContext] = useState<CaseContext | null>(null)
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [exchanges])
+
+  // Load a short summary of the case so the copilot can show whose case it's
+  // advising on. Owner-scoped; a signed-out viewer just falls back to general
+  // guidance. Non-blocking — failure leaves caseContext null.
+  useEffect(() => {
+    if (!caseId) return
+    let cancelled = false
+    const supabase = createClient()
+    ;(async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (cancelled || !user) return
+      const { data: row } = await supabase
+        .from('cases')
+        .select('id, provider_name, insurance_type, amount_billed, potential_savings, bill_data, errors_found')
+        .eq('id', caseId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (cancelled || !row) return
+      const billData = (row.bill_data ?? {}) as Record<string, unknown>
+      const cbsSet = cbsSetForCase(billData, row.provider_name, String(row.id))
+      setCaseContext({
+        caseId: String(row.id),
+        providerName: row.provider_name ?? 'your provider',
+        insurer: row.insurance_type ?? (billData.insuranceType as string) ?? 'Insurance on file',
+        discrepancyCount: cbsSet?.crossDocumentDiscrepancies?.length ?? 0,
+        errorCount: Array.isArray(row.errors_found) ? row.errors_found.length : 0,
+        fhs: (billData.fhs_score as FinancialHarmScore | undefined) ?? null,
+      })
+    })().catch(() => {
+      /* non-blocking: keep general-guidance mode */
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [caseId])
+
+  // Replace the instant static cards for a given guidance entry with the live,
+  // case-grounded model response (or leave the fallback in place on failure).
+  const requestLiveGuidance = async (guidanceId: string, statement: string) => {
+    try {
+      const res = await fetch('/api/copilot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statement, caseId }),
+      })
+      if (!res.ok) throw new Error(`copilot ${res.status}`)
+      const json = (await res.json()) as {
+        escalation?: boolean
+        cards?: Array<Omit<GuidanceCard, 'id'>>
+      }
+      if (!Array.isArray(json.cards) || json.cards.length === 0) throw new Error('no cards')
+      const cards = json.cards.map(c => ({ ...c, id: uid() }))
+      setExchanges(prev =>
+        prev.map(e =>
+          e.id === guidanceId ? { ...e, cards, pending: false, escalation: json.escalation === true } : e
+        )
+      )
+    } catch {
+      // Keep the static fallback cards; just clear the pending state.
+      setExchanges(prev => prev.map(e => (e.id === guidanceId ? { ...e, pending: false } : e)))
+    }
+  }
 
   const submit = () => {
     const text = input.trim()
     if (!text) return
     const cards = generateGuidance(text)
+    const guidanceId = uid()
     setExchanges(prev => [
       ...prev,
       { id: uid(), speaker: 'them', text },
-      { id: uid(), speaker: 'guidance', text: '', cards },
+      { id: guidanceId, speaker: 'guidance', text: '', cards, pending: true },
     ])
     setInput('')
+    void requestLiveGuidance(guidanceId, text)
   }
 
   return (
@@ -162,6 +258,32 @@ export default function CopilotPage() {
         <div style={{ ...sans('13px', '#A89F96'), maxWidth: '560px' }}>
           Type what the representative just said. Verity instantly tells you what to say back, which law protects you, and what to document. Voice mode is coming soon.
         </div>
+
+        {/* Case-aware banner — guidance is grounded in this case's audit findings */}
+        {caseContext && (
+          <div
+            style={{
+              marginTop: '16px',
+              backgroundColor: '#111111',
+              border: '1px solid #242424',
+              borderLeft: '3px solid #C8A97E',
+              padding: '14px 18px',
+              maxWidth: '560px',
+            }}
+          >
+            <div style={{ ...sans('10px', '#C8A97E'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '6px' }}>
+              Advising on your case
+            </div>
+            <div style={{ ...sans('14px', '#F5F0E8') }}>{caseContext.providerName}</div>
+            <div style={{ ...sans('12px', '#6B635C'), marginTop: '4px' }}>
+              {caseContext.insurer}
+              {caseContext.errorCount > 0 && ` · ${caseContext.errorCount} documented ${caseContext.errorCount === 1 ? 'error' : 'errors'}`}
+              {caseContext.discrepancyCount > 0 && ` · ${caseContext.discrepancyCount} cross-document ${caseContext.discrepancyCount === 1 ? 'discrepancy' : 'discrepancies'}`}
+              {caseContext.fhs && ` · Financial Harm ${caseContext.fhs.score}/1000 (${caseContext.fhs.tier})`}
+            </div>
+          </div>
+        )}
+
         <div style={{ ...sans('11px', '#5F5648'), marginTop: '10px', maxWidth: '560px' }}>
           Guidance-only mode: nothing you type here is stored after you close this page. Verity provides administrative guidance, not legal advice.
         </div>
@@ -184,6 +306,11 @@ export default function CopilotPage() {
             </div>
           ) : (
             <div key={e.id} style={{ marginBottom: '22px', display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '85%' }}>
+              {e.escalation && (
+                <div style={{ ...sans('10px', '#C47C6A'), letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>
+                  ⚠ Contradicts your case findings — escalate
+                </div>
+              )}
               {e.cards?.map(c => {
                 const ks = KIND_STYLE[c.kind]
                 return (
@@ -194,6 +321,11 @@ export default function CopilotPage() {
                   </div>
                 )
               })}
+              {e.pending && (
+                <div style={{ ...sans('11px', '#5F5648'), letterSpacing: '0.1em', fontStyle: 'italic' }}>
+                  {caseContext ? 'Tailoring this to your case…' : 'Refining guidance…'}
+                </div>
+              )}
             </div>
           )
         )}
