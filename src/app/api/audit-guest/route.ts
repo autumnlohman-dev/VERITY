@@ -1,8 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { extractFromBase64, isSupportedExt } from '@/lib/extraction'
 import { runFullAudit } from '@/lib/audit/runFullAudit'
 import { normalizeInsuranceType } from '@/lib/insuranceMapping'
 import { MAX_FILE_BYTES } from '@/lib/billExtractor'
+import { downloadBillBase64, isUuid, pathHasPrefix } from '@/lib/storage/bills'
 import { checkRateLimit, clientIp, decodedBase64Bytes } from '@/lib/rateLimit'
 import { NextResponse } from 'next/server'
 
@@ -19,11 +21,9 @@ const GUEST_RATE_WINDOW_SECONDS = 600
 // a guest sees are exactly the numbers they get once the case is saved.
 export async function POST(request: Request) {
   try {
-    const { fileBase64, fileName, insuranceType, eobFileBase64, eobFileName } = await request.json()
+    const { fileBase64, billPath, fileName, insuranceType, eobFileBase64, eobPath, eobFileName, guestSessionId } =
+      await request.json()
 
-    if (typeof fileBase64 !== 'string' || !fileBase64) {
-      return NextResponse.json({ error: 'Missing file' }, { status: 400 })
-    }
     const ext = String(fileName ?? '').split('.').pop()?.toLowerCase() ?? ''
     if (!isSupportedExt(ext)) {
       return NextResponse.json(
@@ -32,10 +32,52 @@ export async function POST(request: Request) {
       )
     }
 
+    // The bill (and EOB) arrive either as a scoped storage path — the primary
+    // path, so large files never touch this request body — or as inline base64
+    // for small/legacy callers. Any storage path must sit under this guest's own
+    // session folder so one guest can't read another's upload via a forged path.
+    const usingStorage = Boolean((typeof billPath === 'string' && billPath) || (typeof eobPath === 'string' && eobPath))
+    if (usingStorage && !isUuid(guestSessionId)) {
+      return NextResponse.json({ error: 'Missing session' }, { status: 400 })
+    }
+    for (const p of [billPath, eobPath]) {
+      if (typeof p === 'string' && p && !pathHasPrefix(p, `guest/${guestSessionId}`)) {
+        return NextResponse.json({ error: 'Invalid upload reference' }, { status: 400 })
+      }
+    }
+
+    let billBase64: string
+    let resolvedEobBase64: string | undefined
+    try {
+      const admin = createAdminClient()
+      billBase64 =
+        typeof billPath === 'string' && billPath
+          ? await downloadBillBase64(admin, billPath)
+          : typeof fileBase64 === 'string'
+          ? fileBase64
+          : ''
+      resolvedEobBase64 =
+        typeof eobPath === 'string' && eobPath
+          ? await downloadBillBase64(admin, eobPath)
+          : typeof eobFileBase64 === 'string' && eobFileBase64
+          ? eobFileBase64
+          : undefined
+    } catch (e) {
+      console.error('Bill download error:', e)
+      return NextResponse.json(
+        { error: 'We couldn’t read your uploaded file. Please try again.' },
+        { status: 400 }
+      )
+    }
+
+    if (!billBase64) {
+      return NextResponse.json({ error: 'Missing file' }, { status: 400 })
+    }
+
     // Reject oversized payloads BEFORE spending an Anthropic vision call on them.
     if (
-      decodedBase64Bytes(fileBase64) > MAX_FILE_BYTES ||
-      (typeof eobFileBase64 === 'string' && decodedBase64Bytes(eobFileBase64) > MAX_FILE_BYTES)
+      decodedBase64Bytes(billBase64) > MAX_FILE_BYTES ||
+      (typeof resolvedEobBase64 === 'string' && decodedBase64Bytes(resolvedEobBase64) > MAX_FILE_BYTES)
     ) {
       return NextResponse.json(
         { error: 'That file is too large (20 MB max). Upload a smaller PDF or photo.' },
@@ -58,7 +100,7 @@ export async function POST(request: Request) {
     }
 
     // Vision extraction (proprietary Component I).
-    const { lineItems, provider, dateOfService, lowConfidence } = await extractFromBase64(fileBase64, ext)
+    const { lineItems, provider, dateOfService, lowConfidence } = await extractFromBase64(billBase64, ext)
     if (lineItems.length === 0) {
       return NextResponse.json(
         { error: 'No billable line items could be read from this document. Try a clearer photo or the itemized bill.' },
@@ -76,7 +118,7 @@ export async function POST(request: Request) {
       dateOfService,
       lowConfidence,
       docIdBase: 'guest',
-      eob: typeof eobFileBase64 === 'string' && eobFileBase64 ? { base64: eobFileBase64, ext: eobExt } : null,
+      eob: resolvedEobBase64 ? { base64: resolvedEobBase64, ext: eobExt } : null,
       supabase,
     })
 

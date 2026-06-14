@@ -172,6 +172,56 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+// Stable per-browser id for guests (who have no account). Scopes a guest's
+// storage uploads to their own folder so files stay isolated, and survives the
+// audit round trip in localStorage.
+function getGuestSessionId(): string {
+  const KEY = "guestSessionId";
+  try {
+    const existing = localStorage.getItem(KEY);
+    if (existing && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(existing)) {
+      return existing;
+    }
+    const id = crypto.randomUUID();
+    localStorage.setItem(KEY, id);
+    return id;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
+// Upload a bill/EOB straight to Supabase Storage via a server-minted signed URL.
+// The bytes go browser → Supabase directly, bypassing Vercel's ~4.5 MB request
+// body limit, so large scanned PDFs and phone photos work. Returns the storage
+// path the audit route downloads from, or null if the upload couldn't be set up
+// (the caller then falls back to inline base64, which still works for small files).
+async function uploadToBills(
+  supabase: ReturnType<typeof createClient>,
+  file: File,
+  slot: "bill" | "eob",
+  guestSessionId: string | null,
+): Promise<string | null> {
+  try {
+    const res = await fetch("/api/upload-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slot, fileName: file.name, guestSessionId }),
+    });
+    if (!res.ok) return null;
+    const { path, token } = await res.json();
+    if (typeof path !== "string" || typeof token !== "string") return null;
+    const { error } = await supabase.storage.from("bills").uploadToSignedUrl(path, token, file);
+    if (error) {
+      console.error("Storage upload error:", error);
+      return null;
+    }
+    return path;
+  } catch (e) {
+    console.error("Storage upload error:", e);
+    return null;
+  }
+}
+
 // ─── Step Indicator ───────────────────────────────────────────────────────────
 function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
   const steps = [
@@ -464,18 +514,27 @@ function UploadPageInner() {
 
       // ── Guest path: run a free, anonymous audit and show results inline ──
       if (!user) {
-        const fileBase64 = await fileToBase64(file);
-        const eobFileBase64 = eobFile ? await fileToBase64(eobFile) : undefined;
+        // Primary path: push the files straight to Storage (no body-size limit),
+        // then send just the storage paths. Fall back to inline base64 only when
+        // the direct upload couldn't be set up — fine for small files.
+        const guestSessionId = getGuestSessionId();
+        const billPath = await uploadToBills(supabase, file, "bill", guestSessionId);
+        const eobPath = eobFile ? await uploadToBills(supabase, eobFile, "eob", guestSessionId) : null;
+        const body: Record<string, unknown> = {
+          fileName: file.name,
+          insuranceType,
+          eobFileName: eobFile?.name,
+          guestSessionId,
+        };
+        if (billPath) body.billPath = billPath;
+        else body.fileBase64 = await fileToBase64(file);
+        if (eobPath) body.eobPath = eobPath;
+        else if (eobFile) body.eobFileBase64 = await fileToBase64(eobFile);
+
         const res = await fetch("/api/audit-guest", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fileBase64,
-            fileName: file.name,
-            insuranceType,
-            eobFileBase64,
-            eobFileName: eobFile?.name,
-          }),
+          body: JSON.stringify(body),
         });
         const result = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -495,15 +554,11 @@ function UploadPageInner() {
       }
 
       // ── Signed-in path: save the case so it persists + generates letters ──
-      let billPath: string | null = null;
-      const filePath = `${user.id}/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage.from("bills").upload(filePath, file);
-      if (uploadError) {
-        console.error("Upload error:", uploadError);
-        // Continue anyway — file upload failure shouldn't block case creation.
-      } else {
-        billPath = filePath;
-      }
+      // Push the bill (and EOB) straight to Storage; the audit downloads them
+      // server-side from these paths, so large files never hit the body limit.
+      // A failed upload doesn't block case creation — extract falls back to base64.
+      const billPath = await uploadToBills(supabase, file, "bill", null);
+      const eobPath = eobFile ? await uploadToBills(supabase, eobFile, "eob", null) : null;
 
       const response = await fetch("/api/cases", {
         method: "POST",
@@ -536,18 +591,22 @@ function UploadPageInner() {
       let landingCaseId: string = data.caseId;
       let isDuplicate = false;
       if (data.caseId) {
-        const billFileBase64 = await fileToBase64(file);
-        const eobFileBase64 = eobFile ? await fileToBase64(eobFile) : undefined;
+        const extractBody: Record<string, unknown> = {
+          caseId: data.caseId,
+          billFileName: file.name,
+          eobFileName: eobFile?.name,
+        };
+        // Prefer the storage paths; fall back to inline base64 (small files only)
+        // when a direct upload didn't go through.
+        if (billPath) extractBody.billPath = billPath;
+        else extractBody.billFileBase64 = await fileToBase64(file);
+        if (eobPath) extractBody.eobPath = eobPath;
+        else if (eobFile) extractBody.eobFileBase64 = await fileToBase64(eobFile);
+
         const extractRes = await fetch("/api/extract", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            caseId: data.caseId,
-            billFileBase64,
-            billFileName: file.name,
-            eobFileBase64,
-            eobFileName: eobFile?.name,
-          }),
+          body: JSON.stringify(extractBody),
         });
         const extractJson = await extractRes.json().catch(() => ({}));
         if (!extractRes.ok) {
