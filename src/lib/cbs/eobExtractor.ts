@@ -1,7 +1,20 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { CanonicalBillingSchema } from './schema'
-import { extractToCBS, EOB_MEDIA_TYPES } from './extractor'
+import { extractToCBS, EOB_MEDIA_TYPES, eobCanonicalHeaderPresent } from './extractor'
 import { normalizeForExtraction } from '../heic'
+
+// Thrown when the vision transcription yields no usable EOB line items — i.e. the
+// output was blank or could not be parsed into a single billed line. It is an
+// extraction FAILURE, not a valid empty EOB: runFullAudit's catch maps any throw
+// here to eobError=true, which surfaces the "couldn't read your EOB" notice
+// instead of a silently bill-only audit whose every bill line shows up as a
+// low-confidence non-match against an empty EOB.
+export class EOBExtractionError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'EOBExtractionError'
+  }
+}
 
 // ─── Multimodal EOB extraction (Component I → CBS) ─────────────────────────────
 // SERVER-ONLY. Reads an Explanation of Benefits image/PDF with the Anthropic
@@ -100,5 +113,36 @@ export async function extractEOBToCBS(
 
   const textOut = message.content.find((b) => b.type === 'text')
   const rawText = textOut && textOut.type === 'text' ? textOut.text : ''
-  return extractToCBS(rawText, documentId, 'eob')
+  const cbs = extractToCBS(rawText, documentId, 'eob')
+
+  // PHI-SAFE diagnostics. NEVER log the transcription itself — an EOB is PHI and
+  // we have no BAA covering log storage. Log only shape metrics, which are enough
+  // to tell a blank vision response (length≈0) from a present-but-unparseable one
+  // (non-zero length, header missing or zero parsed rows): transcription length,
+  // whether the canonical header was found, parsed row count, and the cell count
+  // of the first pipe row (structure only, no cell contents).
+  const headerFound = eobCanonicalHeaderPresent(rawText)
+  const firstPipeLine = rawText
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l.includes('|'))
+  const firstPipeRowCells = firstPipeLine ? firstPipeLine.split('|').length : 0
+  console.info(
+    `extractEOBToCBS[${documentId}]: transcriptionLength=${rawText.length}, ` +
+      `canonicalHeaderFound=${headerFound}, parsedLineItems=${cbs.lineItems.length}, ` +
+      `firstPipeRowCells=${firstPipeRowCells}`
+  )
+
+  // A transcription that yields zero usable line items is an extraction failure,
+  // not a valid empty EOB. Throw so runFullAudit degrades to a FLAGGED bill-only
+  // audit (eobError=true) rather than feeding the matcher an empty EOB that turns
+  // every bill line into a low-confidence non-match.
+  if (cbs.lineItems.length === 0) {
+    throw new EOBExtractionError(
+      `EOB transcription produced no line items ` +
+        `(transcriptionLength=${rawText.length}, canonicalHeaderFound=${headerFound}).`
+    )
+  }
+
+  return cbs
 }

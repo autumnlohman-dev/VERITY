@@ -316,9 +316,23 @@ function parseLooseEOBLines(text: string): CBSLineItem[] {
 }
 
 // Prefer the canonical header-mapped table; fall back to the conservative loose
-// parse only when no canonical header is present.
+// parse only when the canonical parse yields nothing usable.
 export function extractEOBLineItems(text: string): CBSLineItem[] {
-  return parseCanonicalEOBTable(text) ?? parseLooseEOBLines(text)
+  // A canonical header can be PRESENT yet produce zero data rows (a malformed or
+  // truncated body under a good header) — parseCanonicalEOBTable returns [] in
+  // that case, NOT null, so a `??` would keep the empty result and skip the
+  // fallback. Use a length check so a header-present-but-empty parse still falls
+  // back to the loose line parser before we give up on the EOB entirely.
+  const canonical = parseCanonicalEOBTable(text)
+  if (canonical && canonical.length > 0) return canonical
+  return parseLooseEOBLines(text)
+}
+
+// Structural probe for server-side diagnostics: did the transcription carry the
+// canonical pipe-delimited header? Pure and PHI-free — returns only a boolean,
+// never any transcribed content. Used by the EOB extractor to log shape metrics.
+export function eobCanonicalHeaderPresent(text: string): boolean {
+  return resolveCanonicalColumns(text) !== null
 }
 
 // ─── Main extractor ───────────────────────────────────────────────────────────
