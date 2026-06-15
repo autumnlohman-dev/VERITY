@@ -100,21 +100,38 @@ const DENIAL_NOTE_PATTERNS: RegExp[] = [
   /excluded/i,
 ]
 
-// Header column labels → canonical role. Used to learn the left-to-right order
-// of the money columns so each data row's amounts map to the right role. The
-// `discount` role exists ONLY so a "Discounts and Reductions" column is
-// consumed in place and never mistaken for the allowed amount — commercial EOBs
-// put it BETWEEN billed and allowed (Amount Billed | Discounts and Reductions |
-// Amount Covered/Allowed | Your Total Costs), and reading column 2 as "allowed"
-// is the bug that reported the allowed amount as the discount figure.
-type AmountRole = 'billed' | 'discount' | 'allowed' | 'patientResp'
+// Canonical EOB table. The server-only vision transcription (./eobExtractor)
+// NORMALIZES every real EOB — whatever its native layout — into one pipe-
+// delimited table with this fixed header, emitted exactly once:
+//
+//   claim_ref | service_description | service_date | amount_billed | allowed_amount | patient_responsibility | flag
+//
+// The vision model does the semantic column mapping. A commercial EOB commonly
+// prints NINE money columns (Amount Billed | Discounts and Reductions | Amount
+// Covered (Allowed) | Health Plan Responsibility | Deductible | Copay |
+// Coinsurance | Amount Not Covered | Your Total Costs) — of those only billed /
+// allowed / your-total-costs matter here, and the model collapses the rest. This
+// parser then resolves columns STRICTLY BY HEADER NAME and never positionally,
+// so a "Discounts and Reductions" column can never be misread as the allowed
+// amount (the bug that mis-mapped every line on a wide multi-column EOB).
+type CanonicalField =
+  | 'claimRef'
+  | 'description'
+  | 'serviceDate'
+  | 'billed'
+  | 'allowed'
+  | 'patientResp'
+  | 'flag'
 
-const COLUMN_LABEL_PATTERNS: Array<{ role: AmountRole; pattern: RegExp }> = [
-  { role: 'billed', pattern: /amount\s+billed|amount\s+charged|\bcharges?\b|billed\s+amount/i },
-  { role: 'discount', pattern: /discount|reduction|amount\s+not\s+covered|contractual\s+adjustment|provider\s+(?:discount|adjustment)|plan\s+(?:discount|adjustment)|write-?off/i },
-  { role: 'allowed', pattern: /amount\s+(?:covered|allowed)|allowed\s+amount|plan\s+allowance|eligible\s+amount|covered\s+amount/i },
-  { role: 'patientResp', pattern: /your\s+total\s+cost|your\s+cost|patient\s+responsibility|amount\s+you\s+owe|you\s+(?:may\s+)?owe|your\s+responsibility/i },
-]
+const CANONICAL_COLUMNS: Record<string, CanonicalField> = {
+  claim_ref: 'claimRef',
+  service_description: 'description',
+  service_date: 'serviceDate',
+  amount_billed: 'billed',
+  allowed_amount: 'allowed',
+  patient_responsibility: 'patientResp',
+  flag: 'flag',
+}
 
 const EOB_SUMMARY_ROW = /\b(total|subtotal|grand\s+total|balance\s+forward)\b/i
 const EOB_DATE_RE = /\b(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}|\d{4}-\d{2}-\d{2})\b/
@@ -142,68 +159,105 @@ function eobNoteFlags(line: string): string[] {
   return flags
 }
 
-function detectEOBColumnOrder(text: string): AmountRole[] | null {
-  for (const line of text.split('\n')) {
-    const hits: Array<{ role: AmountRole; index: number }> = []
-    for (const { role, pattern } of COLUMN_LABEL_PATTERNS) {
-      const m = line.match(pattern)
-      if (m && m.index !== undefined && !hits.some((h) => h.role === role)) {
-        hits.push({ role, index: m.index })
-      }
-    }
-    // A real header row names at least the billed and one adjudication column.
-    if (hits.length >= 2 && hits.some((h) => h.role === 'billed')) {
-      return hits.sort((a, b) => a.index - b.index).map((h) => h.role)
+function canonicalKey(cell: string): string {
+  return cell.trim().toLowerCase().replace(/[\s-]+/g, '_')
+}
+
+function splitRow(line: string): string[] {
+  return line.split('|').map((c) => c.trim())
+}
+
+function parseMoney(cell: string | undefined): number | undefined {
+  if (cell === undefined) return undefined
+  const cleaned = cell.replace(/[$,\s]/g, '')
+  if (cleaned === '') return undefined
+  const n = parseFloat(cleaned)
+  return Number.isFinite(n) ? n : undefined
+}
+
+// Locate the canonical header row and map each field to its column index,
+// STRICTLY by header name. Requires amount_billed plus at least one adjudication
+// column — otherwise this isn't the canonical table and we return null so the
+// caller can fall back (and never positionally guess a wide layout's columns).
+function resolveCanonicalColumns(text: string): Map<CanonicalField, number> | null {
+  for (const raw of text.split('\n')) {
+    if (!raw.includes('|')) continue
+    const cells = splitRow(raw)
+    const map = new Map<CanonicalField, number>()
+    cells.forEach((cell, i) => {
+      const field = CANONICAL_COLUMNS[canonicalKey(cell)]
+      if (field && !map.has(field)) map.set(field, i)
+    })
+    if (map.has('billed') && (map.has('allowed') || map.has('patientResp'))) {
+      return map
     }
   }
   return null
 }
 
-// Map a row's dollar amounts to roles. Prefer the header order (which is the
-// only reliable way to skip a Discounts/Reductions column); otherwise fall back
-// to the near-universal EOB column conventions by amount count.
-function assignEOBAmounts(
-  amounts: number[],
-  order: AmountRole[] | null
-): { billed?: number; allowed?: number; patientResp?: number } {
-  const out: { billed?: number; allowed?: number; patientResp?: number } = {}
-  if (order && order.length === amounts.length) {
-    order.forEach((role, i) => {
-      if (role === 'billed') out.billed = amounts[i]
-      else if (role === 'allowed') out.allowed = amounts[i]
-      else if (role === 'patientResp') out.patientResp = amounts[i]
-      // 'discount' is consumed and intentionally dropped.
+// Parse the canonical pipe-delimited table. Every money column is read by its
+// resolved header index — the match key is "amount_billed", "allowed_amount" is
+// the allowed amount, and "patient_responsibility" is what the patient owes.
+function parseCanonicalEOBTable(text: string): CBSLineItem[] | null {
+  const cols = resolveCanonicalColumns(text)
+  if (!cols) return null
+
+  const billedIdx = cols.get('billed')!
+  const items: CBSLineItem[] = []
+
+  for (const raw of text.split('\n')) {
+    const line = raw.trim()
+    if (!line.includes('|')) continue
+    const cells = splitRow(line)
+
+    // Skip the header row itself (and any repeated header on later pages).
+    if (canonicalKey(cells[billedIdx] ?? '') === 'amount_billed') continue
+
+    const at = (field: CanonicalField): string | undefined => {
+      const idx = cols.get(field)
+      return idx === undefined ? undefined : cells[idx]
+    }
+
+    const billed = parseMoney(at('billed'))
+    const description = (at('description') ?? '').replace(/\s{2,}/g, ' ').trim().slice(0, 80)
+    const flagCell = (at('flag') ?? '').trim()
+
+    // A service row needs a billed amount or a description; totals are excluded
+    // (the transcription is told not to emit them, but guard anyway).
+    if (billed === undefined && !description) continue
+    if (EOB_SUMMARY_ROW.test(description) || EOB_SUMMARY_ROW.test(flagCell)) continue
+
+    const serviceDateCell = at('serviceDate')
+    const serviceDate = serviceDateCell ? normalizeDate(serviceDateCell) : undefined
+    const codeMatch = description.match(EOB_CODE_RE)
+    const noteFlags = eobNoteFlags(flagCell || description)
+
+    items.push({
+      lineItemId: crypto.randomUUID(),
+      cptCode: codeMatch ? codeMatch[1] : undefined, // optional — usually absent
+      description: description || undefined,
+      serviceDate,
+      billedAmount: billed,
+      allowedAmount: parseMoney(at('allowed')),
+      patientResponsibility: parseMoney(at('patientResp')),
+      status: noteFlags.length > 0 ? 'denied' : 'unknown',
+      noteFlags: noteFlags.length > 0 ? noteFlags : undefined,
     })
-    return out
   }
-  // Positional fallback by amount count:
-  //  4+: Billed | Discounts/Reductions | Amount Covered (allowed) | Your Total Costs
-  //  3 : Billed | Amount Covered (allowed) | Your Total Costs
-  //  2 : Billed | Amount Covered (allowed)
-  if (amounts.length === 1) {
-    out.billed = amounts[0]
-  } else if (amounts.length === 2) {
-    out.billed = amounts[0]
-    out.allowed = amounts[1]
-  } else if (amounts.length === 3) {
-    out.billed = amounts[0]
-    out.allowed = amounts[1]
-    out.patientResp = amounts[2]
-  } else {
-    out.billed = amounts[0]
-    out.allowed = amounts[2]
-    out.patientResp = amounts[amounts.length - 1]
-  }
-  return out
+
+  return items
 }
 
-export function extractEOBLineItems(text: string): CBSLineItem[] {
-  const order = detectEOBColumnOrder(text)
+// Fallback for a malformed transcription that lacks the canonical header. It
+// captures each line's billed amount (the match key) but DOES NOT positionally
+// guess which wide column is the allowed/responsibility figure: only the
+// near-universal billed-first / cost-last convention for 2–3 amount rows is
+// trusted; anything wider is left at billed-only (low confidence) rather than
+// risk the mis-map this whole rewrite exists to prevent.
+function parseLooseEOBLines(text: string): CBSLineItem[] {
   const items: CBSLineItem[] = []
-  // Multi-line claims ("CLAIM DETAIL (3 of 5)") print the date of service once
-  // on the claim header, then list several service rows beneath it with no date
-  // of their own. Carry the most recent claim/section date down so every detail
-  // row is captured (and dated), not just single-line claims or claim totals.
+  // Multi-line claims print the date of service once on the claim header; carry
+  // it down so detail rows beneath it are still captured and dated.
   let claimDate: string | undefined
 
   for (const rawLine of text.split('\n')) {
@@ -213,26 +267,25 @@ export function extractEOBLineItems(text: string): CBSLineItem[] {
     const amounts = eobMoneyAmounts(line)
     const dateMatch = line.match(EOB_DATE_RE)
 
-    // A dated line with no dollar figures is a claim/section header — remember
-    // its date for the detail rows that follow, then move on.
     if (dateMatch && amounts.length === 0) {
       claimDate = normalizeDate(dateMatch[1])
       continue
     }
-
-    // Claim/page subtotals and grand totals are not line items.
     if (EOB_SUMMARY_ROW.test(line)) continue
-
-    // A service row needs at least one dollar amount, and either a service date
-    // (its own or inherited from the claim header) or two+ amounts (a
-    // description + cost pair). Keeps stray prose out without ever requiring a
-    // CPT code.
     if (amounts.length === 0) continue
     if (!dateMatch && !claimDate && amounts.length < 2) continue
 
-    const serviceDate = dateMatch ? normalizeDate(dateMatch[1]) : claimDate
-    const { billed, allowed, patientResp } = assignEOBAmounts(amounts, order)
+    let allowed: number | undefined
+    let patientResp: number | undefined
+    if (amounts.length === 2) {
+      allowed = amounts[1]
+    } else if (amounts.length === 3) {
+      allowed = amounts[1]
+      patientResp = amounts[2]
+    }
+    // 4+ amounts: ambiguous without a header — keep billed only.
 
+    const serviceDate = dateMatch ? normalizeDate(dateMatch[1]) : claimDate
     const codeMatch = line.match(EOB_CODE_RE)
     const description = line
       .replace(EOB_DATE_RE, '')
@@ -248,10 +301,10 @@ export function extractEOBLineItems(text: string): CBSLineItem[] {
 
     items.push({
       lineItemId: crypto.randomUUID(),
-      cptCode: codeMatch ? codeMatch[1] : undefined, // optional — usually absent
+      cptCode: codeMatch ? codeMatch[1] : undefined,
       description: description || undefined,
       serviceDate,
-      billedAmount: billed,
+      billedAmount: amounts[0],
       allowedAmount: allowed,
       patientResponsibility: patientResp,
       status: noteFlags.length > 0 ? 'denied' : 'unknown',
@@ -260,6 +313,12 @@ export function extractEOBLineItems(text: string): CBSLineItem[] {
   }
 
   return items
+}
+
+// Prefer the canonical header-mapped table; fall back to the conservative loose
+// parse only when no canonical header is present.
+export function extractEOBLineItems(text: string): CBSLineItem[] {
+  return parseCanonicalEOBTable(text) ?? parseLooseEOBLines(text)
 }
 
 // ─── Main extractor ───────────────────────────────────────────────────────────

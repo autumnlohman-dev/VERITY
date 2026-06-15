@@ -24,36 +24,45 @@ function anthropic(): Anthropic {
   return _client
 }
 
-const EOB_TRANSCRIBE_SYSTEM = `You transcribe Explanation of Benefits (EOB) / remittance documents to plain text.
-Transcribe EVERYTHING you can read VERBATIM — never summarize, interpret, round, or invent values.
+const EOB_TRANSCRIBE_SYSTEM = `You read an Explanation of Benefits (EOB) / remittance document and output a NORMALIZED transcription. Never invent, round, or omit values.
 
-Preserve every labeled field on its own line so it can be parsed, for example:
+First, transcribe these labeled header fields, each on its own line, when present:
+  Claim Number: ...
+  Provider: ...   NPI: ...
   Member ID: ...
+  Date of Service: MM/DD/YYYY
   Processed/EOB Date: MM/DD/YYYY
   Appeal by: MM/DD/YYYY
 
-CRITICAL — capture EVERY service line of EVERY claim, across EVERY page:
-- An EOB contains one or more claims. A claim may be a single service line or
-  many (e.g. a "CLAIM DETAIL (3 of 5)" with several "Laboratory Services" rows).
-- Output EVERY individual service row of EVERY claim. NEVER collapse a claim to
-  its total, and NEVER skip rows because a claim has many of them. A claim with
-  four lab rows must produce four rows here.
-- Begin each claim with a header line carrying its identity and date, e.g.:
-    Claim 3 of 5   Claim Number: ...   Date of Service: MM/DD/YYYY
-- Immediately under each claim, print the column header EXACTLY in this order so
-  the columns can be told apart, then one line per service row:
-    Service Description    Amount Billed    Discounts and Reductions    Amount Covered (Allowed)    Your Total Costs
-  Each service row: the description (and CPT/HCPCS code if printed — many EOBs
-  omit it), then ALL FOUR dollar columns in that order, exactly as printed:
-    Laboratory Services    $268.00    $252.55    $15.45    $15.45
-- Keep the "Amount Covered (Allowed)" column distinct from "Discounts and
-  Reductions" — they are different columns; do not merge or reorder them.
-- Append any per-row remark verbatim after the amounts (e.g. "Not payable with
-  the diagnosis billed").
-- You may transcribe claim/page total rows too, but label them "Total" /
-  "Subtotal" so they are not mistaken for service lines.
+Then output ALL service lines as ONE pipe-delimited table. Emit this header row
+EXACTLY ONCE, then one row per service line:
+  claim_ref | service_description | service_date | amount_billed | allowed_amount | patient_responsibility | flag
 
-Return ONLY the transcribed text, no commentary.`
+Rules for the table:
+- Output EVERY service line of EVERY claim, across EVERY page. An EOB contains one
+  or more claims, and a claim may have many rows (e.g. a "CLAIM DETAIL (3 of 5)"
+  with four "Laboratory Services" rows must produce four rows here). NEVER collapse
+  a claim to its total, and NEVER emit claim/page/grand total rows.
+- Map the EOB's native columns into these by MEANING — regardless of what the
+  payer labels them or how many money columns it prints (commercial EOBs often
+  print nine: Amount Billed, Discounts and Reductions, Amount Covered (Allowed),
+  Health Plan Responsibility, Deductible, Copay, Coinsurance, Amount Not Covered,
+  Your Total Costs):
+    amount_billed          = what the provider billed/charged for the line.
+    allowed_amount         = the plan's allowed / "Amount Covered" / contracted
+                             amount for the line — NOT the discount or reduction.
+    patient_responsibility = what the patient owes for the line: the "Your Total
+                             Costs" / "Patient Responsibility" / "You Owe" figure —
+                             NOT a deductible/copay/coinsurance sub-column alone.
+- claim_ref = the claim number the line belongs to (repeat it on every row of that
+  claim). service_date = that line's date of service; if the date is printed once
+  on the claim header, repeat it on each of that claim's rows.
+- Numbers only — no "$" and no thousands separators (write 268.00, not $268.00).
+- Leave a field blank (nothing between the pipes) when it is genuinely absent.
+- flag = a short verbatim note when the line was denied, written off, or "not
+  payable" (e.g. "Not payable with the diagnosis billed"); otherwise leave it blank.
+
+Return ONLY the header fields followed by the table. No commentary.`
 
 // Extract an EOB document (base64 image or PDF) into CBS via the multimodal API.
 export async function extractEOBToCBS(
