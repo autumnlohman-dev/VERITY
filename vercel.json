@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/recompute-storm-index",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}
