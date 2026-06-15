@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { CanonicalBillingSchema } from './schema'
 import { extractToCBS, EOB_MEDIA_TYPES } from './extractor'
-import { isHeicExt, heicToJpegBase64 } from '../heic'
+import { normalizeForExtraction } from '../heic'
 
 // ─── Multimodal EOB extraction (Component I → CBS) ─────────────────────────────
 // SERVER-ONLY. Reads an Explanation of Benefits image/PDF with the Anthropic
@@ -44,13 +44,10 @@ export async function extractEOBToCBS(
   ext: string,
   documentId: string
 ): Promise<CanonicalBillingSchema> {
-  // iPhone HEIC/HEIF → JPEG before the vision call (the API rejects HEIC).
-  let data = base64
-  let mediaExt = ext
-  if (isHeicExt(mediaExt)) {
-    data = await heicToJpegBase64(base64)
-    mediaExt = 'jpg'
-  }
+  // Single shared HEIC boundary: iPhone HEIC/HEIF (by content OR extension) →
+  // JPEG before the vision call (the API rejects HEIC). After this the file is
+  // treated as jpeg downstream.
+  const { base64: data, ext: mediaExt } = await normalizeForExtraction(base64, ext)
 
   let documentBlock: Anthropic.ContentBlockParam
   if (mediaExt === 'pdf') {

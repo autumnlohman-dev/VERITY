@@ -3,6 +3,7 @@ import { runAudit, type BillingError, type InsuranceType, type LineItem } from '
 import { analyzeDisputedProcedures } from '@/lib/patientDisputes'
 import { billExtractionToCBS, isExtractableExt } from '@/lib/cbs/extractor'
 import { extractEOBToCBS } from '@/lib/cbs/eobExtractor'
+import { isHeicBuffer } from '@/lib/heic'
 import { normalizeCBSSet } from '@/lib/cbs/normalizer'
 import type { CanonicalBillingSchema, NormalizedCBSSet } from '@/lib/cbs/schema'
 
@@ -136,13 +137,21 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
     `bill_${docIdBase}`
   )
 
+  // Gate on extension OR content: an iPhone HEIC EOB often arrives with no
+  // extension or an image/heic mimetype, so the .heic ext check alone would skip
+  // it and (wrongly) set eobError. Detect HEIC by magic bytes too; the shared
+  // boundary in extractEOBToCBS then transcodes it to JPEG before the vision call.
   let eobCbs: CanonicalBillingSchema | null = null
   if (eob && eob.base64) {
-    if (!isExtractableExt(eob.ext)) {
+    // Extension OR magic bytes: a HEIC EOB with no/odd extension is still
+    // extractable (extractEOBToCBS transcodes it to JPEG at the shared boundary).
+    const eobIsExtractable =
+      isExtractableExt(eob.ext) || isHeicBuffer(Buffer.from(eob.base64, 'base64'))
+    if (!eobIsExtractable) {
       // An EOB was supplied but we can't process its file type — log so a silent
       // bill-only result is traceable, then fall through to eobError below.
       console.warn(
-        `runFullAudit[${docIdBase}]: EOB supplied but ext "${eob.ext}" is not extractable — skipping; audit will be bill-only.`
+        `runFullAudit[${docIdBase}]: EOB supplied but ext "${eob.ext}" is not extractable (and not HEIC by content) — skipping; audit will be bill-only.`
       )
     } else {
       try {

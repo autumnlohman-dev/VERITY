@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { extractFromBase64, isSupportedExt } from '@/lib/extraction'
+import { isHeicBuffer } from '@/lib/heic'
 import { runFullAudit } from '@/lib/audit/runFullAudit'
 import { normalizeInsuranceType } from '@/lib/insuranceMapping'
 import { MAX_FILE_BYTES } from '@/lib/billExtractor'
@@ -26,13 +27,10 @@ export async function POST(request: Request) {
     const { fileBase64, billPath, fileName, insuranceType, eobFileBase64, eobPath, eobFileName, guestSessionId } =
       await request.json()
 
-    const ext = String(fileName ?? '').split('.').pop()?.toLowerCase() ?? ''
-    if (!isSupportedExt(ext)) {
-      return NextResponse.json(
-        { error: 'Unsupported file type. Upload a PDF, JPG, PNG, WEBP, or HEIC.' },
-        { status: 400 }
-      )
-    }
+    // Extension is only a hint here — an iPhone HEIC can arrive with no
+    // extension or an image/heic mimetype. We resolve the real type from the
+    // file's magic bytes after download (below) before rejecting anything.
+    let ext = String(fileName ?? '').split('.').pop()?.toLowerCase() ?? ''
 
     // The bill (and EOB) arrive either as a scoped storage path — the primary
     // path, so large files never touch this request body — or as inline base64
@@ -74,6 +72,17 @@ export async function POST(request: Request) {
 
     if (!billBase64) {
       return NextResponse.json({ error: 'Missing file' }, { status: 400 })
+    }
+
+    // Resolve the true type from content: a HEIC with no/odd extension is still
+    // a HEIC (the extraction boundary transcodes it to JPEG). Reject only what is
+    // genuinely unsupported, now that we've seen the bytes.
+    if (!isSupportedExt(ext) && isHeicBuffer(Buffer.from(billBase64, 'base64'))) ext = 'heic'
+    if (!isSupportedExt(ext)) {
+      return NextResponse.json(
+        { error: 'Unsupported file type. Upload a PDF, JPG, PNG, WEBP, or HEIC.' },
+        { status: 400 }
+      )
     }
 
     // Reject oversized payloads BEFORE spending an Anthropic vision call on them.

@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { LineItem } from './errorDetection'
 import { CPT_CODE_PATTERN, isNonChargeRow, mapDescriptionToCpt } from './billExtractor'
-import { isHeicExt, heicToJpegBase64 } from './heic'
+import { isHeicExt, normalizeForExtraction } from './heic'
 
 // Component I: multimodal unstructured → structured extraction (proprietary).
 // Shared by the authenticated case pipeline (/api/extract) and the public
@@ -75,13 +75,10 @@ export function isSupportedExt(ext: string): boolean {
 }
 
 export async function extractFromBase64(base64: string, ext: string): Promise<ExtractionResult> {
-  // iPhone HEIC/HEIF → JPEG before the vision call (the API rejects HEIC).
-  let data = base64
-  let mediaExt = ext
-  if (isHeicExt(mediaExt)) {
-    data = await heicToJpegBase64(base64)
-    mediaExt = 'jpg'
-  }
+  // Single shared HEIC boundary: iPhone HEIC/HEIF (by content OR extension) →
+  // JPEG before the vision call (the API rejects HEIC). After this the file is
+  // treated as jpeg downstream.
+  const { base64: data, ext: mediaExt } = await normalizeForExtraction(base64, ext)
 
   let documentBlock: Anthropic.ContentBlockParam
   if (mediaExt === 'pdf') {
