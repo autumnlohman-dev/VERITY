@@ -30,10 +30,10 @@ export async function loadHousehold(
   // ── 2. plans row (most recent for this household / plan_year) ───────────
   const { data: planRow } = await supabase
     .from('plans')
-    .select(
-      'id, individual_deductible, family_deductible, individual_oop_max,' +
-      ' family_oop_max, coinsurance_rate, deductible_embedded',
-    )
+    // Single string literal (not concatenated): PostgREST's typed select parser
+    // only resolves the column shape from a literal — a `'a' + 'b'` expression is
+    // typed `string`, which collapses the row type to GenericStringError.
+    .select('id, individual_deductible, family_deductible, individual_oop_max, family_oop_max, coinsurance_rate, deductible_embedded')
     .eq('household_id', household_id)
     .eq('plan_year', hh.plan_year)
     .order('id', { ascending: false })
@@ -58,11 +58,14 @@ export async function loadHousehold(
     .eq('household_id', household_id);
 
   // ── 4. accumulator_state rows ────────────────────────────────────────────
-  const { data: accumRows = [] } = await supabase
+  // The destructuring default only covers `undefined`; PostgREST returns
+  // `null` on no rows, so coalesce explicitly to keep `accumRows` an array.
+  const { data: accumRowsData } = await supabase
     .from('accumulator_state')
     .select('scope, member_id, deductible_met, oop_met, as_of_date')
     .eq('household_id', household_id)
     .order('as_of_date', { ascending: false });
+  const accumRows = accumRowsData ?? [];
 
   // Family accumulators: pick latest row for scope='family'
   const familyAccum = accumRows.find((r: { scope: string }) => r.scope === 'family');

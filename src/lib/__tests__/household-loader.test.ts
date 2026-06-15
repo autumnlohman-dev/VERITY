@@ -97,7 +97,7 @@ function makeMockSupabase(overrides: Record<string, unknown> = {}) {
 
 describe('loadHousehold — FIG. 10 fixture assembly', () => {
   it('assembles a valid Household from mocked DB rows', async () => {
-    const supabase = makeMockSupabase() as Parameters<typeof loadHousehold>[0];
+    const supabase = makeMockSupabase() as unknown as Parameters<typeof loadHousehold>[0];
     const hh = await loadHousehold(supabase, HOUSEHOLD_ID);
 
     expect(hh).not.toBeNull();
@@ -117,7 +117,7 @@ describe('loadHousehold — FIG. 10 fixture assembly', () => {
   });
 
   it('FIG. 10: simulateClaim on loaded household → member pays $1,560', async () => {
-    const supabase = makeMockSupabase() as Parameters<typeof loadHousehold>[0];
+    const supabase = makeMockSupabase() as unknown as Parameters<typeof loadHousehold>[0];
     const hh = await loadHousehold(supabase, HOUSEHOLD_ID);
 
     const claim: ProjectedClaim = {
@@ -137,7 +137,7 @@ describe('loadHousehold — FIG. 10 fixture assembly', () => {
   });
 
   it('returns null when no plan row exists (incomplete profile)', async () => {
-    const supabase = makeMockSupabase({ plans: [] }) as Parameters<typeof loadHousehold>[0];
+    const supabase = makeMockSupabase({ plans: [] }) as unknown as Parameters<typeof loadHousehold>[0];
     const result = await loadHousehold(supabase, HOUSEHOLD_ID);
     expect(result).toBeNull();
   });
@@ -147,7 +147,7 @@ describe('loadHousehold — FIG. 10 fixture assembly', () => {
       accumulator_state: FIXTURE.accumulator_state.filter(
         (r) => r.scope !== 'family',
       ),
-    }) as Parameters<typeof loadHousehold>[0];
+    }) as unknown as Parameters<typeof loadHousehold>[0];
     const result = await loadHousehold(supabase, HOUSEHOLD_ID);
     expect(result).toBeNull();
   });

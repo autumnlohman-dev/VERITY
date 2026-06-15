@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { loadHousehold } from '@/lib/household-loader';
 import { computeStormIndex } from '@/lib/verity-sim/stormIndex';
+import type { ProjectedClaim } from '@/lib/verity-sim/types';
 
 export async function GET(req: NextRequest) {
   // ── CRON_SECRET gate ──────────────────────────────────────────────────────
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest) {
 
       // TODO: replace [] with a query for claims WHERE current_state IN
       // ('ADJUDICATED', 'BILLED') once the claims table exists.
-      const openClaims = [];
+      const openClaims: ProjectedClaim[] = [];
 
       const { score, features } = computeStormIndex(household, openClaims);
 
