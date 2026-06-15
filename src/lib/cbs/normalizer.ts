@@ -1,6 +1,7 @@
 import type {
   CanonicalBillingSchema,
   CBSDiscrepancy,
+  CBSLineItem,
   CBSTemporalFlag,
   EpisodeGroup,
   NormalizedCBSSet,
@@ -8,6 +9,12 @@ import type {
 } from './schema'
 
 const COLLECTION_NOTICE_PERIOD_DAYS = 30 // FDCPA § 1692g
+
+// A charge to the patient this far above the EOB benchmark counts as balance
+// billing (covers rounding / cents-level noise without firing on real ties).
+const BALANCE_BILLING_TOLERANCE = 1.0
+// Bill and EOB dollar amounts are considered the same line when within a cent.
+const AMOUNT_MATCH_TOLERANCE = 0.01
 
 function daysBetween(dateA: string, dateB: string): number {
   try {
@@ -52,6 +59,117 @@ function groupIntoEpisodes(docs: CanonicalBillingSchema[]): EpisodeGroup[] {
   return Array.from(groups.values())
 }
 
+// ─── Bill ↔ EOB line matching ────────────────────────────────────────────────
+
+function normCode(code: string | undefined): string {
+  return (code ?? '').trim().toUpperCase()
+}
+
+function descTokens(desc: string | undefined): Set<string> {
+  return new Set(
+    (desc ?? '')
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]/g, ' ')
+      .split(/\s+/)
+      .filter((t) => t.length > 2)
+  )
+}
+
+// Jaccard overlap of description tokens — a tiebreaker only, never a gate.
+function descSimilarity(a: string | undefined, b: string | undefined): number {
+  const sa = descTokens(a)
+  const sb = descTokens(b)
+  if (sa.size === 0 || sb.size === 0) return 0
+  let shared = 0
+  for (const t of sa) if (sb.has(t)) shared++
+  return shared / (sa.size + sb.size - shared)
+}
+
+function amountsMatch(a: number | undefined, b: number | undefined): boolean {
+  if (a === undefined || b === undefined) return false
+  return Math.abs(a - b) <= AMOUNT_MATCH_TOLERANCE
+}
+
+function datesMatch(a: string | undefined, b: string | undefined): boolean {
+  // Only a constraint when both sides carry a date; otherwise don't block.
+  if (!a || !b) return true
+  return a === b
+}
+
+interface LinePair {
+  billLine: CBSLineItem
+  eobLine: CBSLineItem
+}
+
+interface MatchResult {
+  pairs: LinePair[]
+  unmatchedBill: CBSLineItem[]
+  eobHasAnyCpt: boolean
+}
+
+// Match each bill line to at most one EOB line. Prefer CPT-code equality when —
+// and only when — the EOB actually prints codes. Otherwise (the common case for
+// commercial EOBs) fall back to amount_billed + service_date, breaking ties by
+// service-description similarity. A missing code on the EOB is NOT a finding.
+function matchBillToEOB(
+  bill: CanonicalBillingSchema,
+  eob: CanonicalBillingSchema
+): MatchResult {
+  const eobHasAnyCpt = eob.lineItems.some((l) => normCode(l.cptCode))
+  const consumed = new Set<string>()
+  const pairs: LinePair[] = []
+  const unmatchedBill: CBSLineItem[] = []
+
+  for (const billLine of bill.lineItems) {
+    let match: CBSLineItem | undefined
+
+    // 1) Code match — only meaningful if the EOB carries codes at all.
+    if (eobHasAnyCpt && normCode(billLine.cptCode)) {
+      match = eob.lineItems.find(
+        (e) =>
+          !consumed.has(e.lineItemId) &&
+          normCode(e.cptCode) &&
+          normCode(e.cptCode) === normCode(billLine.cptCode)
+      )
+    }
+
+    // 2) Fallback — amount_billed + service_date, description as tiebreaker.
+    if (!match) {
+      const candidates = eob.lineItems.filter(
+        (e) =>
+          !consumed.has(e.lineItemId) &&
+          amountsMatch(e.billedAmount, billLine.billedAmount) &&
+          datesMatch(e.serviceDate, billLine.serviceDate)
+      )
+      if (candidates.length === 1) {
+        match = candidates[0]
+      } else if (candidates.length > 1) {
+        match = candidates
+          .map((e) => ({ e, sim: descSimilarity(e.description, billLine.description) }))
+          .sort((x, y) => y.sim - x.sim)[0].e
+      }
+    }
+
+    if (match) {
+      consumed.add(match.lineItemId)
+      pairs.push({ billLine, eobLine: match })
+    } else {
+      unmatchedBill.push(billLine)
+    }
+  }
+
+  return { pairs, unmatchedBill, eobHasAnyCpt }
+}
+
+function isDeniedLine(eobLine: CBSLineItem): boolean {
+  return eobLine.status === 'denied' || (eobLine.noteFlags?.length ?? 0) > 0
+}
+
+const NO_SURPRISES_REG =
+  'No Surprises Act (42 U.S.C. § 300gg-111) — protects against being billed above your plan-determined cost sharing for covered care.'
+const ALLOWED_AMOUNT_REG =
+  "Plan allowed-amount obligation — an in-network provider accepts the EOB's allowed amount as payment in full and may bill you only the patient-responsibility shown, not the difference."
+
 // ─── Cross-document discrepancy detection ────────────────────────────────────
 
 function detectDiscrepancies(
@@ -62,76 +180,125 @@ function detectDiscrepancies(
 ): CBSDiscrepancy[] {
   const discrepancies: CBSDiscrepancy[] = []
 
-  // Bill vs EOB: amount mismatch / balance billing
+  // Bill vs EOB: per-line matching → balance billing / denied-but-billed.
+  // When an EOB is present its allowed amount is the binding benchmark for
+  // matched lines; we deliberately do NOT also run a total-level allowed-vs-
+  // billed comparison (that double-counts the per-line findings) and we mark
+  // matched bill lines `eobBenchmarked` so Medicare CLFS/PFS pricing skips them.
   if (bill && eob) {
-    const billTotal = bill.totalBilled || 0
-    const patientResp = eob.totalPatientResponsibility || 0
-    const allowed = eob.totalAllowed || 0
+    const { pairs, unmatchedBill, eobHasAnyCpt } = matchBillToEOB(bill, eob)
 
-    // Patient responsibility exceeds allowed amount (balance billing violation)
-    if (allowed > 0 && patientResp > allowed * 1.05) {
-      discrepancies.push({
-        discrepancyId: crypto.randomUUID(),
-        type: 'balance_billing_violation',
-        severity: 'critical',
-        confidenceScore: 0.85,
-        estimatedDollarImpact: Math.round(patientResp - allowed),
-        documentA: bill.sourceDocumentId,
-        documentB: eob.sourceDocumentId,
-        fieldName: 'patientResponsibility vs allowedAmount',
-        valueA: `$${patientResp.toFixed(2)} patient responsibility`,
-        valueB: `$${allowed.toFixed(2)} allowed amount`,
-        description: `Your bill shows you owe $${patientResp.toFixed(2)}, but your EOB shows the allowed amount is only $${allowed.toFixed(2)}. You may be being balance billed $${(patientResp - allowed).toFixed(2)} above the contracted rate.`,
-        applicableRegulations: [
-          'No Surprises Act (42 U.S.C. § 300gg-111) — prohibits balance billing for emergency services and out-of-network care at in-network facilities',
-          'Transparency in Coverage Rule (45 C.F.R. Parts 147, 158, 184)',
-        ],
-      })
-    }
+    for (const { billLine, eobLine } of pairs) {
+      const billed = billLine.billedAmount ?? 0
+      const allowed = eobLine.allowedAmount
+      const patientResp = eobLine.patientResponsibility
+      // Bind the bill line to the EOB benchmark so CLFS pricing won't re-flag it.
+      billLine.eobBenchmarked = true
+      if (allowed !== undefined) billLine.allowedAmount = allowed
+      if (patientResp !== undefined) billLine.patientResponsibility = patientResp
 
-    // CPT code mismatch between bill and EOB
-    const billCodes = new Set(bill.lineItems.map(li => li.cptCode).filter(Boolean))
-    const eobCodes = new Set(eob.lineItems.map(li => li.cptCode).filter(Boolean))
+      const codeLabel = normCode(billLine.cptCode)
+        ? `CPT ${normCode(billLine.cptCode)} — `
+        : ''
+      const desc = eobLine.description || billLine.description || 'this service'
 
-    for (const code of billCodes) {
-      if (code && !eobCodes.has(code)) {
-        const li = bill.lineItems.find(l => l.cptCode === code)
+      // DENIED-BUT-BILLED: EOB shows $0 owed with a denial note, yet the
+      // provider is charging the patient.
+      if (isDeniedLine(eobLine) && (patientResp ?? 0) <= 0 && billed > 0) {
+        const note = eobLine.noteFlags?.[0]
         discrepancies.push({
           discrepancyId: crypto.randomUUID(),
-          type: 'code_mismatch',
+          type: 'denied_service_billed',
           severity: 'high',
-          confidenceScore: 0.75,
-          estimatedDollarImpact: li?.billedAmount || 0,
+          confidenceScore: 0.85,
+          estimatedDollarImpact: Math.round(billed * 100) / 100,
           documentA: bill.sourceDocumentId,
           documentB: eob.sourceDocumentId,
-          fieldName: 'cptCode',
-          valueA: `CPT ${code} on bill ($${(li?.billedAmount || 0).toFixed(2)})`,
-          valueB: 'Not adjudicated on EOB',
-          description: `CPT code ${code} appears on your itemized bill but was not adjudicated on your Explanation of Benefits. This charge of $${(li?.billedAmount || 0).toFixed(2)} may be a billing error or a code that was denied without explanation.`,
+          fieldName: 'patientResponsibility',
+          valueA: `$${billed.toFixed(2)} billed to you`,
+          valueB: '$0.00 patient responsibility (denied)',
+          description:
+            `${codeLabel}${desc}: your EOB adjudicated this line at $0.00 patient responsibility` +
+            (note ? ` — "${note}"` : '') +
+            `, yet the provider is billing you $${billed.toFixed(2)}. A line the plan did not hold you responsible for cannot be billed to you; dispute it or appeal the denial.`,
           applicableRegulations: [
-            'CMS Claims Processing Manual (Pub. 100-04), Ch. 23 — all billed codes must be reflected in adjudication',
+            ALLOWED_AMOUNT_REG,
+            'ERISA § 503 / ACA § 2719 (29 U.S.C. § 1133; 42 U.S.C. § 300gg-19) — right to appeal an adverse benefit determination.',
           ],
+        })
+        continue
+      }
+
+      // BALANCE BILLING: the charge to the patient exceeds what the EOB says
+      // they actually owe (patient responsibility, falling back to allowed).
+      const benchmark = patientResp ?? allowed
+      if (benchmark !== undefined && billed > benchmark + BALANCE_BILLING_TOLERANCE) {
+        const over = Math.round((billed - benchmark) * 100) / 100
+        discrepancies.push({
+          discrepancyId: crypto.randomUUID(),
+          type: 'balance_billing_violation',
+          severity: 'critical',
+          confidenceScore: 0.9,
+          estimatedDollarImpact: over,
+          documentA: bill.sourceDocumentId,
+          documentB: eob.sourceDocumentId,
+          fieldName: 'billedAmount vs patientResponsibility',
+          valueA: `$${billed.toFixed(2)} billed to you`,
+          valueB:
+            `$${benchmark.toFixed(2)} you actually owe` +
+            (allowed !== undefined ? ` (allowed $${allowed.toFixed(2)})` : ''),
+          description:
+            `${codeLabel}${desc}: the provider is billing you $${billed.toFixed(2)}, but your EOB shows you owe only $${benchmark.toFixed(2)}` +
+            (allowed !== undefined ? ` against an allowed amount of $${allowed.toFixed(2)}` : '') +
+            `. The EOB itself states that when the amount billed is more than what is allowed, your provider should not bill you for any balance over what is allowed. You owe $${benchmark.toFixed(2)}, not $${billed.toFixed(2)} — a balance bill of $${over.toFixed(2)}.`,
+          applicableRegulations: [NO_SURPRISES_REG, ALLOWED_AMOUNT_REG],
         })
       }
     }
 
-    // Total amount discrepancy
-    if (eob.totalAllowed && billTotal > 0 && Math.abs(billTotal - eob.totalAllowed) > 50) {
+    // Only treat a bill code as "not adjudicated" when the EOB genuinely lists
+    // codes and a specific bill code is truly absent — never as a side effect of
+    // an EOB simply lacking codes.
+    if (eobHasAnyCpt) {
+      const eobCodes = new Set(eob.lineItems.map((l) => normCode(l.cptCode)).filter(Boolean))
+      for (const billLine of bill.lineItems) {
+        const code = normCode(billLine.cptCode)
+        if (code && !eobCodes.has(code)) {
+          discrepancies.push({
+            discrepancyId: crypto.randomUUID(),
+            type: 'code_mismatch',
+            severity: 'high',
+            confidenceScore: 0.75,
+            estimatedDollarImpact: billLine.billedAmount || 0,
+            documentA: bill.sourceDocumentId,
+            documentB: eob.sourceDocumentId,
+            fieldName: 'cptCode',
+            valueA: `CPT ${code} on bill ($${(billLine.billedAmount || 0).toFixed(2)})`,
+            valueB: 'Not adjudicated on EOB',
+            description: `CPT code ${code} appears on your itemized bill but was not adjudicated on your Explanation of Benefits, which does list other codes. This charge of $${(billLine.billedAmount || 0).toFixed(2)} may be a billing error or a code denied without explanation.`,
+            applicableRegulations: [
+              'CMS Claims Processing Manual (Pub. 100-04), Ch. 23 — all billed codes must be reflected in adjudication.',
+            ],
+          })
+        }
+      }
+    }
+
+    // Genuinely unmatched bill lines: soften — do NOT assert non-adjudication.
+    for (const billLine of unmatchedBill) {
       discrepancies.push({
         discrepancyId: crypto.randomUUID(),
         type: 'amount_mismatch',
-        severity: 'medium',
-        confidenceScore: 0.70,
-        estimatedDollarImpact: Math.abs(billTotal - eob.totalAllowed),
+        severity: 'low',
+        confidenceScore: 0.3,
+        estimatedDollarImpact: 0,
         documentA: bill.sourceDocumentId,
         documentB: eob.sourceDocumentId,
-        fieldName: 'totalAmount',
-        valueA: `$${billTotal.toFixed(2)} billed`,
-        valueB: `$${eob.totalAllowed.toFixed(2)} allowed`,
-        description: `Your itemized bill shows $${billTotal.toFixed(2)} in total charges, but your EOB shows a total allowed amount of $${eob.totalAllowed.toFixed(2)}. The difference of $${Math.abs(billTotal - eob.totalAllowed).toFixed(2)} requires review.`,
-        applicableRegulations: [
-          'No Surprises Act — providers must bill at contracted rates for covered services',
-        ],
+        fieldName: 'lineItem',
+        valueA: `$${(billLine.billedAmount ?? 0).toFixed(2)} ${billLine.description || normCode(billLine.cptCode) || 'charge'}`,
+        valueB: 'No clear matching EOB line',
+        description: `We could not confidently match this charge of $${(billLine.billedAmount ?? 0).toFixed(2)} to a line on your EOB. This may simply reflect different formatting between the documents rather than a problem — worth a manual look before relying on it.`,
+        applicableRegulations: [],
       })
     }
   }

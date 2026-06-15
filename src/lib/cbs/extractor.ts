@@ -72,56 +72,156 @@ function extractDollarAmount(text: string, labels: string[]): number | undefined
 }
 
 // ─── EOB-specific extraction ──────────────────────────────────────────────────
+// Real commercial EOBs are NOT bills. Most lines carry a plain service
+// description ("Laboratory Services", "Medical Visits") and dollar columns —
+// NOT a CPT/HCPCS code. Requiring a code is the bug that made the matcher find
+// zero overlap with the itemized bill and falsely report every bill code as
+// "not adjudicated". This parser therefore captures, per line: service
+// description, service date, amount_billed, allowed_amount (the "Amount
+// Covered/Allowed" column), patient_responsibility (the "Your Total Costs"
+// column), note flags (e.g. "not payable with the diagnosis billed"), and an
+// OPTIONAL cpt_code when the payer happens to print one. A missing code is
+// expected and never treated as an error. (Lives here in the pure module so the
+// server-only ./eobExtractor vision layer can reuse it via extractToCBS.)
 
-// Rows on a commercial EOB are laid out as
-//   <service description> [CPT] | Amount Billed | Discounts and Reductions | Amount Covered | Your Responsibility
-// CPT codes are frequently absent (the description is the only identifier), so
-// we key on any row carrying at least two dollar amounts and map the columns by
-// how many amounts are present.
+// Phrases that, on or below a line, mean the service was denied or written off —
+// the patient should owe nothing for it.
+const DENIAL_NOTE_PATTERNS: RegExp[] = [
+  /not\s+payable/i,
+  /not\s+covered/i,
+  /non-?covered/i,
+  /\bdenied\b/i,
+  /\bdenial\b/i,
+  /excluded/i,
+]
+
+// Header column labels → canonical role. Used to learn the left-to-right order
+// of the money columns so each data row's amounts map to the right role.
+type AmountRole = 'billed' | 'allowed' | 'patientResp'
+
+const COLUMN_LABEL_PATTERNS: Array<{ role: AmountRole; pattern: RegExp }> = [
+  { role: 'billed', pattern: /amount\s+billed|amount\s+charged|\bcharges?\b|billed\s+amount/i },
+  { role: 'allowed', pattern: /amount\s+(?:covered|allowed)|allowed\s+amount|plan\s+allowance|eligible\s+amount|covered\s+amount/i },
+  { role: 'patientResp', pattern: /your\s+total\s+cost|your\s+cost|patient\s+responsibility|amount\s+you\s+owe|you\s+(?:may\s+)?owe|your\s+responsibility/i },
+]
+
 const EOB_SUMMARY_ROW = /\b(total|subtotal|grand\s+total|balance\s+forward)\b/i
+const EOB_DATE_RE = /\b(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}|\d{4}-\d{2}-\d{2})\b/
+const EOB_MONEY_RE = /\$?(\d{1,3}(?:,\d{3})*(?:\.\d{2})|\d+\.\d{2})/g
+// CPT (5 digits) or HCPCS (letter + 4 digits). Optional — most EOBs omit it.
+const EOB_CODE_RE = /\b(\d{5}|[A-Z]\d{4})\b/
 
-function extractEOBLineItems(text: string): CBSLineItem[] {
-  const items: CBSLineItem[] = []
-  const lines = text.split('\n')
-  for (const line of lines) {
-    if (EOB_SUMMARY_ROW.test(line)) continue
-    const amounts = [...line.matchAll(/\$?([\d,]+\.\d{2})/g)].map(m => parseFloat(m[1].replace(/,/g, '')))
-    if (amounts.length < 2) continue
+function eobMoneyAmounts(line: string): number[] {
+  return [...line.matchAll(EOB_MONEY_RE)].map((m) => parseFloat(m[1].replace(/,/g, '')))
+}
 
-    const cptMatch = line.match(/\b(\d{5}|[A-Z]\d{4})\b/)
-    const description = line
-      .replace(/\$?[\d,]+\.\d{2}/g, '')
-      .replace(/\b\d{5}\b/, '')
+function eobNoteFlags(line: string): string[] {
+  const flags: string[] = []
+  for (const re of DENIAL_NOTE_PATTERNS) {
+    const m = line.match(re)
+    if (!m) continue
+    // Capture the surrounding clause, not just the keyword, so the note reads
+    // naturally in the dispute ("not payable with the diagnosis billed").
+    const clause = line
+      .slice(Math.max(0, (m.index ?? 0) - 4))
+      .replace(/\s+/g, ' ')
       .trim()
-      .substring(0, 80)
-    if (!cptMatch && !description) continue
+    flags.push(clause.length > 90 ? clause.slice(0, 90).trim() : clause)
+  }
+  return flags
+}
 
-    // Column mapping by amount count:
-    //  4+: Billed | Discounts/Reductions | Amount Covered (allowed) | Your Responsibility
-    //  3 : Billed | Amount Covered (allowed) | Your Responsibility
-    //  2 : Billed | Amount Covered (allowed)
-    const billedAmount = amounts[0]
-    let allowedAmount: number | undefined
-    let patientResponsibility: number | undefined
-    if (amounts.length >= 4) {
-      allowedAmount = amounts[2]
-      patientResponsibility = amounts[3]
-    } else if (amounts.length === 3) {
-      allowedAmount = amounts[1]
-      patientResponsibility = amounts[2]
-    } else {
-      allowedAmount = amounts[1]
+function detectEOBColumnOrder(text: string): AmountRole[] | null {
+  for (const line of text.split('\n')) {
+    const hits: Array<{ role: AmountRole; index: number }> = []
+    for (const { role, pattern } of COLUMN_LABEL_PATTERNS) {
+      const m = line.match(pattern)
+      if (m && m.index !== undefined && !hits.some((h) => h.role === role)) {
+        hits.push({ role, index: m.index })
+      }
     }
+    // A real header row names at least the billed and one adjudication column.
+    if (hits.length >= 2 && hits.some((h) => h.role === 'billed')) {
+      return hits.sort((a, b) => a.index - b.index).map((h) => h.role)
+    }
+  }
+  return null
+}
+
+// Map a row's dollar amounts to roles. Prefer the header order; otherwise fall
+// back to the near-universal EOB convention (billed first, your-cost last).
+function assignEOBAmounts(
+  amounts: number[],
+  order: AmountRole[] | null
+): { billed?: number; allowed?: number; patientResp?: number } {
+  const out: { billed?: number; allowed?: number; patientResp?: number } = {}
+  if (order && order.length === amounts.length) {
+    order.forEach((role, i) => {
+      if (role === 'billed') out.billed = amounts[i]
+      else if (role === 'allowed') out.allowed = amounts[i]
+      else out.patientResp = amounts[i]
+    })
+    return out
+  }
+  // Positional fallback by amount count.
+  if (amounts.length === 1) {
+    out.billed = amounts[0]
+  } else if (amounts.length === 2) {
+    out.billed = amounts[0]
+    out.allowed = amounts[1]
+  } else if (amounts.length >= 3) {
+    out.billed = amounts[0]
+    out.patientResp = amounts[amounts.length - 1]
+    out.allowed = amounts[1]
+  }
+  return out
+}
+
+export function extractEOBLineItems(text: string): CBSLineItem[] {
+  const order = detectEOBColumnOrder(text)
+  const items: CBSLineItem[] = []
+
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.trim()
+    if (!line || EOB_SUMMARY_ROW.test(line)) continue
+
+    const amounts = eobMoneyAmounts(line)
+    const dateMatch = line.match(EOB_DATE_RE)
+    // A service row needs at least one dollar amount, and either a service date
+    // or two+ amounts (a description + cost pair). Keeps headers/prose out
+    // without ever requiring a CPT code.
+    if (amounts.length === 0) continue
+    if (!dateMatch && amounts.length < 2) continue
+
+    const serviceDate = dateMatch ? normalizeDate(dateMatch[1]) : undefined
+    const { billed, allowed, patientResp } = assignEOBAmounts(amounts, order)
+
+    const codeMatch = line.match(EOB_CODE_RE)
+    const description = line
+      .replace(EOB_DATE_RE, '')
+      .replace(EOB_MONEY_RE, '')
+      .replace(EOB_CODE_RE, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/[|·•]/g, ' ')
+      .trim()
+      .slice(0, 80)
+    if (!codeMatch && !description) continue
+
+    const noteFlags = eobNoteFlags(line)
 
     items.push({
       lineItemId: crypto.randomUUID(),
-      cptCode: cptMatch?.[1],
-      description,
-      billedAmount,
-      allowedAmount,
-      patientResponsibility,
+      cptCode: codeMatch ? codeMatch[1] : undefined, // optional — usually absent
+      description: description || undefined,
+      serviceDate,
+      billedAmount: billed,
+      allowedAmount: allowed,
+      patientResponsibility: patientResp,
+      status: noteFlags.length > 0 ? 'denied' : 'unknown',
+      noteFlags: noteFlags.length > 0 ? noteFlags : undefined,
     })
   }
+
   return items
 }
 

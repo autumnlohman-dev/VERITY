@@ -20,6 +20,7 @@ export type DiscrepancyType =
   | 'duplicate_charge'
   | 'unauthorized_service'
   | 'balance_billing_violation'
+  | 'denied_service_billed'
   | 'denial_without_authorization'
   | 'temporal_inconsistency'
   | 'upcoding'
@@ -43,6 +44,14 @@ export interface CBSLineItem {
   serviceDate?: string
   status?: 'paid' | 'denied' | 'adjusted' | 'pending' | 'unknown'
   denialCode?: string
+  // Free-text adjudication notes carried verbatim from an EOB line, e.g.
+  // "not payable with the diagnosis billed". Most commercial EOB lines carry
+  // a service description + note rather than a CPT/HCPCS code.
+  noteFlags?: string[]
+  // Set on a bill line once it has been matched to an EOB line and priced
+  // against the EOB's allowed amount. Downstream Medicare CLFS/PFS pricing
+  // must skip these lines — the EOB is the binding benchmark, not the CLFS.
+  eobBenchmarked?: boolean
 }
 
 export interface CBSDiscrepancy {
