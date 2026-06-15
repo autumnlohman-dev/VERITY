@@ -80,7 +80,17 @@ export const DESCRIPTION_TO_CPT: Array<{ pattern: RegExp; cpt: string }> = [
   { pattern: /emergency\s+class\s+iv\b/i, cpt: '99284' },
   { pattern: /emergency\s+class\s+v\b/i, cpt: '99285' },
   { pattern: /emergency\s+class\s+ii\b/i, cpt: '99282' },
-  { pattern: /emergency\s+class\s+i\b/i, cpt: '99281' }
+  { pattern: /emergency\s+class\s+i\b/i, cpt: '99281' },
+  // Thyroid-stimulating hormone.
+  { pattern: /^\s*tsh\s*$|thyroid[\s-]*stimulating\s+hormone/i, cpt: '84443' },
+  // Free thyroxine (Free T4). Anchored/word-bounded so it doesn't catch "T4 free"
+  // inside an unrelated phrase or the total-T4 assay (84436).
+  { pattern: /^\s*t4[\s,-]*free\s*$|free\s*t4\b|\bt4\b[\s,-]+free\b|free\s+thyroxine/i, cpt: '84439' },
+  // Immunoglobulin A, quantitative. Whole-token "IGA" only (avoid matching it
+  // as a substring of other words).
+  { pattern: /^\s*iga\s*$|immunoglobulin\s+a\b/i, cpt: '82784' },
+  // Tissue transglutaminase (tTG) antibody.
+  { pattern: /tissue\s+transglutaminase|\bttg\b/i, cpt: '83516' }
 ]
 
 export function mapDescriptionToCpt(description: string): string | null {
@@ -90,6 +100,24 @@ export function mapDescriptionToCpt(description: string): string | null {
     if (entry.pattern.test(text)) return entry.cpt
   }
   return null
+}
+
+/**
+ * Encounter-organized facility bills interleave non-charge rows among the
+ * actual charges: insurance payments, contractual allowance adjustments, and
+ * credit/refund adjustments — typically carrying negative amounts (e.g.
+ * "COMMERCIAL INSURANCE PAYMENT", "CONTRACTUAL ALLOWANCE ADJUST", "OTHER CREDIT
+ * ADJUSTMENT"). These are not billable line items: counting them would corrupt
+ * totals, skew duplicate detection, and surface false overcharges. Exclude any
+ * row whose amount is negative or whose description reads as a payment,
+ * adjustment, allowance, credit, refund, or write-off.
+ */
+const NON_CHARGE_PATTERN =
+  /\b(payment|adjust(?:ment|ed)?|allowance|credit|refund|write[-\s]?off|contractual)\b/i
+
+export function isNonChargeRow(description: string, billedAmount: number): boolean {
+  if (billedAmount < 0) return true
+  return NON_CHARGE_PATTERN.test(description)
 }
 
 export const MAX_FILE_BYTES = 20 * 1024 * 1024
@@ -187,11 +215,12 @@ const EXTRACT_BILL_TOOL = {
             cpt_code: {
               type: 'string',
               description:
-                'The 5-character CPT or HCPCS code (e.g. "99213", "G0438"). Omit the row if no code is visible.'
+                'The 5-character CPT or HCPCS code (e.g. "99213", "G0438") if one is printed for this row. Many bills list only a service description with no code — in that case return an empty string and still record the row. Do NOT invent a code.'
             },
             description: {
               type: 'string',
-              description: 'Service description as it appears on the bill.'
+              description:
+                'Service description exactly as it appears on the bill (e.g. "CMP", "TSH", "CBC DIFF", "VENIPUNCTURE", "XR BONE AGE STUDY"). Always required — this is how a row with no code is identified.'
             },
             date_of_service: {
               type: 'string',
@@ -215,7 +244,6 @@ const EXTRACT_BILL_TOOL = {
             }
           },
           required: [
-            'cpt_code',
             'description',
             'date_of_service',
             'units',
@@ -232,15 +260,17 @@ const EXTRACT_BILL_PROMPT = `Extract the bill metadata and every itemized charge
 
 For the bill metadata, record the provider/facility name, NPI, address, bill date, patient name, patient mailing address, and account number. The patient's mailing address is usually in a "Responsible Party", "Guarantor", or "Bill To" block — split it into street, city, state (2-letter code), and ZIP. Use empty strings for any field that is not visible.
 
+The bill may be organized into multiple encounters, each with its own block of charges. Capture charge lines from every encounter.
+
 For each line item, identify:
-- CPT or HCPCS code (5 alphanumeric characters)
-- Service description as shown
-- Date of service, normalized to YYYY-MM-DD
+- CPT or HCPCS code (5 alphanumeric characters) if printed — MANY bills list only a description with no code; in that case leave cpt_code as an empty string and still record the line keyed by its description. Never invent a code.
+- Service description exactly as shown (e.g. "CMP", "TSH", "CBC DIFF", "VENIPUNCTURE", "XR BONE AGE STUDY")
+- Date of service, normalized to YYYY-MM-DD (use the encounter's date if the row itself doesn't repeat it)
 - Units billed (default 1 if not shown)
 - Billed amount in dollars as a number
 - Any CPT modifiers
 
-Only extract actual charge lines. Skip payments, adjustments, insurance discounts, subtotals, taxes, and summary/total rows. If a row has no CPT or HCPCS code, omit it entirely. Return the result via the record_bill tool.`
+Capture every actual charge line, with or without a code. EXCLUDE non-charge rows that are interleaved among the charges: insurance payments, contractual allowance adjustments, credit/refund adjustments, write-offs, and any row with a negative amount (these read as "COMMERCIAL INSURANCE PAYMENT", "CONTRACTUAL ALLOWANCE ADJUST", "OTHER CREDIT ADJUSTMENT", etc.). Also skip subtotals, taxes, and summary/total rows. Return the result via the record_bill tool.`
 
 function emptyMetadata(): ExtractedBillMetadata {
   return {
@@ -341,18 +371,47 @@ export async function extractBillContent(
     account_number: String(metaRaw.account_number ?? '').trim()
   }
 
-  const rawItems = Array.isArray(input.line_items) ? input.line_items : []
-  const candidates: ExtractedLineItem[] = rawItems
+  const { lineItems, warnings } = normalizeBillLineItems(input.line_items)
+
+  return {
+    lineItems,
+    billMetadata: billMetadata ?? emptyMetadata(),
+    warnings,
+    rawToolInput
+  }
+}
+
+/**
+ * Turn the model's raw `line_items` into billable {@link ExtractedLineItem}s
+ * plus manual-review {@link ExtractionWarning}s. Pure (no I/O) so it can be
+ * exercised against fixture bills.
+ *
+ * Three behaviors matter for real-world bills:
+ *  1. Rows with no CPT/HCPCS code are still captured, keyed by description, and
+ *     resolved to a canonical CPT via {@link DESCRIPTION_TO_CPT} where the
+ *     description is unambiguous. Rows that can't be resolved keep an empty
+ *     `cpt_code` and surface as a rate-unavailable warning rather than being
+ *     dropped — never discard the whole document just because codes are absent.
+ *  2. Non-charge rows (payments, contractual allowance adjustments, credits,
+ *     refunds, negative amounts) are excluded — they aren't billable.
+ *  3. A row needs *something* to key on: either a code or a description.
+ */
+export function normalizeBillLineItems(rawLineItems: unknown): {
+  lineItems: ExtractedLineItem[]
+  warnings: ExtractionWarning[]
+} {
+  const rawItems = Array.isArray(rawLineItems) ? rawLineItems : []
+  const lineItems: ExtractedLineItem[] = rawItems
     .map((raw) => {
       const r = raw as Record<string, unknown>
       const extractedCode = String(r.cpt_code ?? '').trim().toUpperCase()
       const description = typeof r.description === 'string' ? r.description : ''
 
       // If Claude pulled a non-CPT-format code (common on facility bills that
-      // list internal chargemaster IDs), try to resolve it from the service
-      // description. Don't override valid CPT codes.
+      // list internal chargemaster IDs) or no code at all, try to resolve it
+      // from the service description. Don't override valid CPT codes.
       let cptCode = extractedCode
-      if (extractedCode && !CPT_CODE_PATTERN.test(extractedCode)) {
+      if (!CPT_CODE_PATTERN.test(extractedCode)) {
         const mapped = mapDescriptionToCpt(description)
         if (mapped) cptCode = mapped
       }
@@ -369,26 +428,24 @@ export async function extractBillContent(
           : []
       }
     })
-    .filter((item) => item.cpt_code && item.date_of_service)
+    // Drop interleaved payment/adjustment/credit rows, then keep anything that
+    // has a code or a description to anchor on.
+    .filter((item) => !isNonChargeRow(item.description, item.billed_amount))
+    .filter((item) => item.cpt_code !== '' || item.description !== '')
 
-  const lineItems: ExtractedLineItem[] = candidates
   const warnings: ExtractionWarning[] = []
-  for (const item of candidates) {
+  for (const item of lineItems) {
     if (!CPT_CODE_PATTERN.test(item.cpt_code)) {
+      const label = item.raw_code || item.description || 'Unlabeled charge'
       warnings.push({
         code: item.raw_code,
         description: item.description,
         date_of_service: item.date_of_service,
         billed_amount: item.billed_amount,
-        reason: `"${item.raw_code}" does not match standard CPT/HCPCS format and no description-based CPT mapping was available. Excluded from rule-based audit; still reviewed for patient-reported disputes.`
+        reason: `"${label}" has no standard CPT/HCPCS code and no description-based CPT mapping was available. Captured as a billable line for manual review (rate unavailable); excluded from the rule-based fee-schedule audit but still reviewed for patient-reported disputes.`
       })
     }
   }
 
-  return {
-    lineItems,
-    billMetadata: billMetadata ?? emptyMetadata(),
-    warnings,
-    rawToolInput
-  }
+  return { lineItems, warnings }
 }

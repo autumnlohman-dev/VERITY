@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { LineItem } from './errorDetection'
-import { CPT_CODE_PATTERN, mapDescriptionToCpt } from './billExtractor'
+import { CPT_CODE_PATTERN, isNonChargeRow, mapDescriptionToCpt } from './billExtractor'
 
 // Component I: multimodal unstructured → structured extraction (proprietary).
 // Shared by the authenticated case pipeline (/api/extract) and the public
@@ -22,6 +22,14 @@ Rules:
 - Transcribe numbers verbatim; never round or compute new values.
 - If a field is absent or unreadable, return null and lower its confidence.
 - Distinguish CPT/HCPCS codes (5 characters) from revenue codes and ICD diagnoses.
+- MANY bills list only a service description with NO CPT/HCPCS code (e.g. "CMP", "TSH", "CBC DIFF",
+  "VENIPUNCTURE", "XR BONE AGE STUDY"). Still capture these rows — set "cpt_code" to null and record the
+  description. Never invent a code.
+- The document may be organized into multiple encounters; capture charge lines from every encounter.
+- EXCLUDE non-charge rows interleaved among the charges: insurance payments, contractual allowance
+  adjustments, credit/refund adjustments, write-offs, and any row with a negative amount (e.g.
+  "COMMERCIAL INSURANCE PAYMENT", "CONTRACTUAL ALLOWANCE ADJUST", "OTHER CREDIT ADJUSTMENT"). Also skip
+  subtotals, taxes, and summary/total rows.
 - Capture modifiers attached to a CPT (e.g. 59, 25, XU).
 Return ONLY a JSON object, no prose, matching exactly:
 {
@@ -29,7 +37,7 @@ Return ONLY a JSON object, no prose, matching exactly:
   "provider": string | null,
   "date_of_service": string | null,
   "line_items": [
-    { "cpt_code": string, "description": string | null, "date_of_service": string | null,
+    { "cpt_code": string | null, "description": string | null, "date_of_service": string | null,
       "units": number, "billed_amount": number, "modifiers": string[],
       "field_confidence": "high" | "medium" | "low" }
   ],
@@ -88,36 +96,41 @@ export async function extractFromBase64(base64: string, ext: string): Promise<Ex
 
   const rawItems = Array.isArray(parsed.line_items) ? parsed.line_items : []
   const lineItems: LineItem[] = rawItems
-    .filter((li) => li && typeof li.cpt_code === 'string')
     .map((li) => {
-      const description = typeof li.description === 'string' ? li.description : undefined
-      const extractedCode = String(li.cpt_code).trim().toUpperCase()
+      const description = typeof li.description === 'string' ? li.description : ''
+      const extractedCode =
+        typeof li.cpt_code === 'string' ? li.cpt_code.trim().toUpperCase() : ''
+      const billedAmount = Number(li.billed_amount) || 0
 
-      // Facility bills list proprietary chargemaster IDs (e.g. "401000018")
-      // that match no PFS/CLFS/NCCI entry, so every lookup misses and the audit
-      // falls back to its "reference data unavailable" path. When the code isn't
-      // in standard CPT/HCPCS format, resolve it from the service description so
-      // the downstream Supabase lookups have a real code to price. Same mapping
-      // used by /api/extract-line-items — kept in one place in billExtractor.
+      // Capture rows even when the bill prints only a description (no code at
+      // all) or a proprietary chargemaster ID: resolve an unambiguous
+      // description to its canonical CPT via the shared billExtractor mapping,
+      // otherwise leave the code empty so the audit flags it as rate-unavailable
+      // / manual review rather than discarding it.
       let cptCode = extractedCode
-      if (extractedCode && !CPT_CODE_PATTERN.test(extractedCode)) {
-        const mapped = mapDescriptionToCpt(description ?? '')
-        if (mapped) cptCode = mapped
+      if (!CPT_CODE_PATTERN.test(extractedCode)) {
+        cptCode = mapDescriptionToCpt(description) ?? extractedCode
       }
 
       return {
         cpt_code: cptCode,
-        description,
+        description: description || undefined,
         date_of_service: typeof li.date_of_service === 'string' ? li.date_of_service : '',
         units: Number(li.units) || 1,
-        billed_amount: Number(li.billed_amount) || 0,
+        billed_amount: billedAmount,
         modifiers: Array.isArray(li.modifiers) ? li.modifiers.map((m) => String(m)) : undefined,
       }
     })
+    // Drop interleaved payment/adjustment/credit rows; keep anything with a
+    // code or a description to anchor on.
+    .filter((li) => !isNonChargeRow(li.description ?? '', li.billed_amount))
+    .filter((li) => li.cpt_code !== '' || (li.description ?? '') !== '')
 
   const lowConfidence = rawItems
     .filter((li) => li?.field_confidence === 'low')
-    .map((li) => String(li.cpt_code ?? 'unknown'))
+    .map((li) =>
+      String(li.cpt_code ?? (typeof li.description === 'string' ? li.description : 'unknown'))
+    )
 
   return {
     lineItems,

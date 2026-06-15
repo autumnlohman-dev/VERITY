@@ -73,24 +73,53 @@ function extractDollarAmount(text: string, labels: string[]): number | undefined
 
 // ─── EOB-specific extraction ──────────────────────────────────────────────────
 
+// Rows on a commercial EOB are laid out as
+//   <service description> [CPT] | Amount Billed | Discounts and Reductions | Amount Covered | Your Responsibility
+// CPT codes are frequently absent (the description is the only identifier), so
+// we key on any row carrying at least two dollar amounts and map the columns by
+// how many amounts are present.
+const EOB_SUMMARY_ROW = /\b(total|subtotal|grand\s+total|balance\s+forward)\b/i
+
 function extractEOBLineItems(text: string): CBSLineItem[] {
   const items: CBSLineItem[] = []
-  // Look for lines with CPT codes and amounts in EOB format
   const lines = text.split('\n')
   for (const line of lines) {
-    const cptMatch = line.match(/\b(\d{5}|[A-Z]\d{4})\b/)
-    if (!cptMatch) continue
+    if (EOB_SUMMARY_ROW.test(line)) continue
     const amounts = [...line.matchAll(/\$?([\d,]+\.\d{2})/g)].map(m => parseFloat(m[1].replace(/,/g, '')))
-    if (amounts.length === 0) continue
+    if (amounts.length < 2) continue
+
+    const cptMatch = line.match(/\b(\d{5}|[A-Z]\d{4})\b/)
+    const description = line
+      .replace(/\$?[\d,]+\.\d{2}/g, '')
+      .replace(/\b\d{5}\b/, '')
+      .trim()
+      .substring(0, 80)
+    if (!cptMatch && !description) continue
+
+    // Column mapping by amount count:
+    //  4+: Billed | Discounts/Reductions | Amount Covered (allowed) | Your Responsibility
+    //  3 : Billed | Amount Covered (allowed) | Your Responsibility
+    //  2 : Billed | Amount Covered (allowed)
+    const billedAmount = amounts[0]
+    let allowedAmount: number | undefined
+    let patientResponsibility: number | undefined
+    if (amounts.length >= 4) {
+      allowedAmount = amounts[2]
+      patientResponsibility = amounts[3]
+    } else if (amounts.length === 3) {
+      allowedAmount = amounts[1]
+      patientResponsibility = amounts[2]
+    } else {
+      allowedAmount = amounts[1]
+    }
 
     items.push({
       lineItemId: crypto.randomUUID(),
-      cptCode: cptMatch[1],
-      description: line.replace(/\$[\d,]+\.\d{2}/g, '').replace(/\b\d{5}\b/, '').trim().substring(0, 80),
-      billedAmount: amounts[0],
-      allowedAmount: amounts[1],
-      patientResponsibility: amounts[2],
-      paidAmount: amounts[3],
+      cptCode: cptMatch?.[1],
+      description,
+      billedAmount,
+      allowedAmount,
+      patientResponsibility,
     })
   }
   return items
@@ -149,7 +178,9 @@ export function extractToCBS(
   const appealDeadline = extractDate(rawText, ['appeal by', 'appeal deadline', 'file appeal within', 'deadline'])
 
   const totalBilled = extractDollarAmount(rawText, ['total billed', 'total charges', 'amount billed', 'total amount'])
-  const totalAllowed = extractDollarAmount(rawText, ['total allowed', 'allowed amount', 'contracted rate'])
+  // EOBs label the contracted/allowed column variously: "Amount Covered" on
+  // many commercial EOBs is the allowed amount after discounts and reductions.
+  const totalAllowed = extractDollarAmount(rawText, ['total allowed', 'allowed amount', 'amount covered', 'contracted rate'])
   const totalPatientResponsibility = extractDollarAmount(rawText, ['patient responsibility', 'your responsibility', 'amount due', 'balance due', 'you owe'])
   const totalPaid = extractDollarAmount(rawText, ['amount paid', 'plan paid', 'insurance paid', 'benefit paid'])
 
