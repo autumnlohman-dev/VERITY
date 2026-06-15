@@ -115,7 +115,15 @@ export async function POST(request: Request) {
 
     // Anon client can read the public rules tables.
     const supabase = await createClient()
-    const eobExt = String(eobFileName ?? '').split('.').pop()?.toLowerCase() ?? ''
+    // Derive the EOB extension from the filename, falling back to the storage
+    // path (which embeds the original filename) so a missing eobFileName doesn't
+    // silently drop a perfectly readable EOB.
+    const eobExt =
+      (String(eobFileName ?? '').split('.').pop()?.toLowerCase() ?? '') ||
+      (typeof eobPath === 'string' ? eobPath.split('.').pop()?.toLowerCase() ?? '' : '')
+    console.info(
+      `audit-guest: EOB inputs — eobPath:${!!eobPath} eobBase64:${!!eobFileBase64} resolved:${!!resolvedEobBase64} ext:"${eobExt}"`
+    )
     const result = await runFullAudit({
       lineItems,
       insuranceType: normalizeInsuranceType(insuranceType),

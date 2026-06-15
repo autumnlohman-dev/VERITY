@@ -26,6 +26,10 @@ export interface GuestClaimAudit {
   potentialSavings?: number
   normalizedCbs?: unknown
   hasEob?: boolean
+  // An EOB was uploaded for the guest audit but couldn't be read, so it ran
+  // bill-only. Carried through the claim so the saved case can surface the
+  // "couldn't read your EOB" notice instead of degrading silently.
+  eobError?: boolean
   lowConfidence?: boolean
 }
 
@@ -60,6 +64,7 @@ export function saveGuestClaim(audit: GuestClaimAudit, inputs: GuestClaimInputs)
         potentialSavings: Number(audit.potentialSavings ?? 0),
         normalizedCbs: audit.normalizedCbs ?? null,
         hasEob: !!audit.hasEob,
+        eobError: !!audit.eobError,
         lowConfidence: !!audit.lowConfidence,
       },
       inputs,

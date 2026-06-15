@@ -31,6 +31,7 @@ interface ClaimBody {
     potentialSavings?: unknown
     normalizedCbs?: unknown
     hasEob?: unknown
+    eobError?: unknown
     lowConfidence?: unknown
   }
   inputs?: {
@@ -148,6 +149,10 @@ export async function POST(request: Request) {
       normalizedCbs,
       date_of_service: result.dateOfService,
       hasEob: result.hasEob || !!audit.hasEob,
+      // The re-audit runs bill-only (the EOB file isn't carried through the
+      // claim), so honor the guest audit's EOB-read outcome so the case page can
+      // surface the "couldn't read your EOB" notice instead of degrading silently.
+      eobError: !!audit.eobError,
       lowConfidence: result.lowConfidence,
       // Provenance + idempotency key for re-import dedup.
       guest_claim_id: claimId,

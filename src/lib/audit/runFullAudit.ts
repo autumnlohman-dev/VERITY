@@ -137,20 +137,29 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
   )
 
   let eobCbs: CanonicalBillingSchema | null = null
-  if (eob && eob.base64 && isExtractableExt(eob.ext)) {
-    try {
-      eobCbs = await extractEOBToCBS(eob.base64, eob.ext, `eob_${docIdBase}`)
-      // Pin bill + EOB to a shared episode so the normalizer compares them even
-      // without a matching claim number / service date.
-      const sharedEpisode =
-        billCbs.serviceEpisodeId || eobCbs.serviceEpisodeId || billCbs.claimNumber || `episode_${docIdBase}`
-      billCbs.serviceEpisodeId = sharedEpisode
-      eobCbs.serviceEpisodeId = sharedEpisode
-      if (!eobCbs.dateOfService) eobCbs.dateOfService = billCbs.dateOfService
-    } catch (eobErr) {
-      // EOB unreadable — degrade gracefully to a bill-only audit.
-      console.error('EOB extraction error:', eobErr)
-      eobCbs = null
+  if (eob && eob.base64) {
+    if (!isExtractableExt(eob.ext)) {
+      // An EOB was supplied but we can't process its file type — log so a silent
+      // bill-only result is traceable, then fall through to eobError below.
+      console.warn(
+        `runFullAudit[${docIdBase}]: EOB supplied but ext "${eob.ext}" is not extractable — skipping; audit will be bill-only.`
+      )
+    } else {
+      try {
+        eobCbs = await extractEOBToCBS(eob.base64, eob.ext, `eob_${docIdBase}`)
+        // Pin bill + EOB to a shared episode so the normalizer compares them even
+        // without a matching claim number / service date.
+        const sharedEpisode =
+          billCbs.serviceEpisodeId || eobCbs.serviceEpisodeId || billCbs.claimNumber || `episode_${docIdBase}`
+        billCbs.serviceEpisodeId = sharedEpisode
+        eobCbs.serviceEpisodeId = sharedEpisode
+        if (!eobCbs.dateOfService) eobCbs.dateOfService = billCbs.dateOfService
+        console.info(`runFullAudit[${docIdBase}]: EOB extracted — cross-document comparison enabled.`)
+      } catch (eobErr) {
+        // EOB unreadable — degrade gracefully to a bill-only audit.
+        console.error(`runFullAudit[${docIdBase}]: EOB extraction error:`, eobErr)
+        eobCbs = null
+      }
     }
   }
 

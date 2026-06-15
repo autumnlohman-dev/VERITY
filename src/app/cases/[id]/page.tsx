@@ -125,6 +125,12 @@ interface BillData {
   date_of_service?: string;
   em_review?: EmReview;
   lineItems?: Array<{ cpt_code?: string }>;
+  // Set by runFullAudit: an EOB was uploaded and successfully cross-checked
+  // (hasEob), or one was uploaded but couldn't be read so the audit completed
+  // bill-only (eobError). The case page surfaces eobError as a notice rather
+  // than silently degrading to a bill-only result.
+  hasEob?: boolean;
+  eobError?: boolean;
   // Persisted questionnaire state so completed panels survive a refresh and
   // hydrate from the DB instead of re-prompting (see /api/case-state).
   fhs_inputs?: FHSUserInputs;
@@ -1128,6 +1134,26 @@ export default function CaseDetailPage({
               {/* Deadline Tracker */}
               {deadlines.length > 0 && (
                 <DeadlineTracker deadlines={deadlines} />
+              )}
+
+              {/* EOB couldn't be read — say so instead of silently degrading to
+                  a bill-only audit (the cross-document section just won't render). */}
+              {caseRow.bill_data?.eobError && (
+                <div
+                  style={{
+                    marginBottom: "48px",
+                    backgroundColor: "#1A1206",
+                    border: "1px solid #3A2E1A",
+                    borderLeft: "3px solid #C8A97E",
+                    padding: "16px 20px",
+                  }}
+                >
+                  <div style={{ ...label("#C8A97E"), marginBottom: "6px" }}>EOB notice</div>
+                  <p style={{ ...sans("13px", "#A89F96"), lineHeight: 1.6 }}>
+                    We couldn&apos;t read your EOB, so this audit was completed using your bill
+                    only. Re-upload a clearer EOB (PDF or photo) to add the bill-vs-EOB cross-check.
+                  </p>
+                </div>
               )}
 
               {/* Cross-document discrepancies (bill vs. EOB) */}

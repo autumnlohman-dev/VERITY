@@ -140,7 +140,15 @@ export async function POST(request: Request) {
         : {}
 
     const insuranceType = normalizeInsuranceType(caseRow.insurance_type ?? existingBillData.insuranceType)
-    const eobExt = String(eobFileName ?? '').split('.').pop()?.toLowerCase() ?? ''
+    // Derive the EOB extension from the filename, falling back to the storage
+    // path (which embeds the original filename) so a missing eobFileName doesn't
+    // silently drop a perfectly readable EOB.
+    const eobExt =
+      (String(eobFileName ?? '').split('.').pop()?.toLowerCase() ?? '') ||
+      (typeof eobPath === 'string' ? eobPath.split('.').pop()?.toLowerCase() ?? '' : '')
+    console.info(
+      `extract[${caseId}]: EOB inputs — eobPath:${!!eobPath} eobBase64:${!!eobFileBase64} resolved:${!!resolvedEobBase64} ext:"${eobExt}"`
+    )
 
     const result = await runFullAudit({
       lineItems,
