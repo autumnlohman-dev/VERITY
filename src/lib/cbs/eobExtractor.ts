@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { CanonicalBillingSchema } from './schema'
 import { extractToCBS, EOB_MEDIA_TYPES } from './extractor'
+import { isHeicExt, heicToJpegBase64 } from '../heic'
 
 // ─── Multimodal EOB extraction (Component I → CBS) ─────────────────────────────
 // SERVER-ONLY. Reads an Explanation of Benefits image/PDF with the Anthropic
@@ -43,13 +44,21 @@ export async function extractEOBToCBS(
   ext: string,
   documentId: string
 ): Promise<CanonicalBillingSchema> {
+  // iPhone HEIC/HEIF → JPEG before the vision call (the API rejects HEIC).
+  let data = base64
+  let mediaExt = ext
+  if (isHeicExt(mediaExt)) {
+    data = await heicToJpegBase64(base64)
+    mediaExt = 'jpg'
+  }
+
   let documentBlock: Anthropic.ContentBlockParam
-  if (ext === 'pdf') {
-    documentBlock = { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-  } else if (EOB_MEDIA_TYPES[ext]) {
-    documentBlock = { type: 'image', source: { type: 'base64', media_type: EOB_MEDIA_TYPES[ext], data: base64 } }
+  if (mediaExt === 'pdf') {
+    documentBlock = { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }
+  } else if (EOB_MEDIA_TYPES[mediaExt]) {
+    documentBlock = { type: 'image', source: { type: 'base64', media_type: EOB_MEDIA_TYPES[mediaExt], data } }
   } else {
-    throw new Error(`Unsupported EOB file type: .${ext}. Upload a PDF, PNG, JPG, or WEBP.`)
+    throw new Error(`Unsupported EOB file type: .${ext}. Upload a PDF, PNG, JPG, WEBP, or HEIC.`)
   }
 
   const message = await anthropic().messages.create({

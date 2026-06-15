@@ -156,6 +156,7 @@ type GuestAudit = {
   totalBilled: number;
   potentialSavings: number;
   hasEob?: boolean;
+  eobError?: boolean;
   crossDocumentDiscrepancies?: CBSDiscrepancy[];
 };
 
@@ -367,7 +368,7 @@ function DropZone({
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.jpg,.jpeg,.png"
+        accept=".pdf,.jpg,.jpeg,.png,.heic,.heif"
         style={{ display: "none" }}
         onChange={(e: ChangeEvent<HTMLInputElement>) => handleFiles(e.target.files)}
       />
@@ -408,7 +409,7 @@ function DropZone({
             {sublabel}
           </div>
           <div style={{ ...sans("12px", "#C9BFAC"), marginTop: "8px" }}>
-            Drop here, or click to browse — PDF, JPG, PNG
+            Drop here, or click to browse — PDF, JPG, PNG, HEIC
           </div>
           <div
             style={{
@@ -718,6 +719,15 @@ function UploadPageInner() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {r.eobError && (
+            <div style={{ marginTop: "32px", backgroundColor: "#F4EFE6", border: "1px solid #D8CFBE", borderLeft: "3px solid #C8A97E", padding: "16px 20px" }}>
+              <div style={{ ...label("#8A7F6E"), marginBottom: "6px" }}>EOB notice</div>
+              <p style={{ ...sans("13px", "#5F5648"), lineHeight: 1.6 }}>
+                We couldn&apos;t read your EOB, so this audit was completed using your bill only. Re-upload a clearer EOB (PDF or photo) to add the bill-vs-EOB cross-check.
+              </p>
             </div>
           )}
 

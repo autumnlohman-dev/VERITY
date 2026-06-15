@@ -58,6 +58,9 @@ export interface FullAuditResult {
   errorCount: number
   needsReviewCount: number
   hasEob: boolean
+  /** An EOB was supplied but couldn't be read (unreadable or unsupported), so
+   *  the audit completed bill-only. Callers surface this as a notice, not an error. */
+  eobError: boolean
   lowConfidence: string[]
 }
 
@@ -153,6 +156,10 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
 
   const normalizedCbs = normalizeCBSSet(eobCbs ? [billCbs, eobCbs] : [billCbs])
 
+  // An EOB was provided but we couldn't read it (unsupported type or extraction
+  // failure) — the audit still completed bill-only; flag it so callers can say so.
+  const eobError = !!(eob && eob.base64) && !eobCbs
+
   return {
     errors,
     lineItems,
@@ -165,6 +172,7 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
     errorCount,
     needsReviewCount,
     hasEob: !!eobCbs,
+    eobError,
     lowConfidence,
   }
 }

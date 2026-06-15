@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const ext = fileName.split('.').pop()?.toLowerCase() ?? ''
     if (!isSupportedExt(ext)) {
       return NextResponse.json(
-        { error: `Unsupported file type. Upload a PDF, PNG, JPG, or WEBP (HEIC isn't supported yet).` },
+        { error: 'Unsupported file type. Upload a PDF, JPG, PNG, WEBP, or HEIC.' },
         { status: 400 }
       )
     }

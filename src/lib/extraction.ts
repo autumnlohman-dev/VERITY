@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { LineItem } from './errorDetection'
 import { CPT_CODE_PATTERN, isNonChargeRow, mapDescriptionToCpt } from './billExtractor'
+import { isHeicExt, heicToJpegBase64 } from './heic'
 
 // Component I: multimodal unstructured → structured extraction (proprietary).
 // Shared by the authenticated case pipeline (/api/extract) and the public
@@ -61,20 +62,32 @@ export type ExtractionResult = {
   provider: string | null
   dateOfService: string | null
   lowConfidence: string[]
+  // True when the model recognized a billing document (a kind, a provider, a
+  // total, or any rows) even if no billable charge lines survived. Lets callers
+  // tell an unreadable file apart from a readable document with no charge lines.
+  sawContent: boolean
 }
 
 export function isSupportedExt(ext: string): boolean {
-  return ext === 'pdf' || ext in IMAGE_TYPES
+  return ext === 'pdf' || isHeicExt(ext) || ext in IMAGE_TYPES
 }
 
 export async function extractFromBase64(base64: string, ext: string): Promise<ExtractionResult> {
+  // iPhone HEIC/HEIF → JPEG before the vision call (the API rejects HEIC).
+  let data = base64
+  let mediaExt = ext
+  if (isHeicExt(mediaExt)) {
+    data = await heicToJpegBase64(base64)
+    mediaExt = 'jpg'
+  }
+
   let documentBlock: Anthropic.ContentBlockParam
-  if (ext === 'pdf') {
-    documentBlock = { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
-  } else if (IMAGE_TYPES[ext]) {
-    documentBlock = { type: 'image', source: { type: 'base64', media_type: IMAGE_TYPES[ext], data: base64 } }
+  if (mediaExt === 'pdf') {
+    documentBlock = { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }
+  } else if (IMAGE_TYPES[mediaExt]) {
+    documentBlock = { type: 'image', source: { type: 'base64', media_type: IMAGE_TYPES[mediaExt], data } }
   } else {
-    throw new Error(`Unsupported file type: .${ext}. Upload a PDF, PNG, JPG, or WEBP.`)
+    throw new Error(`Unsupported file type: .${ext}. Upload a PDF, PNG, JPG, WEBP, or HEIC.`)
   }
 
   const message = await anthropic().messages.create({
@@ -92,6 +105,8 @@ export async function extractFromBase64(base64: string, ext: string): Promise<Ex
     line_items?: Array<Record<string, unknown>>
     provider?: unknown
     date_of_service?: unknown
+    document_kind?: unknown
+    totals?: Record<string, unknown>
   }
 
   const rawItems = Array.isArray(parsed.line_items) ? parsed.line_items : []
@@ -132,10 +147,22 @@ export async function extractFromBase64(base64: string, ext: string): Promise<Ex
       String(li.cpt_code ?? (typeof li.description === 'string' ? li.description : 'unknown'))
     )
 
+  const provider = typeof parsed.provider === 'string' ? parsed.provider : null
+  const totalBilled = Number(parsed.totals?.billed)
+  // The model returned a recognizable billing document even if every row was
+  // filtered out — a kind, a provider, a billed total, or at least one raw row.
+  const sawContent =
+    parsed.document_kind === 'bill' ||
+    parsed.document_kind === 'eob' ||
+    (provider !== null && provider.trim() !== '') ||
+    rawItems.length > 0 ||
+    Number.isFinite(totalBilled)
+
   return {
     lineItems,
-    provider: typeof parsed.provider === 'string' ? parsed.provider : null,
+    provider,
     dateOfService: typeof parsed.date_of_service === 'string' ? parsed.date_of_service : null,
     lowConfidence,
+    sawContent,
   }
 }

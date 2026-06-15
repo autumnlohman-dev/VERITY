@@ -318,5 +318,7 @@ export const EOB_MEDIA_TYPES: Record<string, 'image/png' | 'image/jpeg' | 'image
 }
 
 export function isExtractableExt(ext: string): boolean {
-  return ext === 'pdf' || ext in EOB_MEDIA_TYPES
+  // heic/heif are accepted here; the server-only EOB extractor transcodes them
+  // to JPEG (via lib/heic) before the vision call.
+  return ext === 'pdf' || ext === 'heic' || ext === 'heif' || ext in EOB_MEDIA_TYPES
 }

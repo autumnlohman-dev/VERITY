@@ -10,7 +10,9 @@ import { checkRateLimit, decodedBase64Bytes } from '@/lib/rateLimit'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
+// Insured cases run two sequential vision extractions (bill + EOB) plus
+// cross-document normalization, which can exceed Vercel's 60s default.
+export const maxDuration = 300
 
 // Signed-in route → throttle per user: 30 audits / 10 minutes.
 const EXTRACT_RATE_LIMIT = 30
@@ -36,7 +38,7 @@ export async function POST(request: Request) {
     const ext = String(billFileName ?? '').split('.').pop()?.toLowerCase() ?? ''
     if (!isSupportedExt(ext)) {
       return NextResponse.json(
-        { error: `Unsupported file type. Upload a PDF, PNG, JPG, or WEBP (HEIC isn't supported yet).` },
+        { error: 'Unsupported file type. Upload a PDF, JPG, PNG, WEBP, or HEIC.' },
         { status: 400 }
       )
     }
@@ -121,12 +123,15 @@ export async function POST(request: Request) {
     }
 
     // Vision extraction (proprietary Component I).
-    const { lineItems, provider, dateOfService, lowConfidence } = await extractFromBase64(billBase64, ext)
+    const { lineItems, provider, dateOfService, lowConfidence, sawContent } =
+      await extractFromBase64(billBase64, ext)
     if (lineItems.length === 0) {
-      return NextResponse.json(
-        { error: 'No billable line items could be read from this document. Try a clearer photo or the itemized bill.' },
-        { status: 422 }
-      )
+      // Distinguish a readable document with no charge lines from a file we
+      // couldn't read at all.
+      const error = sawContent
+        ? "We could read this document, but couldn't find any itemized charge lines on it. Make sure you upload the itemized bill — the one that lists each service with its charge — not the billing summary, statement balance, or payment receipt."
+        : "We couldn't read any billing details from this file. Try a clearer, well-lit photo (or a PDF) of your itemized bill."
+      return NextResponse.json({ error }, { status: 422 })
     }
 
     const existingBillData =
@@ -176,6 +181,7 @@ export async function POST(request: Request) {
       normalizedCbs: result.normalizedCbs,
       date_of_service: result.dateOfService || existingBillData.date_of_service || '',
       hasEob: result.hasEob,
+      eobError: result.eobError,
       lowConfidence: result.lowConfidence,
     }
 
@@ -207,6 +213,7 @@ export async function POST(request: Request) {
       potentialSavings: result.potentialSavings,
       lowConfidence: result.lowConfidence,
       hasEob: result.hasEob,
+      eobError: result.eobError,
     })
   } catch (error) {
     console.error('Extract/audit error:', error)
