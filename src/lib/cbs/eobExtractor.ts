@@ -26,16 +26,33 @@ function anthropic(): Anthropic {
 
 const EOB_TRANSCRIBE_SYSTEM = `You transcribe Explanation of Benefits (EOB) / remittance documents to plain text.
 Transcribe EVERYTHING you can read VERBATIM — never summarize, interpret, round, or invent values.
+
 Preserve every labeled field on its own line so it can be parsed, for example:
-  Claim Number: ...
-  Provider: ...   NPI: ...
   Member ID: ...
-  Date of Service: MM/DD/YYYY
   Processed/EOB Date: MM/DD/YYYY
-  Total Billed: $...   Total Allowed: $...   Plan Paid: $...   Patient Responsibility: $...
   Appeal by: MM/DD/YYYY
-Then transcribe each service line on its own line with its CPT/HCPCS code followed by the
-billed, allowed, paid, and patient-responsibility dollar amounts as printed.
+
+CRITICAL — capture EVERY service line of EVERY claim, across EVERY page:
+- An EOB contains one or more claims. A claim may be a single service line or
+  many (e.g. a "CLAIM DETAIL (3 of 5)" with several "Laboratory Services" rows).
+- Output EVERY individual service row of EVERY claim. NEVER collapse a claim to
+  its total, and NEVER skip rows because a claim has many of them. A claim with
+  four lab rows must produce four rows here.
+- Begin each claim with a header line carrying its identity and date, e.g.:
+    Claim 3 of 5   Claim Number: ...   Date of Service: MM/DD/YYYY
+- Immediately under each claim, print the column header EXACTLY in this order so
+  the columns can be told apart, then one line per service row:
+    Service Description    Amount Billed    Discounts and Reductions    Amount Covered (Allowed)    Your Total Costs
+  Each service row: the description (and CPT/HCPCS code if printed — many EOBs
+  omit it), then ALL FOUR dollar columns in that order, exactly as printed:
+    Laboratory Services    $268.00    $252.55    $15.45    $15.45
+- Keep the "Amount Covered (Allowed)" column distinct from "Discounts and
+  Reductions" — they are different columns; do not merge or reorder them.
+- Append any per-row remark verbatim after the amounts (e.g. "Not payable with
+  the diagnosis billed").
+- You may transcribe claim/page total rows too, but label them "Total" /
+  "Subtotal" so they are not mistaken for service lines.
+
 Return ONLY the transcribed text, no commentary.`
 
 // Extract an EOB document (base64 image or PDF) into CBS via the multimodal API.
@@ -60,7 +77,9 @@ export async function extractEOBToCBS(
 
   const message = await anthropic().messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2000,
+    // A multi-claim EOB (every service row of every claim, across pages) far
+    // exceeds the old 2000-token cap, which truncated transcription mid-document.
+    max_tokens: 8000,
     system: EOB_TRANSCRIBE_SYSTEM,
     messages: [
       {

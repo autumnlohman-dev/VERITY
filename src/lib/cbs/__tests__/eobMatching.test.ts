@@ -121,3 +121,123 @@ describe('Bill ↔ EOB cross-document comparison', () => {
     expect(byType('amount_mismatch')).toHaveLength(0)
   })
 })
+
+// A multi-claim EOB whose claims contain SEVERAL service rows each, in the
+// 4-column layout (Amount Billed | Discounts and Reductions | Amount Covered
+// (Allowed) | Your Total Costs). The detail rows carry no date of their own —
+// the date of service is printed once on each claim header. Previously only
+// single-line claims surfaced; multi-line rows fell through to "could not match",
+// and the allowed column was misread as the discounts column.
+const MULTICLAIM_EOB = `BLUE CROSS BLUE SHIELD — Explanation of Benefits
+This is not a bill.
+
+Member: JANE DOE     Member ID: ABC123456789
+Plan: Commercial PPO
+
+CLAIM DETAIL (3 of 5)   Claim Number: 30000001   Provider: Billings Clinic   Date of Service: 08/15/2024
+Service Description       Amount Billed   Discounts and Reductions   Amount Covered (Allowed)   Your Total Costs
+Laboratory Services      $43.00          $24.08                     $18.92                     $18.92
+Laboratory Services      $94.00          $81.54                     $12.46                     $12.46
+Laboratory Services      $64.00          $35.51                     $28.49                     $28.49
+Laboratory Services      $268.00         $252.55                    $15.45                     $15.45
+Claim Total              $469.00         $393.68                    $75.32                     $75.32
+
+CLAIM DETAIL (4 of 5)   Claim Number: 30000002   Provider: Billings Clinic   Date of Service: 08/15/2024
+Service Description       Amount Billed   Discounts and Reductions   Amount Covered (Allowed)   Your Total Costs
+Laboratory Services      $365.00         $313.47                    $51.53                     $51.53
+Laboratory Services      $94.00          $0.00                      $0.00                      $0.00    Not payable with the diagnosis billed
+
+CLAIM DETAIL (5 of 5)   Claim Number: 30000003   Provider: Billings Clinic   Date of Service: 08/15/2024
+Service Description       Amount Billed   Discounts and Reductions   Amount Covered (Allowed)   Your Total Costs
+Laboratory Services      $33.00          $33.00                     $0.00                      $0.00
+
+CLAIM DETAIL (1 of 5)   Claim Number: 30000004   Provider: Billings Clinic   Date of Service: 08/15/2024
+Service Description       Amount Billed   Discounts and Reductions   Amount Covered (Allowed)   Your Total Costs
+Medical Visits           $329.00         $152.86                    $176.14                    $50.00`
+
+function buildMultiClaimBill() {
+  const li = (cpt: string, desc: string, amt: number) => ({
+    cpt_code: cpt,
+    description: desc,
+    date_of_service: '2024-08-15',
+    units: 1,
+    billed_amount: amt,
+  })
+  return billExtractionToCBS(
+    {
+      lineItems: [
+        li('82728', 'Lab A', 43.0),
+        li('83520', 'Lab B', 94.0),
+        li('84443', 'Lab C', 64.0),
+        li('86003', 'Lab D', 268.0),
+        li('80053', 'Lab E', 365.0),
+        li('36415', 'Lab F', 94.0),
+        li('81002', 'Lab G', 33.0),
+        li('99214', 'Office visit', 329.0),
+      ],
+      billMetadata: {
+        provider_name: 'Billings Clinic',
+        provider_npi: '',
+        bill_date: '2024-09-10',
+        patient_name: 'Jane Doe',
+        account_number: 'ACCT-2',
+      },
+    },
+    'bill_2'
+  )
+}
+
+describe('Multi-line claims — extraction depth', () => {
+  const lines = extractEOBLineItems(MULTICLAIM_EOB)
+
+  it('captures every service row across every claim (8 line items, claim totals excluded)', () => {
+    expect(lines).toHaveLength(8)
+  })
+
+  it('inherits the date of service from each claim header', () => {
+    expect(lines.every((l) => l.serviceDate === '2024-08-15')).toBe(true)
+  })
+
+  it('reads the "Amount Covered (Allowed)" column, not the discounts column', () => {
+    const visit = lines.find((l) => Math.abs((l.billedAmount ?? 0) - 329) < 0.01)
+    expect(visit?.allowedAmount).toBeCloseTo(176.14, 2) // NOT 152.86 (discounts)
+    expect(visit?.patientResponsibility).toBeCloseTo(50.0, 2)
+
+    const fullyDiscounted = lines.find((l) => Math.abs((l.billedAmount ?? 0) - 33) < 0.01)
+    expect(fullyDiscounted?.allowedAmount).toBeCloseTo(0.0, 2) // NOT 33 (the billed amount)
+  })
+})
+
+describe('Multi-line claims — cross-document findings', () => {
+  const bill = buildMultiClaimBill()
+  const eob = extractToCBS(MULTICLAIM_EOB, 'eob_2', 'eob')
+  bill.serviceEpisodeId = 'episode_multi'
+  eob.serviceEpisodeId = 'episode_multi'
+
+  const result = normalizeCBSSet([bill, eob])
+  const discs = result.crossDocumentDiscrepancies
+  const byType = (t: CBSDiscrepancy['type']) => discs.filter((d) => d.type === t)
+
+  it('surfaces balance billing on ALL matchable lines, not just single-line claims', () => {
+    // 4 labs (claim 3) + $365 (claim 4) + $33 (claim 5) + visit = 7 balance bills.
+    expect(byType('balance_billing_violation')).toHaveLength(7)
+    expect(byType('code_mismatch')).toHaveLength(0)
+    // No bill line should fall through to a low-confidence "could not match".
+    expect(byType('amount_mismatch')).toHaveLength(0)
+  })
+
+  it('flags the denied "not payable" $94 line exactly once', () => {
+    expect(byType('denied_service_billed')).toHaveLength(1)
+  })
+
+  it('true patient responsibility ≈ $177 and balance billed is the bulk of ~$1.3k billed', () => {
+    const trueResp = eob.lineItems.reduce((s, l) => s + (l.patientResponsibility ?? 0), 0)
+    expect(trueResp).toBeCloseTo(177.0, 0) // 176.85
+
+    const balanceBilled = byType('balance_billing_violation').reduce(
+      (s, d) => s + d.estimatedDollarImpact,
+      0
+    )
+    expect(balanceBilled).toBeGreaterThan(1000) // ~$1,019, vs ~$312 before the fix
+  })
+})

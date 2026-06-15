@@ -83,6 +83,11 @@ function extractDollarAmount(text: string, labels: string[]): number | undefined
 // OPTIONAL cpt_code when the payer happens to print one. A missing code is
 // expected and never treated as an error. (Lives here in the pure module so the
 // server-only ./eobExtractor vision layer can reuse it via extractToCBS.)
+//
+// It captures EVERY row of EVERY claim — including each line inside a multi-line
+// claim, whose rows inherit the date of service printed once on the claim header
+// — and maps columns by the header order so a "Discounts and Reductions" column
+// is never mistaken for the allowed amount. Claim/page totals are skipped.
 
 // Phrases that, on or below a line, mean the service was denied or written off —
 // the patient should owe nothing for it.
@@ -96,11 +101,17 @@ const DENIAL_NOTE_PATTERNS: RegExp[] = [
 ]
 
 // Header column labels → canonical role. Used to learn the left-to-right order
-// of the money columns so each data row's amounts map to the right role.
-type AmountRole = 'billed' | 'allowed' | 'patientResp'
+// of the money columns so each data row's amounts map to the right role. The
+// `discount` role exists ONLY so a "Discounts and Reductions" column is
+// consumed in place and never mistaken for the allowed amount — commercial EOBs
+// put it BETWEEN billed and allowed (Amount Billed | Discounts and Reductions |
+// Amount Covered/Allowed | Your Total Costs), and reading column 2 as "allowed"
+// is the bug that reported the allowed amount as the discount figure.
+type AmountRole = 'billed' | 'discount' | 'allowed' | 'patientResp'
 
 const COLUMN_LABEL_PATTERNS: Array<{ role: AmountRole; pattern: RegExp }> = [
   { role: 'billed', pattern: /amount\s+billed|amount\s+charged|\bcharges?\b|billed\s+amount/i },
+  { role: 'discount', pattern: /discount|reduction|amount\s+not\s+covered|contractual\s+adjustment|provider\s+(?:discount|adjustment)|plan\s+(?:discount|adjustment)|write-?off/i },
   { role: 'allowed', pattern: /amount\s+(?:covered|allowed)|allowed\s+amount|plan\s+allowance|eligible\s+amount|covered\s+amount/i },
   { role: 'patientResp', pattern: /your\s+total\s+cost|your\s+cost|patient\s+responsibility|amount\s+you\s+owe|you\s+(?:may\s+)?owe|your\s+responsibility/i },
 ]
@@ -148,8 +159,9 @@ function detectEOBColumnOrder(text: string): AmountRole[] | null {
   return null
 }
 
-// Map a row's dollar amounts to roles. Prefer the header order; otherwise fall
-// back to the near-universal EOB convention (billed first, your-cost last).
+// Map a row's dollar amounts to roles. Prefer the header order (which is the
+// only reliable way to skip a Discounts/Reductions column); otherwise fall back
+// to the near-universal EOB column conventions by amount count.
 function assignEOBAmounts(
   amounts: number[],
   order: AmountRole[] | null
@@ -159,20 +171,28 @@ function assignEOBAmounts(
     order.forEach((role, i) => {
       if (role === 'billed') out.billed = amounts[i]
       else if (role === 'allowed') out.allowed = amounts[i]
-      else out.patientResp = amounts[i]
+      else if (role === 'patientResp') out.patientResp = amounts[i]
+      // 'discount' is consumed and intentionally dropped.
     })
     return out
   }
-  // Positional fallback by amount count.
+  // Positional fallback by amount count:
+  //  4+: Billed | Discounts/Reductions | Amount Covered (allowed) | Your Total Costs
+  //  3 : Billed | Amount Covered (allowed) | Your Total Costs
+  //  2 : Billed | Amount Covered (allowed)
   if (amounts.length === 1) {
     out.billed = amounts[0]
   } else if (amounts.length === 2) {
     out.billed = amounts[0]
     out.allowed = amounts[1]
-  } else if (amounts.length >= 3) {
+  } else if (amounts.length === 3) {
     out.billed = amounts[0]
-    out.patientResp = amounts[amounts.length - 1]
     out.allowed = amounts[1]
+    out.patientResp = amounts[2]
+  } else {
+    out.billed = amounts[0]
+    out.allowed = amounts[2]
+    out.patientResp = amounts[amounts.length - 1]
   }
   return out
 }
@@ -180,20 +200,37 @@ function assignEOBAmounts(
 export function extractEOBLineItems(text: string): CBSLineItem[] {
   const order = detectEOBColumnOrder(text)
   const items: CBSLineItem[] = []
+  // Multi-line claims ("CLAIM DETAIL (3 of 5)") print the date of service once
+  // on the claim header, then list several service rows beneath it with no date
+  // of their own. Carry the most recent claim/section date down so every detail
+  // row is captured (and dated), not just single-line claims or claim totals.
+  let claimDate: string | undefined
 
   for (const rawLine of text.split('\n')) {
     const line = rawLine.trim()
-    if (!line || EOB_SUMMARY_ROW.test(line)) continue
+    if (!line) continue
 
     const amounts = eobMoneyAmounts(line)
     const dateMatch = line.match(EOB_DATE_RE)
-    // A service row needs at least one dollar amount, and either a service date
-    // or two+ amounts (a description + cost pair). Keeps headers/prose out
-    // without ever requiring a CPT code.
-    if (amounts.length === 0) continue
-    if (!dateMatch && amounts.length < 2) continue
 
-    const serviceDate = dateMatch ? normalizeDate(dateMatch[1]) : undefined
+    // A dated line with no dollar figures is a claim/section header — remember
+    // its date for the detail rows that follow, then move on.
+    if (dateMatch && amounts.length === 0) {
+      claimDate = normalizeDate(dateMatch[1])
+      continue
+    }
+
+    // Claim/page subtotals and grand totals are not line items.
+    if (EOB_SUMMARY_ROW.test(line)) continue
+
+    // A service row needs at least one dollar amount, and either a service date
+    // (its own or inherited from the claim header) or two+ amounts (a
+    // description + cost pair). Keeps stray prose out without ever requiring a
+    // CPT code.
+    if (amounts.length === 0) continue
+    if (!dateMatch && !claimDate && amounts.length < 2) continue
+
+    const serviceDate = dateMatch ? normalizeDate(dateMatch[1]) : claimDate
     const { billed, allowed, patientResp } = assignEOBAmounts(amounts, order)
 
     const codeMatch = line.match(EOB_CODE_RE)
