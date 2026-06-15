@@ -68,7 +68,7 @@ export default function TermsPage() {
         <p style={{ ...sans("13px", "#8A7F6E"), marginBottom: "48px" }}>Last updated: June 11, 2026</p>
 
         <Section heading="Agreement to these terms">
-          <p>These Terms of Service are a binding agreement between you and Clear Claim Advocacy ("Verity," "we," "us"), and govern your use of the Verity service. By creating an account, running an audit, or otherwise using the service, you agree to these terms, including the binding arbitration and class-action waiver in the "Dispute resolution and arbitration" section below. If you do not agree, please do not use Verity.</p>
+          <p>These Terms of Service are a binding agreement between you and Clear Claim Advocacy (&quot;Verity,&quot; &quot;we,&quot; &quot;us&quot;), and govern your use of the Verity service. By creating an account, running an audit, or otherwise using the service, you agree to these terms, including the binding arbitration and class-action waiver in the &quot;Dispute resolution and arbitration&quot; section below. If you do not agree, please do not use Verity.</p>
         </Section>
 
         <Section heading="What Verity is — and is not">
@@ -77,7 +77,7 @@ export default function TermsPage() {
         </Section>
 
         <Section heading="Beta service">
-          <p><strong>Verity is currently provided as a beta service</strong> — it is under active development and may contain bugs, incomplete features, or interruptions. We may add, change, or remove features at any time during the beta period. As described in our <Link href="/privacy" style={{ color: "#221C14", fontWeight: 600 }}>Privacy Policy</Link>, during beta we may use uploaded documents and results, in de-identified or aggregated form where practical, to improve the service. Because the service is in beta, it is provided with no service-level commitment and "as is" (see "Disclaimers" below).</p>
+          <p><strong>Verity is currently provided as a beta service</strong> — it is under active development and may contain bugs, incomplete features, or interruptions. We may add, change, or remove features at any time during the beta period. As described in our <Link href="/privacy" style={{ color: "#221C14", fontWeight: 600 }}>Privacy Policy</Link>, during beta we may use uploaded documents and results, in de-identified or aggregated form where practical, to improve the service. Because the service is in beta, it is provided with no service-level commitment and &quot;as is&quot; (see &quot;Disclaimers&quot; below).</p>
         </Section>
 
         <Section heading="Eligibility">
@@ -113,7 +113,7 @@ export default function TermsPage() {
         </Section>
 
         <Section heading="Disclaimers">
-          <p>The service is provided "as is" and "as available," without warranties of any kind, whether express or implied, including fitness for a particular purpose and non-infringement, to the fullest extent permitted by law.</p>
+          <p>The service is provided &quot;as is&quot; and &quot;as available,&quot; without warranties of any kind, whether express or implied, including fitness for a particular purpose and non-infringement, to the fullest extent permitted by law.</p>
         </Section>
 
         <Section heading="Limitation of liability">
@@ -130,8 +130,8 @@ export default function TermsPage() {
 
         <Section heading="Dispute resolution and arbitration">
           <p><strong>Please read this section carefully — it affects your legal rights.</strong> You and Verity agree to first try to resolve any dispute informally by contacting us at support@clearclaim.co; most concerns can be resolved that way. If we cannot resolve a dispute within 30 days, either party may proceed as set out below.</p>
-          <p><strong>Binding arbitration.</strong> Except for the carve-outs below, any dispute, claim, or controversy arising out of or relating to these terms or the service will be resolved by <strong>binding individual arbitration</strong> administered by a recognized arbitration provider under its consumer arbitration rules, rather than in court. The arbitration will be governed by the Federal Arbitration Act. It may be conducted by phone, video, or written submissions, or in person in Montana if required. The arbitrator's award may be entered in any court of competent jurisdiction.</p>
-          <p><strong>Class-action waiver.</strong> You and Verity agree that each may bring claims against the other only in an individual capacity, and not as a plaintiff or class member in any purported class, consolidated, or representative proceeding. The arbitrator may not consolidate more than one person's claims or preside over any class or representative proceeding.</p>
+          <p><strong>Binding arbitration.</strong> Except for the carve-outs below, any dispute, claim, or controversy arising out of or relating to these terms or the service will be resolved by <strong>binding individual arbitration</strong> administered by a recognized arbitration provider under its consumer arbitration rules, rather than in court. The arbitration will be governed by the Federal Arbitration Act. It may be conducted by phone, video, or written submissions, or in person in Montana if required. The arbitrator&apos;s award may be entered in any court of competent jurisdiction.</p>
+          <p><strong>Class-action waiver.</strong> You and Verity agree that each may bring claims against the other only in an individual capacity, and not as a plaintiff or class member in any purported class, consolidated, or representative proceeding. The arbitrator may not consolidate more than one person&apos;s claims or preside over any class or representative proceeding.</p>
           <p><strong>Exceptions.</strong> Either party may bring an individual claim in small-claims court if it qualifies, and either party may seek injunctive or equitable relief in court to protect intellectual property or stop misuse of the service. Nothing here waives any right you cannot waive under applicable law.</p>
           <p><strong>Opt-out.</strong> You may opt out of this arbitration agreement within 30 days of first accepting these terms by emailing <strong>support@clearclaim.co</strong> with your account email and a clear statement that you opt out of arbitration. Opting out does not affect any other part of these terms.</p>
         </Section>

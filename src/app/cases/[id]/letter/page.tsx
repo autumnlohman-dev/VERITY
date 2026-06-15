@@ -1358,7 +1358,10 @@ export default function LetterPage({
     if (loading || !unlocked || letter || generating || genError || autoTriedRef.current) return;
     if (!caseRow) return;
     autoTriedRef.current = true;
-    void generate();
+    // Defer so generate()'s synchronous setState (setGenerating(true)) runs after
+    // this effect commits rather than during it — avoids a cascading render.
+    const id = setTimeout(() => { void generate(); }, 0);
+    return () => clearTimeout(id);
   }, [loading, unlocked, letter, generating, genError, caseRow, generate]);
 
   // ─── Loading state ─────────────────────────────────────────────────────────

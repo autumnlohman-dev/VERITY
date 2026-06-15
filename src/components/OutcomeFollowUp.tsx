@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { updateOutcome, getOutcome } from '@/lib/outcomes/store'
 import type { DisputeOutcomeLabel } from '@/lib/outcomes/store'
+import { useClientMemo } from '@/lib/useClientMemo'
 
 const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: 'var(--font-dm-sans), system-ui, sans-serif',
@@ -18,19 +19,43 @@ interface OutcomeFollowUpProps {
 
 type OutcomeStatus = 'won' | 'partial' | 'lost' | 'abandoned' | 'in_progress'
 
+// Declared at module scope (not inside the component) so it isn't recreated on
+// every render — recreating a component type resets its state and trips the
+// react-hooks lint.
+function StatusButton({ label, active, onSelect }: { label: string; active: boolean; onSelect: () => void }) {
+  return (
+    <button
+      onClick={onSelect}
+      style={{
+        ...sans('12px', active ? '#0D0D0D' : '#A89F96'),
+        backgroundColor: active ? '#C8A97E' : 'transparent',
+        border: `1px solid ${active ? '#C8A97E' : '#2A2A2A'}`,
+        padding: '8px 16px',
+        cursor: 'pointer',
+        letterSpacing: '0.08em',
+        transition: 'all 0.15s',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
 export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFollowUpProps) {
-  const [outcome, setOutcome] = useState<DisputeOutcomeLabel | null>(null)
   const [status, setStatus] = useState<OutcomeStatus | null>(null)
   const [amountRecovered, setAmountRecovered] = useState('')
-  const [submitted, setSubmitted] = useState(false)
+  // Bumped after a write so the stored-outcome snapshot below re-reads localStorage.
+  const [version, setVersion] = useState(0)
 
-  useEffect(() => {
-    const stored = getOutcome(outcomeId)
-    if (stored) {
-      setOutcome(stored)
-      if (stored.status !== 'pending') setSubmitted(true)
-    }
-  }, [outcomeId])
+  // Read the persisted outcome from localStorage client-side (hydration-safe).
+  const outcome = useClientMemo<DisputeOutcomeLabel | null>(
+    `${outcomeId}:${version}`,
+    () => getOutcome(outcomeId),
+    null,
+  )
+  // A recorded outcome (any non-pending status) means the form was submitted.
+  const submitted = !!outcome && outcome.status !== 'pending'
 
   if (submitted && outcome) {
     const statusLabels: Record<string, { label: string; color: string }> = {
@@ -61,28 +86,9 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
       resolvedAt: new Date().toISOString(),
       amountRecovered: amountRecovered ? parseFloat(amountRecovered) : undefined,
     })
-    const stored = getOutcome(outcomeId)
-    if (stored) setOutcome(stored)
-    setSubmitted(true)
+    // Re-read the now-updated outcome and switch to the recorded view.
+    setVersion(v => v + 1)
   }
-
-  const StatusBtn = ({ s, label }: { s: OutcomeStatus; label: string }) => (
-    <button
-      onClick={() => setStatus(s)}
-      style={{
-        ...sans('12px', status === s ? '#0D0D0D' : '#A89F96'),
-        backgroundColor: status === s ? '#C8A97E' : 'transparent',
-        border: `1px solid ${status === s ? '#C8A97E' : '#2A2A2A'}`,
-        padding: '8px 16px',
-        cursor: 'pointer',
-        letterSpacing: '0.08em',
-        transition: 'all 0.15s',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {label}
-    </button>
-  )
 
   return (
     <div style={{ border: '1px solid #1C1C1C', padding: '20px', marginTop: '24px', backgroundColor: '#0D0D0D' }}>
@@ -93,11 +99,11 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
         Tracking outcomes helps improve recovery predictions for every VERITY user.
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
-        <StatusBtn s="in_progress" label="Still waiting" />
-        <StatusBtn s="won" label="Won — full amount" />
-        <StatusBtn s="partial" label="Won — partial" />
-        <StatusBtn s="lost" label="Lost" />
-        <StatusBtn s="abandoned" label="Gave up" />
+        <StatusButton label="Still waiting" active={status === 'in_progress'} onSelect={() => setStatus('in_progress')} />
+        <StatusButton label="Won — full amount" active={status === 'won'} onSelect={() => setStatus('won')} />
+        <StatusButton label="Won — partial" active={status === 'partial'} onSelect={() => setStatus('partial')} />
+        <StatusButton label="Lost" active={status === 'lost'} onSelect={() => setStatus('lost')} />
+        <StatusButton label="Gave up" active={status === 'abandoned'} onSelect={() => setStatus('abandoned')} />
       </div>
 
       {(status === 'won' || status === 'partial') && (

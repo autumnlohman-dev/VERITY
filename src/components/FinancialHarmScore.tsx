@@ -158,14 +158,11 @@ interface IntakeFormProps {
   initial?: FHSInputs | null
 }
 
-export function FHSIntakeForm({ onSubmit, initial }: IntakeFormProps) {
-  const [collection, setCollection] = useState<boolean | null>(initial?.hasActiveCollectionActivity ?? null)
-  const [credit, setCredit] = useState<boolean | null>(initial?.hasCreditReportingImpact ?? null)
-  const [denial, setDenial] = useState<boolean | null>(initial?.hasInsuranceDenial ?? null)
-
-  const allAnswered = collection !== null && credit !== null && denial !== null
-
-  const BtnPair = ({ label, value, onChange }: { label: string; value: boolean | null; onChange: (v: boolean) => void }) => (
+// Declared at module scope (not inside FHSIntakeForm) so it isn't recreated on
+// every render — recreating a component type resets its state and trips the
+// react-hooks lint.
+function BtnPair({ label, value, onChange }: { label: string; value: boolean | null; onChange: (v: boolean) => void }) {
+  return (
     <div style={{ marginBottom: '20px' }}>
       <div style={{ ...sans('14px', '#F5F0E8'), marginBottom: '10px' }}>{label}</div>
       <div style={{ display: 'flex', gap: '12px' }}>
@@ -191,6 +188,14 @@ export function FHSIntakeForm({ onSubmit, initial }: IntakeFormProps) {
       </div>
     </div>
   )
+}
+
+export function FHSIntakeForm({ onSubmit, initial }: IntakeFormProps) {
+  const [collection, setCollection] = useState<boolean | null>(initial?.hasActiveCollectionActivity ?? null)
+  const [credit, setCredit] = useState<boolean | null>(initial?.hasCreditReportingImpact ?? null)
+  const [denial, setDenial] = useState<boolean | null>(initial?.hasInsuranceDenial ?? null)
+
+  const allAnswered = collection !== null && credit !== null && denial !== null
 
   return (
     <div style={{ border: '1px solid #2A2A2A', padding: '28px', marginBottom: '32px', backgroundColor: '#111111' }}>

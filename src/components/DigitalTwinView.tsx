@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import Link from 'next/link'
 import { buildDigitalTwin, type DigitalTwin, type TwinCaseInput } from '@/lib/twin/digitalTwin'
+import { useClientMemo } from '@/lib/useClientMemo'
 
 const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: 'var(--font-dm-sans), system-ui, sans-serif', fontSize: size, color, ...extra,
@@ -12,12 +13,14 @@ const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties =
 })
 
 export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
-  const [twin, setTwin] = useState<DigitalTwin | null>(null)
-
-  useEffect(() => {
-    // Build client-side: the twin folds in localStorage outcomes + workflows.
-    setTwin(buildDigitalTwin(cases))
-  }, [cases])
+  // Build client-side only: the twin folds in localStorage outcomes + workflows,
+  // which don't exist during SSR. useClientMemo keeps the first render in sync
+  // with the server HTML (null), then computes once hydrated.
+  const twin = useClientMemo<DigitalTwin | null>(
+    JSON.stringify(cases),
+    () => buildDigitalTwin(cases),
+    null,
+  )
 
   if (!twin) return null
 

@@ -79,7 +79,7 @@ export default function PrivacyPage() {
         </Section>
 
         <Section heading="Automated and AI-generated analysis">
-          <p>Verity's audits are produced by automated systems and AI models, not by a human reviewer checking every line. <strong>AI-generated analysis can be incomplete or wrong</strong> — it may miss errors, flag items that are actually correct, or misread a document. Any recovery estimates, win-probability figures, settlement ranges, and risk scores we show are <strong>estimates, not guarantees</strong> of any outcome. You are responsible for reviewing results before relying on or acting on them.</p>
+          <p>Verity&apos;s audits are produced by automated systems and AI models, not by a human reviewer checking every line. <strong>AI-generated analysis can be incomplete or wrong</strong> — it may miss errors, flag items that are actually correct, or misread a document. Any recovery estimates, win-probability figures, settlement ranges, and risk scores we show are <strong>estimates, not guarantees</strong> of any outcome. You are responsible for reviewing results before relying on or acting on them.</p>
         </Section>
 
         <Section heading="Information we handle">
