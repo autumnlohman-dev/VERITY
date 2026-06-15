@@ -20,6 +20,10 @@ export interface LineItem {
   units: number
   billed_amount: number
   modifiers?: string[]
+  /** Encounter / claim / visit id this charge appears under, when the bill groups
+   *  charges by encounter. Scopes duplicate detection so the same code recurring
+   *  in different encounters isn't flagged as a duplicate. */
+  encounter?: string
 }
 
 export type ErrorType =
@@ -199,7 +203,17 @@ function checkDuplicates(items: LineItem[]): BillingError[] {
 
   for (const item of items) {
     const code = normalizeCode(item.cpt_code)
-    const key = `${code}|${item.date_of_service}`
+    // Blank-code lines (e.g. an uncoded "OFFICE VISIT") can't be reliably
+    // identified as the same service, so never group them together as duplicates.
+    if (!code) continue
+    // Scope duplicate detection within an encounter/claim. On a multi-encounter
+    // statement the same code legitimately recurs once per encounter — three
+    // office visits across three Encounter Numbers are distinct visits, not
+    // duplicates — so two lines are duplicates only when they ALSO share the same
+    // encounter id. When the bill has no encounter grouping, encounter is '' for
+    // every line and this reduces to the prior same-code + same-date behavior.
+    const encounter = item.encounter?.trim() ?? ''
+    const key = `${code}|${item.date_of_service}|${encounter}`
     const list = groups.get(key) ?? []
     list.push(item)
     groups.set(key, list)

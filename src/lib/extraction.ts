@@ -26,7 +26,9 @@ Rules:
 - MANY bills list only a service description with NO CPT/HCPCS code (e.g. "CMP", "TSH", "CBC DIFF",
   "VENIPUNCTURE", "XR BONE AGE STUDY"). Still capture these rows — set "cpt_code" to null and record the
   description. Never invent a code.
-- The document may be organized into multiple encounters; capture charge lines from every encounter.
+- The document may be organized into multiple encounters/visits, each under its own Encounter Number
+  (or claim/visit id). Capture charge lines from every encounter, and tag each line with the "encounter"
+  id of the encounter it appears under, copied verbatim. Use null when the bill has no encounter grouping.
 - EXCLUDE non-charge rows interleaved among the charges: insurance payments, contractual allowance
   adjustments, credit/refund adjustments, write-offs, and any row with a negative amount (e.g.
   "COMMERCIAL INSURANCE PAYMENT", "CONTRACTUAL ALLOWANCE ADJUST", "OTHER CREDIT ADJUSTMENT"). Also skip
@@ -39,7 +41,7 @@ Return ONLY a JSON object, no prose, matching exactly:
   "date_of_service": string | null,
   "line_items": [
     { "cpt_code": string | null, "description": string | null, "date_of_service": string | null,
-      "units": number, "billed_amount": number, "modifiers": string[],
+      "encounter": string | null, "units": number, "billed_amount": number, "modifiers": string[],
       "field_confidence": "high" | "medium" | "low" }
   ],
   "totals": { "billed": number | null }
@@ -127,6 +129,9 @@ export async function extractFromBase64(base64: string, ext: string): Promise<Ex
         cptCode = mapDescriptionToCpt(description) ?? extractedCode
       }
 
+      const encounter =
+        typeof li.encounter === 'string' && li.encounter.trim() ? li.encounter.trim() : undefined
+
       return {
         cpt_code: cptCode,
         description: description || undefined,
@@ -134,6 +139,7 @@ export async function extractFromBase64(base64: string, ext: string): Promise<Ex
         units: Number(li.units) || 1,
         billed_amount: billedAmount,
         modifiers: Array.isArray(li.modifiers) ? li.modifiers.map((m) => String(m)) : undefined,
+        encounter,
       }
     })
     // Drop interleaved payment/adjustment/credit rows; keep anything with a
