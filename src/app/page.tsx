@@ -466,7 +466,7 @@ export default function LandingPage() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          padding: "120px 24px 72px",
+          padding: "100px 24px 72px",
         }}
       >
         <h1 className="sr-only">
@@ -476,15 +476,14 @@ export default function LandingPage() {
         <Image
           src="/hero-campaign.png"
           alt="Verity — Clarity over confusion. We investigate, analyze, and advocate so you keep more of what's yours."
-          width={1120}
-          height={1405}
+          width={1632}
+          height={2048}
           priority
           style={{
             width: "auto",
             height: "auto",
-            maxHeight: "95vh",
-            maxWidth: "min(1100px, 96vw)",
-            boxShadow: "0 40px 90px rgba(60,46,32,0.16)",
+            maxHeight: "88vh",
+            maxWidth: "min(780px, 96vw)",
           }}
         />
         <p style={{ ...serif("clamp(17px, 2vw, 24px)", { fontStyle: "italic", lineHeight: 1.35, color: "#5F5648" }), textAlign: "center", maxWidth: "560px", marginTop: "32px" }}>
