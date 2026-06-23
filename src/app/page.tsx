@@ -1038,7 +1038,7 @@ export default function LandingPage() {
           alt="Verity"
           fill
           sizes="100vw"
-          style={{ objectFit: "cover", objectPosition: "center 42%" }}
+          style={{ objectFit: "cover", objectPosition: "center 15%" }}
         />
       </section>
 
