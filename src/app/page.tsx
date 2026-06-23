@@ -482,8 +482,8 @@ export default function LandingPage() {
           style={{
             width: "auto",
             height: "auto",
-            maxHeight: "82vh",
-            maxWidth: "min(560px, 92vw)",
+            maxHeight: "95vh",
+            maxWidth: "min(1100px, 96vw)",
             boxShadow: "0 40px 90px rgba(60,46,32,0.16)",
           }}
         />
