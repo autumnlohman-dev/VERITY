@@ -999,19 +999,6 @@ export default function LandingPage() {
                 Start membership — $19/mo
               </span>
             </Link>
-            <Image
-              src="/verity-portrait.png"
-              alt="Verity — clarity, authority, advocacy."
-              width={1632}
-              height={2048}
-              style={{
-                width: "100%",
-                maxWidth: "360px",
-                height: "auto",
-                display: "block",
-                marginTop: "48px",
-              }}
-            />
           </div>
 
           {/* monitoring feed */}
