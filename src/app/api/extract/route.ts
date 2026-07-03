@@ -186,6 +186,63 @@ export async function POST(request: Request) {
       amountBilled: result.totalBilled,
     })
     if (duplicate) {
+      // MIGRATE BEFORE DELETE — this branch used to delete the shell and return the
+      // surviving case id without carrying anything over — which silently discarded
+      // the EOB on every re-upload: the fresh cross-document audit (bill+EOB) died
+      // with the shell, and the surviving case stayed bill-only forever. When the
+      // fresh audit carries EOB signal (a successful read OR a failed attempt the
+      // user should be told about) and the surviving case has none, write the fresh
+      // results onto the surviving case. Never downgrade: a surviving EOB-validated
+      // audit is not overwritten by a bill-only re-upload.
+      const { data: survivorRow } = await supabase
+        .from('cases')
+        .select('bill_data, provider_name')
+        .eq('id', duplicate.id)
+        .eq('user_id', user.id)
+        .single()
+      const survivorBillData =
+        survivorRow?.bill_data && typeof survivorRow.bill_data === 'object' && !Array.isArray(survivorRow.bill_data)
+          ? (survivorRow.bill_data as Record<string, unknown>)
+          : {}
+      const survivorHasEob = survivorBillData.hasEob === true
+
+      if ((result.hasEob || result.eobError) && !survivorHasEob) {
+        const { error: migrateErr } = await supabase
+          .from('cases')
+          .update({
+            status: result.errors.length > 0 ? 'error_found' : 'no_errors',
+            provider_name: result.provider ?? survivorRow?.provider_name ?? null,
+            amount_billed: result.totalBilled,
+            amount_expected: result.totalExpected,
+            potential_savings: result.potentialSavings,
+            errors_found: result.errors,
+            bill_data: {
+              ...survivorBillData,
+              lineItems: result.lineItems,
+              normalizedCbs: result.normalizedCbs,
+              date_of_service: result.dateOfService || survivorBillData.date_of_service || '',
+              hasEob: result.hasEob,
+              eobError: result.eobError,
+              lowConfidence: result.lowConfidence,
+            },
+          })
+          .eq('id', duplicate.id)
+          .eq('user_id', user.id)
+        if (migrateErr) {
+          // Don't fail the request — the user still lands on the surviving case —
+          // but make the dropped migration loud instead of silent.
+          console.error(
+            `extract[${caseId}]: dedup EOB migration onto surviving case ${duplicate.id} FAILED:`,
+            migrateErr
+          )
+        } else {
+          console.info(
+            `extract[${caseId}]: dedup migrated fresh audit onto surviving case ${duplicate.id} ` +
+              `(hasEob=${result.hasEob}, eobError=${result.eobError}, discrepancies now recomputed)`
+          )
+        }
+      }
+
       // Remove the empty shell this upload just created so it doesn't linger.
       await supabase.from('cases').delete().eq('id', caseId).eq('user_id', user.id)
       return NextResponse.json({ duplicate: true, caseId: duplicate.id })

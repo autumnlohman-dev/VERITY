@@ -128,6 +128,50 @@ export async function POST(request: Request) {
       amountBilled: result.totalBilled,
     })
     if (duplicate) {
+      // Same EOB-drop hazard as /api/extract: the guest audit may carry a richer
+      // cross-document CBS (bill+EOB) than the case that already holds this bill.
+      // Migrate the EOB signal onto the surviving case instead of discarding it.
+      const guestHasEob = !!audit.hasEob
+      const guestEobError = !!audit.eobError
+      const guestDupCbs = audit.normalizedCbs as NormalizedCBSSet | null | undefined
+      const guestCbsUsable =
+        guestDupCbs && Array.isArray(guestDupCbs.documents) && guestDupCbs.documents.length > 0
+      if (guestHasEob || guestEobError) {
+        const { data: survivorRow } = await supabase
+          .from('cases')
+          .select('bill_data')
+          .eq('id', duplicate.id)
+          .eq('user_id', user.id)
+          .single()
+        const survivorBillData =
+          survivorRow?.bill_data && typeof survivorRow.bill_data === 'object' && !Array.isArray(survivorRow.bill_data)
+            ? (survivorRow.bill_data as Record<string, unknown>)
+            : {}
+        if (survivorBillData.hasEob !== true) {
+          const { error: migrateErr } = await supabase
+            .from('cases')
+            .update({
+              bill_data: {
+                ...survivorBillData,
+                ...(guestHasEob && guestCbsUsable ? { normalizedCbs: guestDupCbs, hasEob: true } : {}),
+                eobError: guestEobError,
+              },
+            })
+            .eq('id', duplicate.id)
+            .eq('user_id', user.id)
+          if (migrateErr) {
+            console.error(
+              `claim-guest-audit[${claimId}]: EOB migration onto surviving case ${duplicate.id} FAILED:`,
+              migrateErr
+            )
+          } else {
+            console.info(
+              `claim-guest-audit[${claimId}]: migrated guest EOB signal onto surviving case ${duplicate.id} ` +
+                `(hasEob=${guestHasEob && !!guestCbsUsable}, eobError=${guestEobError})`
+            )
+          }
+        }
+      }
       return NextResponse.json({ caseId: duplicate.id, alreadyImported: true })
     }
 
