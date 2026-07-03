@@ -548,7 +548,10 @@ export default function CaseDetailPage({
         };
         if (set) {
           setCbsSet(set);
-          const dls = calculateDeadlines(set, { selfPay });
+          const dls = calculateDeadlines(set, {
+            selfPay,
+            insuranceType: caseData.insurance_type ?? bd?.insuranceType,
+          });
           setDeadlines(dls);
           // Hydrate a previously-answered Financial Harm Score questionnaire so
           // the saved score renders instead of the blank form. We recompute from
@@ -613,6 +616,16 @@ export default function CaseDetailPage({
   if (fetchError || !caseRow) return <NotFoundState message={fetchError ?? "Unknown error"} />;
 
   const errors = caseRow.errors_found ?? [];
+
+  // Disputable findings = priced audit errors + dollar-backed or high/critical
+  // cross-document findings. Manual-review flags (rate_unavailable,
+  // reference_data_missing) are review aids, not errors — the headline count
+  // must never say "2 errors found" about two internal notices.
+  const disputableErrors = errors.filter(
+    (e) =>
+      e.error_type !== "rate_unavailable" &&
+      e.error_type !== "reference_data_missing"
+  );
 
   // The E&M complexity review should be offered whenever an E&M visit code
   // (99201–99215 / 99281–99285) appears on the bill — even when it produced no
@@ -743,8 +756,23 @@ export default function CaseDetailPage({
   const insurer = caseRow.insurance_type ?? caseRow.bill_data?.insuranceType ?? "Insurance on file";
 
   const billed = Number(caseRow.amount_billed ?? 0);
-  const expected = Number(caseRow.amount_expected ?? 0);
-  const savings = Number(caseRow.potential_savings ?? 0);
+  // Headline savings folds in the EOB-evidenced cross-document dollars at risk
+  // (max, not sum — never claim the same dollar twice), so a case can no longer
+  // show "$0.00 potential savings" beside a $237.99 balance-billing finding.
+  // Recomputed here (not just read from the row) so cases persisted under the
+  // old formula display correctly too.
+  const savings = Math.max(
+    Number(caseRow.potential_savings ?? 0),
+    Math.min(billed, Number(cbsSet?.totalDollarAtRisk ?? 0))
+  );
+  const expected = Math.max(0, billed - savings);
+  const significantCrossDoc = (cbsSet?.crossDocumentDiscrepancies ?? []).filter(
+    (d) =>
+      Number(d.estimatedDollarImpact || 0) > 0 ||
+      d.severity === "critical" ||
+      d.severity === "high"
+  ).length;
+  const findingsCount = disputableErrors.length + significantCrossDoc;
   const statusCfg = STATUS_DISPLAY[caseRow.status] ?? { label: caseRow.status };
 
   // Generate the full Evidentiary Package PDF client-side from the data already
@@ -1011,7 +1039,7 @@ export default function CaseDetailPage({
             }}
           >
             <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
-              {errors.length} {errors.length === 1 ? "error" : "errors"} found.
+              {findingsCount} {findingsCount === 1 ? "error" : "errors"} found.
             </div>
             <p style={{ ...sans("13px", "#A89F96") }}>
               {unlocked
@@ -1451,7 +1479,7 @@ export default function CaseDetailPage({
               { k: "Filed", v: formatDate(caseRow.created_at) },
               { k: "Insurance", v: insurer },
               { k: "Tier", v: tierLabel ?? "—" },
-              { k: "Errors", v: String(errors.length) },
+              { k: "Errors", v: String(findingsCount) },
             ].map((row, i, arr) => (
               <div
                 key={row.k}

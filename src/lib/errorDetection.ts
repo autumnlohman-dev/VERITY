@@ -291,6 +291,10 @@ function checkRateUnavailable(
     if (row && effectiveAllowedAmount(row) > 0) continue
 
     const billed = Number(item.billed_amount) || 0
+    // A line with NO code at all is a different situation from an unmatched
+    // code: the document (often a summary statement or portal screenshot)
+    // doesn't show billing codes, and the fix is to request an itemized bill.
+    const uncoded = code.length === 0
     errors.push({
       cpt_code: code,
       description: item.description ?? '',
@@ -298,9 +302,12 @@ function checkRateUnavailable(
       billed_amount: billed,
       expected_amount: 0,
       confidence: 'LOW',
-      explanation: `No published Medicare Physician Fee Schedule or Clinical Lab Fee Schedule rate was found for "${code}" billed at $${billed.toFixed(2)}. This is often a facility/revenue code, a proprietary internal charge code, or an OCR misread — it cannot be priced automatically and should be reviewed manually against the provider's chargemaster or explanation of benefits.`,
-      rule_violated:
-        'Fee schedule match unavailable — code could not be priced against CMS PFS or CLFS. Not presumptively an overcharge, but requires manual review to verify the billed amount is reasonable.'
+      explanation: uncoded
+        ? `The line "${item.description || 'service'}" billed at $${billed.toFixed(2)} shows no CPT/HCPCS procedure code on the uploaded document, so it cannot be priced against CMS fee schedules. Request a fully itemized bill from the provider — they are required to supply one — and re-run the audit with it.`
+        : `No published Medicare Physician Fee Schedule or Clinical Lab Fee Schedule rate was found for "${code}" billed at $${billed.toFixed(2)}. This is often a facility/revenue code, a proprietary internal charge code, or an OCR misread — it cannot be priced automatically and should be reviewed manually against the provider's chargemaster or explanation of benefits.`,
+      rule_violated: uncoded
+        ? 'No procedure code on document — line-level pricing requires the CPT/HCPCS code from an itemized bill. Not an overcharge finding; request an itemized statement.'
+        : 'Fee schedule match unavailable — code could not be priced against CMS PFS or CLFS. Not presumptively an overcharge, but requires manual review to verify the billed amount is reasonable.'
     })
   }
   return errors
@@ -371,6 +378,19 @@ export interface RunAuditOptions {
   supabase?: SupabaseClient
 }
 
+// True when the PFS reference table returns no rows AT ALL to the audit's role
+// (RLS misconfiguration, wrong project, or an empty load). A filtered all-miss
+// on a particular bill's codes is NOT unreachable and must not trip the alarm.
+async function referenceTablesUnreachable(supabase: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from('pfs_fee_schedule').select('cpt_code').limit(1)
+    if (error) return true
+    return !data || data.length === 0
+  } catch {
+    return true
+  }
+}
+
 export async function runAudit(
   lineItems: LineItem[],
   insuranceType: InsuranceType,
@@ -397,8 +417,29 @@ export async function runAudit(
     modifiers: (li.modifiers ?? []).map(normalizeCode)
   }))
 
-  const referenceDataEmpty =
-    feeSchedule.size === 0 && ptpEdits.length === 0 && mueMap.size === 0
+  // Blank codes (uncoded "OFFICE VISIT" lines, summary statements, portal
+  // screenshots) match nothing in any reference table BY DESIGN - a bill whose
+  // lines carry no CPT/HCPCS codes must never trip the reference-data alarm.
+  const pricableCodes = uniqueCodes.filter((c) => c.length > 0)
+
+  let referenceDataEmpty = false
+  if (
+    pricableCodes.length > 0 &&
+    feeSchedule.size === 0 &&
+    ptpEdits.length === 0 &&
+    mueMap.size === 0
+  ) {
+    // Code-independent reachability probe: only report "reference data missing"
+    // when the table itself returns nothing to this role (RLS misconfiguration,
+    // wrong project, or a genuinely empty load) - not when this particular
+    // bill's codes simply matched no rows (dental/foreign/revenue codes).
+    referenceDataEmpty = await referenceTablesUnreachable(supabase)
+    if (!referenceDataEmpty) {
+      console.warn(
+        `runAudit: no reference rows matched any of ${pricableCodes.length} billed codes, but tables are reachable - treating as unpriceable codes, not missing reference data.`
+      )
+    }
+  }
 
   const preamble: BillingError[] = []
   if (referenceDataEmpty) {

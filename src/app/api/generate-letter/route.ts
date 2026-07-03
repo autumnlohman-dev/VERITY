@@ -86,6 +86,13 @@ export async function POST(request: Request) {
       date_of_service: capStr(caseData.date_of_service, 60),
     }
 
+    // Manual-review flags (unpriced lines, the internal reference-data notice)
+    // are diagnostics for the patient, NOT disputes. They never belong in a
+    // letter — a claims reviewer reading "our audit reference tables were
+    // unavailable" learns only that the audit had nothing to say.
+    const MANUAL_REVIEW_TYPES = new Set(['rate_unavailable', 'reference_data_missing'])
+    const disputableErrors = safeErrors.filter((e) => !MANUAL_REVIEW_TYPES.has(e.error_type))
+
     // Verify this case belongs to the user.
     const { data: caseRecord } = await supabase
       .from('cases')
@@ -107,6 +114,55 @@ export async function POST(request: Request) {
           code: 'payment_required',
         },
         { status: 402 }
+      )
+    }
+
+    // ── Cross-document findings (bill vs the patient's own EOB) ──────────────
+    // These are the strongest content a letter can carry: each one is evidenced
+    // by the payer's own adjudication. Read server-side from the persisted case
+    // (never from the client payload), sanitized and capped like everything
+    // else that enters the prompt. Only dollar-backed or high/critical findings
+    // qualify — low-confidence "couldn't match this line" notes are review
+    // aids, not dispute grounds.
+    const billDataObj =
+      caseRecord.bill_data && typeof caseRecord.bill_data === 'object' && !Array.isArray(caseRecord.bill_data)
+        ? (caseRecord.bill_data as Record<string, unknown>)
+        : {}
+    const normalizedCbs = billDataObj.normalizedCbs as
+      | { crossDocumentDiscrepancies?: unknown[] }
+      | undefined
+    const crossDocFindings = (Array.isArray(normalizedCbs?.crossDocumentDiscrepancies)
+      ? normalizedCbs.crossDocumentDiscrepancies
+      : []
+    )
+      .map((d) => {
+        const o = (d ?? {}) as Record<string, unknown>
+        return {
+          finding_type: capStr(o.type, 60),
+          severity: capStr(o.severity, 20),
+          description: capStr(o.description, 1200),
+          estimated_dollar_impact: Number(o.estimatedDollarImpact) || 0,
+          applicable_regulations: (Array.isArray(o.applicableRegulations) ? o.applicableRegulations : [])
+            .slice(0, 4)
+            .map((r) => capStr(r, 300)),
+        }
+      })
+      .filter(
+        (d) =>
+          d.estimated_dollar_impact > 0 || d.severity === 'critical' || d.severity === 'high'
+      )
+      .slice(0, 20)
+
+    // A letter with nothing disputable is worse than no letter: it argues the
+    // provider into a corner over our own internal notices. Refuse politely.
+    if (disputableErrors.length === 0 && crossDocFindings.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            'This case has no disputable findings yet — the audit flagged items for manual review only. Upload a fully itemized bill (one that shows a billing code for every line) and your EOB, then re-run the audit.',
+          code: 'nothing_disputable',
+        },
+        { status: 422 }
       )
     }
 
@@ -147,8 +203,10 @@ E&M DISPUTE GUIDANCE:
     // fields; insured letters address the payer.
     const isSelfPay = /self|uninsured/i.test(safeCaseData.insurance_type || '')
     // The prose count must match the itemized list EXACTLY (a real letter said
-    // "ten (10)" for an 11-error bill). Inject the authoritative count.
-    const errorCount = safeErrors.length
+    // "ten (10)" for an 11-error bill). Inject the authoritative counts.
+    const errorCount = disputableErrors.length
+    const findingCount = crossDocFindings.length
+    const totalFindings = errorCount + findingCount
 
     // Generate the dispute letter with Claude
     const message = await anthropic().messages.create({
@@ -176,10 +234,21 @@ Total Billed: $${safeCaseData.amount_billed}
 Expected Amount: $${safeCaseData.amount_expected}
 Date of Service: ${safeCaseData.date_of_service || 'See attached bill'}
 
-This bill contains exactly ${errorCount} billing ${errorCount === 1 ? 'error' : 'errors'}, itemized below. When you state the number of errors anywhere in the letter, use exactly this number (${errorCount}) — do not recount, round, or summarize to a different figure. Write a clearly formatted section for EVERY one of the ${errorCount} errors; do not omit, merge, or stop early.
-
-Errors Found:
-${JSON.stringify(safeErrors, null, 2)}${userNotesSection}${emReviewSection}
+This dispute rests on exactly ${totalFindings} ${totalFindings === 1 ? 'finding' : 'findings'}: ${findingCount} cross-document ${findingCount === 1 ? 'finding' : 'findings'} established by comparing the bill against the patient's own Explanation of Benefits, and ${errorCount} coding/billing ${errorCount === 1 ? 'error' : 'errors'} from the audit. When you state the number of findings anywhere in the letter, use exactly ${totalFindings} — do not recount, round, or summarize to a different figure. Write a clearly formatted section for EVERY finding; do not omit, merge, or stop early.
+${
+  findingCount > 0
+    ? `
+CROSS-DOCUMENT FINDINGS — LEAD WITH THESE. They are the primary grounds of the dispute: each is proven by the payer's own adjudication of this claim (the patient's EOB), not by an estimate. For each one: state the specific dollar amounts from the description (what was billed vs. what the EOB says the patient owes), state the exact overbilled difference, and cite the applicable_regulations verbatim. Where a finding shows the EOB's patient responsibility, state plainly that the patient's obligation is that EOB amount and demand the balance be written off:
+${JSON.stringify(crossDocFindings, null, 2)}
+`
+    : ''
+}${
+  errorCount > 0
+    ? `
+CODING/BILLING ERRORS FROM THE AUDIT (present these after the cross-document findings):
+${JSON.stringify(disputableErrors, null, 2)}`
+    : ''
+}${userNotesSection}${emReviewSection}
 
 SENDER BLOCK — begin the letter with exactly these placeholder tokens, each on its own line:
 [PATIENT NAME]
@@ -191,8 +260,8 @@ The ONLY bracketed placeholders allowed anywhere in the letter are: [PATIENT NAM
 
 The letter should:
 1. Be addressed to ${isSelfPay ? "the provider's patient billing / accounts-receivable department" : "the insurance company's claims review department"}
-2. State each billing error with the specific rule violated, citing the EXACT "rule_violated" text provided for each error verbatim — in particular, do NOT relabel a Clinical Laboratory Fee Schedule citation as the Physician Fee Schedule (or vice versa)
-3. Request correction of each error with the correct amount
+2. State each finding with its specific legal basis: for cross-document findings cite the "applicable_regulations" texts verbatim; for audit errors cite the EXACT "rule_violated" text provided verbatim — in particular, do NOT relabel a Clinical Laboratory Fee Schedule citation as the Physician Fee Schedule (or vice versa)
+3. Request correction of each finding with the correct amount — for balance-billing findings, demand the balance above the EOB's stated patient responsibility be written off
 4. Reference ${isSelfPay ? "the No Surprises Act good-faith-estimate protections and the Hospital Price Transparency Rule" : "the No Surprises Act and applicable patient rights"}
 5. Include a professional closing requesting a corrected statement within 30 days`
       }]

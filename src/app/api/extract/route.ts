@@ -210,7 +210,7 @@ export async function POST(request: Request) {
         const { error: migrateErr } = await supabase
           .from('cases')
           .update({
-            status: result.errors.length > 0 ? 'error_found' : 'no_errors',
+            status: result.errorCount > 0 ? 'error_found' : 'no_errors',
             provider_name: result.provider ?? survivorRow?.provider_name ?? null,
             amount_billed: result.totalBilled,
             amount_expected: result.totalExpected,
@@ -262,7 +262,7 @@ export async function POST(request: Request) {
     const { error: updateErr } = await supabase
       .from('cases')
       .update({
-        status: result.errors.length > 0 ? 'error_found' : 'no_errors',
+        status: result.errorCount > 0 ? 'error_found' : 'no_errors',
         provider_name: result.provider ?? caseRow.provider_name ?? null,
         amount_billed: result.totalBilled,
         amount_expected: result.totalExpected,
@@ -282,7 +282,7 @@ export async function POST(request: Request) {
       success: true,
       caseId,
       provider: result.provider,
-      errorCount: result.errors.length,
+      errorCount: result.errorCount,
       totalBilled: result.totalBilled,
       potentialSavings: result.potentialSavings,
       lowConfidence: result.lowConfidence,

@@ -206,7 +206,7 @@ export async function POST(request: Request) {
       .from('cases')
       .insert({
         user_id: user.id,
-        status: result.errors.length > 0 ? 'error_found' : 'no_errors',
+        status: result.errorCount > 0 ? 'error_found' : 'no_errors',
         insurance_type: insuranceType,
         provider_name: result.provider,
         amount_billed: result.totalBilled,

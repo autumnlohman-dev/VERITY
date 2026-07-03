@@ -57,7 +57,7 @@ export function deadlinesForCase(
   billData: Record<string, unknown> | null | undefined,
   providerName: string | null | undefined,
   caseId: string,
-  opts?: { selfPay?: boolean }
+  opts?: { selfPay?: boolean; insuranceType?: string | null }
 ): DeadlineResult[] {
   const set = cbsSetForCase(billData, providerName, caseId)
   return set ? calculateDeadlines(set, opts) : []

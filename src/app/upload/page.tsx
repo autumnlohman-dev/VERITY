@@ -477,7 +477,6 @@ function UploadPageInner() {
   });
   const [billFile, setBillFile] = useState<FileState | null>(null);
   const [eobFile, setEobFile] = useState<FileState | null>(null);
-  const [cardFile, setCardFile] = useState<FileState | null>(null);
   const [careType, setCareType] = useState<string | null>(null);
   const [insuranceType, setInsuranceType] = useState<string | null>(null);
   const [gfe, setGfe] = useState<string | null>(null);
@@ -792,7 +791,6 @@ function UploadPageInner() {
                   setGuestResults(null);
                   setBillFile(null);
                   setEobFile(null);
-                  setCardFile(null);
                   setCareType(null);
                   setInsuranceType(null);
                   setGfe(null);
@@ -903,7 +901,7 @@ function UploadPageInner() {
                 Upload your documents.
               </div>
               <p style={{ ...sans("14px", "#5F5648"), marginTop: "12px" }}>
-                Your bill, EOB, and insurance card. Takes three minutes.
+                Your bill and EOB. Takes three minutes.
               </p>
 
               <div
@@ -927,13 +925,6 @@ function UploadPageInner() {
                   required={false}
                   file={eobFile}
                   setFile={setEobFile}
-                />
-                <DropZone
-                  zonelabel="Insurance card"
-                  sublabel="Front side is sufficient"
-                  required={false}
-                  file={cardFile}
-                  setFile={setCardFile}
                 />
               </div>
 
@@ -1323,7 +1314,6 @@ function UploadPageInner() {
                   {[
                     { f: billFile, lbl: "Medical Bill" },
                     { f: eobFile, lbl: "Explanation of Benefits" },
-                    { f: cardFile, lbl: "Insurance Card" },
                   ]
                     .filter((x) => x.f)
                     .map((x) => (

@@ -133,7 +133,12 @@ export async function POST(request: Request) {
           const selfPay = isSelfPay(caseRow.insurance_type ?? billData.insuranceType)
 
           const cbsSet = cbsSetForCase(billData, caseRow.provider_name, String(caseRow.id))
-          const deadlines = cbsSet ? calculateDeadlines(cbsSet, { selfPay }) : []
+          const deadlines = cbsSet
+            ? calculateDeadlines(cbsSet, {
+                selfPay,
+                insuranceType: String(caseRow.insurance_type ?? billData.insuranceType ?? ''),
+              })
+            : []
           const fhs = (billData.fhs_score as FinancialHarmScore | undefined) ?? null
 
           // Documented dollar errors from the audit (negotiation ammunition).

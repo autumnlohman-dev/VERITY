@@ -1546,7 +1546,7 @@ export default function LetterPage({
     caseRow.bill_data as Record<string, unknown> | null,
     caseRow.provider_name,
     caseRow.id,
-    { selfPay }
+    { selfPay, insuranceType: caseRow.insurance_type }
   );
   const topDeadline =
     caseDeadlines.find((d) => d.daysRemaining >= 0) ?? caseDeadlines[0] ?? null;

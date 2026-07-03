@@ -55,7 +55,9 @@ export interface FullAuditResult {
    *  case-page stats reconcile: billed − expected = savings). */
   totalExpected: number
   potentialSavings: number
-  /** Count of priced findings only (manual-review items excluded). */
+  /** Disputable findings: priced audit errors + dollar-backed or high/critical
+   *  cross-document findings. Manual-review flags and low-confidence
+   *  non-matches are excluded — they are review aids, not errors. */
   errorCount: number
   needsReviewCount: number
   hasEob: boolean
@@ -110,9 +112,6 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
   }
 
   const totalBilled = lineItems.reduce((s, li) => s + Number(li.billed_amount || 0), 0)
-  const potentialSavings = computeRecoverable(errors, totalBilled)
-  const totalExpected = Math.max(0, totalBilled - potentialSavings)
-  const errorCount = errors.filter((e) => !MANUAL_REVIEW_ERROR_TYPES.has(e.error_type)).length
   const needsReviewCount = errors.filter((e) => e.error_type === 'rate_unavailable').length
 
   // ── CBS cross-document layer ────────────────────────────────────────────────
@@ -177,6 +176,33 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
   // An EOB was provided but we couldn't read it (unsupported type or extraction
   // failure) — the audit still completed bill-only; flag it so callers can say so.
   const eobError = !!(eob && eob.base64) && !eobCbs
+
+  // ── One headline number the whole case agrees on ────────────────────────────
+  // Recoverable dollars = the larger of (a) priced audit findings and (b) the
+  // EOB-evidenced cross-document dollars at risk. Max, NOT sum: a balance-billed
+  // dollar is frequently the same dollar an overcharge check counts, and the
+  // evidentiary standard forbids claiming it twice. Before this, a case could
+  // show "$0.00 potential savings" beside a $237.99 balance-billing finding.
+  const auditRecoverable = computeRecoverable(errors, totalBilled)
+  const crossDocAtRisk = Math.min(
+    totalBilled,
+    Math.max(0, Number(normalizedCbs.totalDollarAtRisk || 0))
+  )
+  const potentialSavings = Math.max(auditRecoverable, crossDocAtRisk)
+  const totalExpected = Math.max(0, totalBilled - potentialSavings)
+
+  // Disputable findings = priced audit errors + cross-document findings that
+  // carry real dollars or high/critical severity. Low-confidence "couldn't
+  // match this line" notes are review aids, not errors, and never count.
+  const significantCrossDoc = normalizedCbs.crossDocumentDiscrepancies.filter(
+    (d) =>
+      Number(d.estimatedDollarImpact || 0) > 0 ||
+      d.severity === 'critical' ||
+      d.severity === 'high'
+  ).length
+  const errorCount =
+    errors.filter((e) => !MANUAL_REVIEW_ERROR_TYPES.has(e.error_type)).length +
+    significantCrossDoc
 
   return {
     errors,

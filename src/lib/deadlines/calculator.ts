@@ -165,9 +165,12 @@ function classifyUrgency(daysRemaining: number): UrgencyLevel {
 
 export function calculateDeadlines(
   cbsSet: NormalizedCBSSet,
-  opts?: { selfPay?: boolean }
+  opts?: { selfPay?: boolean; insuranceType?: string | null }
 ): DeadlineResult[] {
   const selfPay = opts?.selfPay ?? false
+  // Payer-specific rules must match the case's payer. A commercial BCBS claim
+  // must never grow a "Medicare Appeal — Redetermination, CRITICAL" deadline.
+  const isMedicare = /medicare/i.test(String(opts?.insuranceType ?? ''))
   const results: DeadlineResult[] = []
   const seen = new Set<string>()
 
@@ -203,6 +206,14 @@ export function calculateDeadlines(
     for (const rule of DEADLINE_RULES) {
       const triggerDate = triggerDates[rule.triggerEvent]
       if (!triggerDate) continue
+
+      // Medicare appeal deadlines exist only for Medicare patients.
+      if (rule.ruleId === 'medicare_redetermination' && !isMedicare) continue
+      // The NSA deadline is not a blanket every-bill deadline. For insured
+      // patients it applies only when a balance-billing violation was actually
+      // found (added from the discrepancy check below); for self-pay patients
+      // this rule becomes the GFE/PPDR dispute path and stays.
+      if (rule.ruleId === 'nsa_balance_billing' && !selfPay) continue
 
       // Only apply relevant rules based on document type
       if (rule.triggerEvent === 'collection_date' && doc.sourceDocumentType !== 'collection_notice') continue

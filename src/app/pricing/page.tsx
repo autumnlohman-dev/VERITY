@@ -208,7 +208,7 @@ const PRICING_FAQS = [
   },
   {
     q: "What does the membership actually do between bills?",
-    a: "It watches. Every new bill or EOB you upload — or that arrives once portal monitoring is connected — is audited automatically, and you're alerted to new claims and suspicious charges. Most members catch at least one error every few months, usually worth far more than the subscription.",
+    a: "Every new bill or EOB you upload is audited automatically and cross-checked against CMS reference data, and when something is wrong you get the full dispute package without paying again. If a dispute is denied or ignored, escalation letters to regulators, credit bureaus, and collectors are included.",
   },
 ];
 
@@ -216,22 +216,14 @@ const PRICING_FAQS = [
 type CellVal = "check" | "dash" | string;
 
 const TABLE_ROWS: { feature: string; audit: CellVal; dispute: CellVal; member: CellVal }[] = [
-  { feature: "Upload and scan bill", audit: "check", dispute: "check", member: "check" },
-  { feature: "Error report with confidence scores", audit: "check", dispute: "check", member: "check" },
-  { feature: "Evidence + regulatory citation per item", audit: "check", dispute: "check", member: "check" },
-  { feature: "CPT code cross-reference", audit: "check", dispute: "check", member: "check" },
-  { feature: "Insurer-specific dispute package (letter, citations, calculations, timeline)", audit: "dash", dispute: "check", member: "check" },
-  { feature: "Appeal letter if denied", audit: "dash", dispute: "check", member: "check" },
-  { feature: "Submission guide (portal, fax, mail)", audit: "dash", dispute: "check", member: "check" },
-  { feature: "Appeal deadline tracker — Critical / High / Moderate urgency alerts", audit: "dash", dispute: "check", member: "check" },
-  { feature: "Outcome prediction — recovery amount, timeframe, settlement range", audit: "dash", dispute: "dash", member: "check" },
-  { feature: "Autonomous dispute filing — Verity files and follows up for you", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Full bill audit — every code and charge checked, with evidence and citations", audit: "check", dispute: "check", member: "check" },
   { feature: "Bills covered", audit: "Report only", dispute: "1 bill", member: "Unlimited" },
-  { feature: "Continuous monitoring of new bills", audit: "dash", dispute: "dash", member: "check" },
-  { feature: "Alerts on new & suspicious claims", audit: "dash", dispute: "dash", member: "check" },
-  { feature: "Complete billing history across all providers and insurers", audit: "dash", dispute: "dash", member: "check" },
-  { feature: "Regulator & escalation letters (DOI, CMS, CFPB) + FCRA credit bureau & FDCPA collection dispute letters", audit: "dash", dispute: "dash", member: "check" },
-  { feature: "Real-time call guidance", audit: "dash", dispute: "dash", member: "Coming soon" },
+  { feature: "Ready-to-send dispute package (letter, citations, submission guide)", audit: "dash", dispute: "check", member: "check" },
+  { feature: "Appeal letter if denied", audit: "dash", dispute: "check", member: "check" },
+  { feature: "Deadline tracker with urgency alerts", audit: "dash", dispute: "check", member: "check" },
+  { feature: "Every new bill audited automatically", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Escalation & regulator letters (DOI, CMS, CFPB, credit bureaus, collectors)", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Outcome prediction before you file", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Priority support", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Price", audit: "$0", dispute: "$39 one-time", member: "$19/mo · $149/yr" },
 ];
@@ -366,11 +358,10 @@ export default function PricingPage() {
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
               {[
-                "› Upload your bill and documents",
-                "› AI scans every CPT code and charge",
-                "› Error report with confidence scores",
-                "› Evidence behind each flagged item",
-                "› No dispute filed — see it all first",
+                "› Upload your bill and EOB",
+                "› Every code and charge checked against CMS data",
+                "› Full error report with evidence",
+                "› No card, no commitment",
               ].map((f) => (
                 <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
               ))}
@@ -427,11 +418,10 @@ export default function PricingPage() {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
               {[
                 "› Everything in Audit, plus:",
-                "› Insurer-specific dispute package including the dispute letter, regulatory citations, financial calculations, and timeline summary.",
+                "› Ready-to-send dispute letter with citations",
                 "› Appeal letter if your dispute is denied",
                 "› Step-by-step submission guide",
-                "› Portal link, fax number, and mailing address",
-                "› Appeal deadline tracker with urgency alerts — Critical (under 7 days), High (under 30 days), Moderate (under 90 days).",
+                "› Deadline tracker with urgency alerts",
               ].map((f) => (
                 <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
               ))}
@@ -493,14 +483,10 @@ export default function PricingPage() {
               {[
                 "› Everything in Single Dispute, unlimited:",
                 "› Unlimited audits and dispute packages",
-                "› Continuous monitoring — every new bill auto-audited",
-                "› Alerts on new claims and suspicious charges",
-                "› Outcome prediction before you file — recovery amount, timeframe, and settlement range",
-                "› Autonomous dispute filing — authorize Verity to run the dispute for you",
-                "› Complete billing history tracked across all providers and insurers",
-                "› Escalation & regulator letters (appeal, DOI, CMS, CFPB) plus FCRA credit bureau dispute letters and FDCPA collection dispute letters",
+                "› Every new bill you upload audited automatically",
+                "› Escalation & regulator letters (DOI, CMS, CFPB, credit bureaus, collectors)",
+                "› Outcome prediction before you file",
                 "› Priority support",
-                "› Real-time call guidance — coming soon",
               ].map((f) => (
                 <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
               ))}
@@ -523,6 +509,26 @@ export default function PricingPage() {
               }}
             >
               Start membership
+            </div>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => handleStartMembership("annual")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") handleStartMembership("annual");
+              }}
+              style={{
+                ...sans("11px", "#8A7F6E"),
+                textAlign: "center",
+                marginTop: "12px",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                textDecoration: "underline",
+                textUnderlineOffset: "3px",
+              }}
+            >
+              or $149/yr — two months free
             </div>
           </motion.div>
         </div>
@@ -576,7 +582,7 @@ export default function PricingPage() {
                 display: "grid",
                 gridTemplateColumns: "2fr 1fr 1fr 1fr",
                 borderBottom: i < TABLE_ROWS.length - 1 ? "1px solid #E2DACB" : "none",
-                backgroundColor: i % 2 === 1 ? "#221C14" : "transparent",
+                backgroundColor: i % 2 === 1 ? "#EFE9DD" : "transparent",
               }}
             >
               <div style={{ padding: "14px 20px" }}>

@@ -725,7 +725,7 @@ export default function LandingPage() {
               { r: "III", name: "E&M integrity scoring", body: "A weighted model judges whether the visit level billed is actually supported — catching the upcoding that coding-only checkers miss." },
               { r: "IV", name: "Citation-linked disputes", body: "Every violation is mapped to the exact regulation it breaks and written into a dispute package, citation embedded, ready to send." },
               { r: "V", name: "Outcome prediction", body: "Before you file, see your estimated recovery amount, likely resolution timeframe, escalation probability, and a specific settlement range — so you know what you're walking into." },
-              { r: "VI", name: "Autonomous advocacy", body: "Once you authorize it, Verity can run your dispute for you — generating correspondence, filing appeals, and adapting to every response until the case is closed." },
+              { r: "VI", name: "Relentless advocacy", body: "Verity prepares every letter, appeal, and escalation in your case — you approve each send, and Verity adapts to every response until the case is closed." },
             ].map((c) => (
               <div key={c.r} style={{ backgroundColor: "#EBE5D9", padding: "36px 28px 40px" }}>
                 <div style={{ ...serif("34px", { color: "#C8A97E", lineHeight: 1, marginBottom: "20px" }) }}>{c.r}</div>
@@ -1310,7 +1310,7 @@ export default function LandingPage() {
                 "Every new bill audited automatically",
                 "Alerts on new and suspicious charges",
                 "Outcome prediction before you file — recovery amount, timeframe, and settlement range",
-                "Autonomous dispute filing — authorize Verity to run the dispute for you",
+                "Full dispute preparation — Verity drafts every letter and escalation; you approve each send",
                 "Complete billing history tracked across all providers and insurers",
                 "Escalation & regulator letters (appeal, DOI, CMS, CFPB) plus FCRA credit bureau and FDCPA collection dispute letters",
                 "Priority support",
