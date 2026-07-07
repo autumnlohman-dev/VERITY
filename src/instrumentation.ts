@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
+import { scrubSentryEvent } from './lib/sentryScrub'
 
 export async function register() {
   const dsn = process.env.SENTRY_DSN
@@ -8,7 +9,10 @@ export async function register() {
     Sentry.init({
       dsn,
       environment: process.env.NODE_ENV,
-      tracesSampleRate: 0
+      tracesSampleRate: 0,
+      // PHI scrub: no BAA with Sentry — strip request bodies and identifier
+      // shapes before anything leaves the process (lib/sentryScrub).
+      beforeSend: (event) => scrubSentryEvent(event)
     })
   }
 
@@ -16,7 +20,10 @@ export async function register() {
     Sentry.init({
       dsn,
       environment: process.env.NODE_ENV,
-      tracesSampleRate: 0
+      tracesSampleRate: 0,
+      // PHI scrub: no BAA with Sentry — strip request bodies and identifier
+      // shapes before anything leaves the process (lib/sentryScrub).
+      beforeSend: (event) => scrubSentryEvent(event)
     })
   }
 }

@@ -167,32 +167,32 @@ const EXTRACT_BILL_TOOL = {
           patient_name: {
             type: 'string',
             description:
-              'Patient name as shown on the bill. Check the "Responsible Party" or "Guarantor" section if present. Empty string if not visible.'
+              'Always return an empty string. Patient identifiers are not extracted (de-identification default).'
           },
           patient_address_street: {
             type: 'string',
             description:
-              'Patient street address from the "Responsible Party" / "Guarantor" / "Bill To" section. Include apartment/suite if shown. Empty string if not visible.'
+              'Always return an empty string. Patient identifiers are not extracted.'
           },
           patient_address_city: {
             type: 'string',
             description:
-              'Patient city from the "Responsible Party" / "Guarantor" / "Bill To" section. Empty string if not visible.'
+              'Always return an empty string. Patient identifiers are not extracted.'
           },
           patient_address_state: {
             type: 'string',
             description:
-              'Patient state (2-letter USPS code, uppercase) from the "Responsible Party" / "Guarantor" / "Bill To" section. Empty string if not visible.'
+              'Always return an empty string. Patient identifiers are not extracted.'
           },
           patient_address_zip: {
             type: 'string',
             description:
-              'Patient ZIP code from the "Responsible Party" / "Guarantor" / "Bill To" section. Empty string if not visible.'
+              'Always return an empty string. Patient identifiers are not extracted.'
           },
           account_number: {
             type: 'string',
             description:
-              'Patient account number or statement number if visible. Empty string otherwise.'
+              'Always return an empty string. Patient identifiers are not extracted.'
           }
         },
         required: [
@@ -259,7 +259,8 @@ const EXTRACT_BILL_TOOL = {
 
 const EXTRACT_BILL_PROMPT = `Extract the bill metadata and every itemized charge line from this medical bill.
 
-For the bill metadata, record the provider/facility name, NPI, address, bill date, patient name, patient mailing address, and account number. The patient's mailing address is usually in a "Responsible Party", "Guarantor", or "Bill To" block — split it into street, city, state (2-letter code), and ZIP. Use empty strings for any field that is not visible.
+For the bill metadata, record the provider/facility name, NPI, address, and bill date. Use empty strings for any field that is not visible.
+PRIVACY — never extract patient identifiers: always return empty strings for patient_name, every patient_address_* field, and account_number, even when the document prints them (EquiAI de-identification default: identifiers must not cross into model output).
 
 The bill may be organized into multiple encounters, each with its own block of charges. Capture charge lines from every encounter.
 
@@ -329,9 +330,9 @@ export async function extractBillContent(
       }
 
   // PHI boundary: legacy raw-document edge — kept consistent with the live
-  // extractor. NOTE: EXTRACT_BILL_TOOL still schemas patient_name and
-  // account_number, which contradicts the de-identification default; if this
-  // path is ever revived, strip those fields first (or delete this function).
+  // extractor. The identity fields in EXTRACT_BILL_TOOL are schema-retained for
+  // type compatibility but are prompt-forbidden AND hard-blanked in
+  // normalization below, so reviving this path cannot leak identifiers.
   const message = await boundedMessage('bill-extraction-legacy', 'raw-document', {
     model: 'claude-sonnet-4-6',
     max_tokens: 4000,
@@ -362,12 +363,16 @@ export async function extractBillContent(
     provider_npi: String(metaRaw.provider_npi ?? '').trim(),
     provider_address: String(metaRaw.provider_address ?? '').trim(),
     bill_date: String(metaRaw.bill_date ?? '').trim(),
-    patient_name: String(metaRaw.patient_name ?? '').trim(),
-    patient_address_street: String(metaRaw.patient_address_street ?? '').trim(),
-    patient_address_city: String(metaRaw.patient_address_city ?? '').trim(),
-    patient_address_state: String(metaRaw.patient_address_state ?? '').trim().toUpperCase(),
-    patient_address_zip: String(metaRaw.patient_address_zip ?? '').trim(),
-    account_number: String(metaRaw.account_number ?? '').trim()
+    // Hard-blanked regardless of model output: patient identifiers never
+    // propagate from a document into stored data (de-identification default).
+    // The letter path supplies identity via [PATIENT NAME]/[ADDRESS]/[ACCOUNT
+    // NUMBER] placeholders the patient fills in locally.
+    patient_name: '',
+    patient_address_street: '',
+    patient_address_city: '',
+    patient_address_state: '',
+    patient_address_zip: '',
+    account_number: ''
   }
 
   const { lineItems, warnings } = normalizeBillLineItems(input.line_items)
