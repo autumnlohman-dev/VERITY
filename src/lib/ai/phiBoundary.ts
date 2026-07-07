@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk'
 
 // ─── PHI boundary: the ONLY path to the Anthropic API ──────────────────────────
 //
@@ -28,13 +29,51 @@ import Anthropic from '@anthropic-ai/sdk'
 
 export type PhiPayloadClass = 'deidentified' | 'raw-document'
 
+// ─── Backend selection: direct Anthropic API vs Claude on AWS Bedrock ─────────
+// With ANTHROPIC_BACKEND=bedrock, inference runs on AWS Bedrock under the AWS
+// BAA (counsel-confirmed for our configuration, July 2026): requests never
+// egress to Anthropic, which closes the raw-document residual exposure for
+// bill/EOB extraction. Bedrock needs three more env vars in Vercel:
+//   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY  (an IAM user scoped to
+//     bedrock:InvokeModel only)
+//   AWS_REGION            e.g. us-east-1
+//   BEDROCK_MODEL_ID      the Bedrock inference-profile ID for the model
+//     (Bedrock uses its own dated IDs, e.g. us.anthropic.claude-…-v1:0 —
+//     copy the exact Sonnet profile ID from the Bedrock console; on-demand
+//     throughput requires the inference-profile form, not the bare model ID)
+// Any other value (or unset) keeps the direct Anthropic API, so local dev and
+// preview deploys work unchanged until the switch is flipped.
+//
 // Constructed lazily inside the handler, never at module scope — a module-scope
-// `new Anthropic()` evaluates on import and throws in a browser bundle. This
-// module is server-only.
-let _client: Anthropic | null = null
-function client(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+// SDK client evaluates on import and throws in a browser bundle. This module is
+// server-only.
+type BoundaryClient = Pick<Anthropic, 'messages'>
+
+function bedrockEnabled(): boolean {
+  return process.env.ANTHROPIC_BACKEND === 'bedrock'
+}
+
+let _client: BoundaryClient | null = null
+function client(): BoundaryClient {
+  if (!_client) {
+    _client = bedrockEnabled()
+      ? (new AnthropicBedrock({ awsRegion: process.env.AWS_REGION }) as unknown as BoundaryClient)
+      : new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  }
   return _client
+}
+
+// Bedrock addresses models by its own IDs; the codebase keeps writing the
+// canonical Anthropic model name and the boundary rewrites it at the edge.
+function resolveModel(model: string): string {
+  if (!bedrockEnabled()) return model
+  const id = process.env.BEDROCK_MODEL_ID
+  if (!id) {
+    throw new Error(
+      'ANTHROPIC_BACKEND=bedrock requires BEDROCK_MODEL_ID (the Bedrock inference-profile ID)'
+    )
+  }
+  return id
 }
 
 // Structural size of an outbound message: counts and character totals only —
@@ -74,14 +113,18 @@ export async function boundedMessage(
   opts?: { timeoutMs?: number; injectedClient?: Anthropic }
 ): Promise<Anthropic.Message> {
   const shape = payloadShape(params)
-  // PHI-SAFE: stage, class, and shape only — never content.
+  const backend = opts?.injectedClient ? 'injected' : bedrockEnabled() ? 'bedrock' : 'direct'
+  // PHI-SAFE: stage, class, backend, and shape only — never content.
   console.info(
-    `phiBoundary[${stage}]: class=${payloadClass}, blocks=${shape.blocks}, ` +
+    `phiBoundary[${stage}]: class=${payloadClass}, backend=${backend}, blocks=${shape.blocks}, ` +
       `documentBlocks=${shape.documentBlocks}, textChars=${shape.textChars}, ` +
       `maxTokens=${params.max_tokens}`
   )
-  const c = opts?.injectedClient ?? client()
-  return c.messages.create(params, opts?.timeoutMs ? { timeout: opts.timeoutMs } : undefined)
+  // Injected clients (tests) bypass model rewriting; live traffic resolves the
+  // model per backend.
+  const finalParams = opts?.injectedClient ? params : { ...params, model: resolveModel(params.model) }
+  const c: BoundaryClient = opts?.injectedClient ?? client()
+  return c.messages.create(finalParams, opts?.timeoutMs ? { timeout: opts.timeoutMs } : undefined)
 }
 
 // ─── Free-text de-identification ────────────────────────────────────────────────
