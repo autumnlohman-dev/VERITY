@@ -1,7 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
 import type { CanonicalBillingSchema } from './schema'
 import { extractToCBS, EOB_MEDIA_TYPES, eobCanonicalHeaderPresent } from './extractor'
 import { normalizeForExtraction } from '../heic'
+import { boundedMessage } from '../ai/phiBoundary'
 
 // Thrown when the vision transcription yields no usable EOB line items — i.e. the
 // output was blank or could not be parsed into a single billed line. It is an
@@ -27,25 +28,28 @@ export class EOBExtractionError extends Error {
 // code (deadlines/forCase → case + letter pages). Importing this file pulls in
 // @anthropic-ai/sdk; import it only from server code (runFullAudit / API routes).
 //
-// The SDK client is constructed LAZILY inside the handler, never at module scope:
-// a module-scope `new Anthropic()` evaluates on import and throws in a browser
-// bundle ("running in a browser-like environment …").
-
-let _client: Anthropic | null = null
-function anthropic(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  return _client
-}
+// PHI boundary: this is the second declared 'raw-document' edge — the vision
+// call must see the EOB to transcribe it. The system prompt forbids
+// transcribing patient identifiers (name, member ID, mailing address) into the
+// OUTPUT, so identifiers do not propagate into the stored transcription/CBS.
+// All API access goes through lib/ai/phiBoundary — never construct an
+// Anthropic client here.
 
 const EOB_TRANSCRIBE_SYSTEM = `You read an Explanation of Benefits (EOB) / remittance document and output a NORMALIZED transcription. Never invent, round, or omit values.
 
 First, transcribe these labeled header fields, each on its own line, when present:
   Claim Number: ...
   Provider: ...   NPI: ...
-  Member ID: ...
+  Member ID: [REDACTED]
   Date of Service: MM/DD/YYYY
   Processed/EOB Date: MM/DD/YYYY
   Appeal by: MM/DD/YYYY
+
+PRIVACY — never transcribe patient identifiers: write the literal text
+[REDACTED] for the Member ID value, and NEVER output the patient's name,
+mailing address, phone, email, or SSN anywhere, even where the document prints
+them. Claim numbers, provider names, NPIs, dates, and amounts are required and
+are NOT redacted.
 
 Then output ALL service lines as ONE pipe-delimited table. Emit this header row
 EXACTLY ONCE, then one row per service line:
@@ -97,7 +101,7 @@ export async function extractEOBToCBS(
     throw new Error(`Unsupported EOB file type: .${ext}. Upload a PDF, PNG, JPG, WEBP, or HEIC.`)
   }
 
-  const message = await anthropic().messages.create({
+  const message = await boundedMessage('eob-extraction', 'raw-document', {
     model: 'claude-sonnet-4-6',
     // A multi-claim EOB (every service row of every claim, across pages) far
     // exceeds the old 2000-token cap, which truncated transcription mid-document.

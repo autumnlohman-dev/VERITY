@@ -1,20 +1,19 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { LineItem, BillingError } from './errorDetection'
+import { boundedMessage, deidentifyFreeText, logAnthropicError } from './ai/phiBoundary'
 
 export async function analyzeDisputedProcedures(
   lineItems: LineItem[],
   userNotes: string,
   anthropic?: Anthropic
 ): Promise<BillingError[]> {
-  const trimmed = userNotes.trim()
+  // PHI boundary: userNotes is patient-written free text and routinely contains
+  // names ("my daughter…"), phone numbers, and account numbers. Scrub before it
+  // crosses to the API — the dispute analysis needs the situation, not the
+  // identity. (EquiAI principle 2; see lib/ai/phiBoundary.)
+  const { text: scrubbedNotes } = deidentifyFreeText(userNotes.trim())
+  const trimmed = scrubbedNotes
   if (trimmed.length === 0 || lineItems.length === 0) return []
-
-  const client =
-    anthropic ??
-    new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      timeout: 60_000,
-    })
 
   const summary = lineItems.map((li, idx) => ({
     index: idx,
@@ -25,7 +24,7 @@ export async function analyzeDisputedProcedures(
   }))
 
   try {
-    const message = await client.messages.create({
+    const message = await boundedMessage('dispute-analysis', 'deidentified', {
       model: 'claude-sonnet-4-6',
       max_tokens: 1500,
       tools: [
@@ -77,7 +76,7 @@ ${trimmed}
 Identify which line items (by index) the patient is disputing — for example, a service that was not rendered, a procedure that was cancelled, a test never completed, a provider the patient never saw, or a charge the patient specifically calls out as wrong. Be conservative: only flag a line if the patient's note clearly implicates it. If no lines are implicated, return an empty disputed list. Respond via the record_disputed_procedures tool.`
         }
       ]
-    })
+    }, { timeoutMs: 60_000, injectedClient: anthropic })
 
     const toolUse = message.content.find((b) => b.type === 'tool_use')
     if (!toolUse || toolUse.type !== 'tool_use') return []
@@ -114,7 +113,9 @@ Identify which line items (by index) the patient is disputing — for example, a
     if (err instanceof Anthropic.APIError) {
       throw err
     }
-    console.error('Patient dispute analysis failed:', err)
+    // PHI-safe: log name/message only — a raw error object can echo request
+    // content (which includes the patient's note) into log storage.
+    logAnthropicError('dispute-analysis', err)
     return []
   }
 }

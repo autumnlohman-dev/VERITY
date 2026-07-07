@@ -1,20 +1,17 @@
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
 import type { LineItem } from './errorDetection'
 import { CPT_CODE_PATTERN, isNonChargeRow, mapDescriptionToCpt } from './billExtractor'
 import { isHeicExt, normalizeForExtraction } from './heic'
+import { boundedMessage } from './ai/phiBoundary'
 
 // Component I: multimodal unstructured → structured extraction (proprietary).
 // Shared by the authenticated case pipeline (/api/extract) and the public
 // guest audit (/api/audit-guest).
-
-// Constructed lazily inside the handler, never at module scope — a module-scope
-// `new Anthropic()` evaluates on import and throws in a browser bundle. This
-// module is server-only (imported by /api/extract + /api/audit-guest).
-let _client: Anthropic | null = null
-function anthropic(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  return _client
-}
+//
+// PHI boundary: this is one of the two declared 'raw-document' edges — the
+// vision call must see the document to extract it. The system prompt forbids
+// transcribing patient identifiers into the OUTPUT, so identifiers do not
+// propagate into stored data. All API access goes through lib/ai/phiBoundary.
 
 const EXTRACTION_SYSTEM = `You are a medical-billing document parser. You receive an image or PDF of a
 medical bill, itemized statement, or Explanation of Benefits (EOB). Extract every billable line item and
@@ -34,6 +31,9 @@ Rules:
   "COMMERCIAL INSURANCE PAYMENT", "CONTRACTUAL ALLOWANCE ADJUST", "OTHER CREDIT ADJUSTMENT"). Also skip
   subtotals, taxes, and summary/total rows.
 - Capture modifiers attached to a CPT (e.g. 59, 25, XU).
+- NEVER transcribe patient identifiers into your output: no patient name, no
+  member/subscriber ID, no mailing address, no phone, no email, no SSN. These
+  fields are not part of the schema below — do not add them anywhere.
 Return ONLY a JSON object, no prose, matching exactly:
 {
   "document_kind": "bill" | "eob",
@@ -89,7 +89,7 @@ export async function extractFromBase64(base64: string, ext: string): Promise<Ex
     throw new Error(`Unsupported file type: .${ext}. Upload a PDF, PNG, JPG, WEBP, or HEIC.`)
   }
 
-  const message = await anthropic().messages.create({
+  const message = await boundedMessage('bill-extraction', 'raw-document', {
     model: 'claude-sonnet-4-6',
     max_tokens: 1500,
     system: EXTRACTION_SYSTEM,

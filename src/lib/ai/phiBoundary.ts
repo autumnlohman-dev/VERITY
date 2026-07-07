@@ -1,0 +1,168 @@
+import Anthropic from '@anthropic-ai/sdk'
+
+// ─── PHI boundary: the ONLY path to the Anthropic API ──────────────────────────
+//
+// EquiAI principle 2 (de-identification by default): the model sees codes and
+// amounts, not identities. VERITY has no BAA with Anthropic, so this module is
+// the load-bearing compliance control. Every messages.create in the codebase
+// MUST go through boundedMessage() — do not construct an Anthropic client
+// anywhere else. New call sites declare an honest payload class:
+//
+//   'deidentified'  — structured/free text that has passed deidentifyFreeText()
+//                     and carries no patient identifiers. This is the default
+//                     expectation for every analysis/letter/copilot call.
+//   'raw-document'  — a full bill/EOB image or PDF. Extraction cannot avoid
+//                     showing the model the document, so these two edges
+//                     (bill-extraction, eob-extraction) are declared, logged,
+//                     and counted — never silent. Mitigations: the extraction
+//                     prompts instruct the model NOT to transcribe patient
+//                     name / member ID / mailing address into its output, so
+//                     identifiers do not propagate into stored data. Closing
+//                     this residual exposure entirely requires either local
+//                     OCR+redaction before the vision call or a BAA — an open
+//                     product decision, tracked on the launch checklist.
+//
+// Logging rule (same principle): log structure and lengths, never content.
+// logAnthropicError() exists because a raw APIError object can echo request
+// content into logs — log status/name/message only, never the whole object.
+
+export type PhiPayloadClass = 'deidentified' | 'raw-document'
+
+// Constructed lazily inside the handler, never at module scope — a module-scope
+// `new Anthropic()` evaluates on import and throws in a browser bundle. This
+// module is server-only.
+let _client: Anthropic | null = null
+function client(): Anthropic {
+  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  return _client
+}
+
+// Structural size of an outbound message: counts and character totals only —
+// safe to log, useful for diagnosing truncation/timeout patterns per stage.
+function payloadShape(params: Anthropic.MessageCreateParamsNonStreaming): {
+  blocks: number
+  textChars: number
+  documentBlocks: number
+} {
+  let blocks = 0
+  let textChars = 0
+  let documentBlocks = 0
+  for (const m of params.messages) {
+    if (typeof m.content === 'string') {
+      blocks += 1
+      textChars += m.content.length
+      continue
+    }
+    for (const b of m.content) {
+      blocks += 1
+      if (b.type === 'text') textChars += b.text.length
+      if (b.type === 'image' || b.type === 'document') documentBlocks += 1
+    }
+  }
+  if (typeof params.system === 'string') textChars += params.system.length
+  return { blocks, textChars, documentBlocks }
+}
+
+// The single choke point. `stage` names the pipeline step for the log line
+// (e.g. 'bill-extraction', 'letter-generation'); `payloadClass` is the caller's
+// declaration of what crosses the boundary. `timeoutMs` replaces the per-site
+// client timeouts (letter 290s, copilot 55s) via the SDK's per-request option.
+export async function boundedMessage(
+  stage: string,
+  payloadClass: PhiPayloadClass,
+  params: Anthropic.MessageCreateParamsNonStreaming,
+  opts?: { timeoutMs?: number; injectedClient?: Anthropic }
+): Promise<Anthropic.Message> {
+  const shape = payloadShape(params)
+  // PHI-SAFE: stage, class, and shape only — never content.
+  console.info(
+    `phiBoundary[${stage}]: class=${payloadClass}, blocks=${shape.blocks}, ` +
+      `documentBlocks=${shape.documentBlocks}, textChars=${shape.textChars}, ` +
+      `maxTokens=${params.max_tokens}`
+  )
+  const c = opts?.injectedClient ?? client()
+  return c.messages.create(params, opts?.timeoutMs ? { timeout: opts.timeoutMs } : undefined)
+}
+
+// ─── Free-text de-identification ────────────────────────────────────────────────
+// Scrubs identifiers from free text (patient notes, quoted rep statements)
+// before it crosses the boundary. Two layers:
+//   1. Pattern scrub: emails, phone-like and SSN-like number shapes. A 10-digit
+//      run is redacted even when it is "only" an account number — an account
+//      number is an identifier too.
+//   2. Literal scrub: any known identifiers for this case (patient name,
+//      account number, member ID) passed by the caller, replaced verbatim,
+//      case-insensitively.
+// The output keeps bracketed tokens so downstream prompts read naturally
+// ("[PHONE]" etc.). Returns the scrubbed text and a redaction count for the
+// caller's structural logging.
+
+const EMAIL_PATTERN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g
+const SSN_PATTERN = /\b\d{3}-\d{2}-\d{4}\b/g
+const PHONE_PATTERN = /(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+export type KnownIdentifiers = {
+  patientName?: string | null
+  accountNumber?: string | null
+  memberId?: string | null
+}
+
+export function deidentifyFreeText(
+  text: string,
+  known?: KnownIdentifiers
+): { text: string; redactions: number } {
+  let redactions = 0
+  let out = text
+
+  // Known literals FIRST: an account number like "F00010479293" contains a
+  // 10-digit run that the phone pattern would otherwise partially consume,
+  // leaving a mangled remainder instead of a clean [ACCOUNT NUMBER] token.
+  const literals: Array<[string | null | undefined, string]> = [
+    [known?.patientName, '[PATIENT NAME]'],
+    [known?.accountNumber, '[ACCOUNT NUMBER]'],
+    [known?.memberId, '[MEMBER ID]'],
+  ]
+  for (const [value, token] of literals) {
+    const v = typeof value === 'string' ? value.trim() : ''
+    // Length guard: replacing 1–3 character "identifiers" would shred normal
+    // prose (e.g. a patient named "Al" appearing inside "already").
+    if (v.length < 4) continue
+    out = out.replace(new RegExp(escapeRegExp(v), 'gi'), () => {
+      redactions += 1
+      return token
+    })
+  }
+
+  out = out.replace(EMAIL_PATTERN, () => {
+    redactions += 1
+    return '[EMAIL]'
+  })
+  out = out.replace(SSN_PATTERN, () => {
+    redactions += 1
+    return '[SSN]'
+  })
+  out = out.replace(PHONE_PATTERN, () => {
+    redactions += 1
+    return '[PHONE]'
+  })
+
+  return { text: out, redactions }
+}
+
+// PHI-safe error logging: an Anthropic APIError (and some transport errors) can
+// echo request content. Log identity-free fields only, never the object.
+export function logAnthropicError(stage: string, error: unknown): void {
+  if (error instanceof Anthropic.APIError) {
+    console.error(`phiBoundary[${stage}] Anthropic error: status=${error.status}, ${error.name}: ${error.message}`)
+    return
+  }
+  const e = error as { name?: unknown; message?: unknown }
+  console.error(
+    `phiBoundary[${stage}] error: ${typeof e?.name === 'string' ? e.name : 'Error'}: ` +
+      `${typeof e?.message === 'string' ? e.message.slice(0, 300) : 'unknown'}`
+  )
+}

@@ -1,4 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
+import { boundedMessage } from './ai/phiBoundary'
 
 export interface ExtractedLineItem {
   cpt_code: string
@@ -301,12 +302,6 @@ export async function extractBillContent(
   file: File,
   anthropic?: Anthropic
 ): Promise<ExtractionResult> {
-  const client =
-    anthropic ??
-    new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      timeout: 60_000,
-    })
   const mediaType = file.type
   const isPdf = mediaType === 'application/pdf'
   const base64 = Buffer.from(await file.arrayBuffer()).toString('base64')
@@ -333,7 +328,11 @@ export async function extractBillContent(
         }
       }
 
-  const message = await client.messages.create({
+  // PHI boundary: legacy raw-document edge — kept consistent with the live
+  // extractor. NOTE: EXTRACT_BILL_TOOL still schemas patient_name and
+  // account_number, which contradicts the de-identification default; if this
+  // path is ever revived, strip those fields first (or delete this function).
+  const message = await boundedMessage('bill-extraction-legacy', 'raw-document', {
     model: 'claude-sonnet-4-6',
     max_tokens: 4000,
     tools: [EXTRACT_BILL_TOOL],
@@ -344,7 +343,7 @@ export async function extractBillContent(
         content: [fileBlock, { type: 'text', text: EXTRACT_BILL_PROMPT }]
       }
     ]
-  })
+  }, { timeoutMs: 60_000, injectedClient: anthropic })
 
   const toolUse = message.content.find((b) => b.type === 'tool_use')
   if (!toolUse || toolUse.type !== 'tool_use') {

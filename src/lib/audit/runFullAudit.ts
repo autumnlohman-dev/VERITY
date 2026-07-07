@@ -6,6 +6,7 @@ import { extractEOBToCBS } from '@/lib/cbs/eobExtractor'
 import { isHeicBuffer } from '@/lib/heic'
 import { normalizeCBSSet } from '@/lib/cbs/normalizer'
 import type { CanonicalBillingSchema, NormalizedCBSSet } from '@/lib/cbs/schema'
+import { logAnthropicError } from '../ai/phiBoundary'
 
 // ─── The one audit pipeline ──────────────────────────────────────────────────
 // Every audit — the guest preview (/api/audit-guest), the signed-in audit
@@ -107,7 +108,7 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
       const disputeErrors = await analyzeDisputedProcedures(lineItems, userNotes)
       if (disputeErrors.length > 0) errors.push(...disputeErrors)
     } catch (err) {
-      console.error('patient-dispute analysis failed (non-fatal):', err)
+      logAnthropicError('dispute-analysis', err) // PHI-safe: never log the raw error object
     }
   }
 
@@ -165,7 +166,8 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
         console.info(`runFullAudit[${docIdBase}]: EOB extracted — cross-document comparison enabled.`)
       } catch (eobErr) {
         // EOB unreadable — degrade gracefully to a bill-only audit.
-        console.error(`runFullAudit[${docIdBase}]: EOB extraction error:`, eobErr)
+        // PHI-safe: an APIError can echo request content (the EOB itself) into logs.
+        console.error(`runFullAudit[${docIdBase}]: EOB extraction error: ${eobErr instanceof Error ? `${eobErr.name}: ${eobErr.message}` : 'unknown'}`)
         eobCbs = null
       }
     }

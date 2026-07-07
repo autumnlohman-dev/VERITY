@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
+import { boundedMessage, deidentifyFreeText } from '@/lib/ai/phiBoundary'
 import { createClient } from '@/lib/supabase/server'
 import { cbsSetForCase } from '@/lib/deadlines/forCase'
 import { calculateDeadlines } from '@/lib/deadlines/calculator'
@@ -13,11 +14,8 @@ import type { FinancialHarmScore } from '@/lib/scores/financialHarmScore'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-let _client: Anthropic | null = null
-function anthropic(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 55_000 })
-  return _client
-}
+// All Anthropic access goes through lib/ai/phiBoundary (EquiAI principle 2).
+// The 55s SDK timeout is passed per-request via the boundary.
 
 // ─── Guidance card shape (mirrors the client's GuidanceCard) ──────────────────
 type CardKind = 'response' | 'citation' | 'escalation' | 'documentation' | 'warning'
@@ -104,7 +102,11 @@ export async function POST(request: Request) {
       statement?: unknown
       caseId?: unknown
     }
-    const statement = cap(body.statement, 2000).trim()
+    // PHI boundary: the patient types what a live rep just said — it routinely
+    // quotes the patient's own name, phone, or account number back at them.
+    // Scrub before it crosses to the API (lib/ai/phiBoundary); coaching needs
+    // the substance of the statement, not the identifiers.
+    const statement = deidentifyFreeText(cap(body.statement, 2000).trim()).text
     if (!statement) {
       return NextResponse.json({ error: 'Missing statement' }, { status: 400 })
     }
@@ -247,12 +249,12 @@ ${statement}
 ${contextSection}
 Coach the patient now. Return only the JSON object.`
 
-    const message = await anthropic().messages.create({
+    const message = await boundedMessage('call-copilot', 'deidentified', {
       model: 'claude-sonnet-4-6',
       max_tokens: 1500,
       system,
       messages: [{ role: 'user', content: userContent }],
-    })
+    }, { timeoutMs: 55_000 })
 
     const textBlock = message.content.find((b) => b.type === 'text')
     const raw = textBlock && textBlock.type === 'text' ? textBlock.text : ''
@@ -305,7 +307,12 @@ Coach the patient now. Return only the JSON object.`
         { status: 503 }
       )
     }
-    console.error('Copilot error:', error)
+    // PHI-safe: name/message only — a raw error object can echo request content
+    // (the rep statement, case findings) into log storage.
+    console.error(
+      'Copilot error:',
+      error instanceof Error ? `${error.name}: ${error.message}` : 'unknown'
+    )
     Sentry.captureException(error, { tags: { route: 'copilot', stage: 'handler' } })
     return NextResponse.json({ error: 'Failed to generate guidance' }, { status: 500 })
   }

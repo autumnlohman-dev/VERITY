@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { renderEmReviewForPrompt, type EmReview } from '@/lib/emReview'
 import { disputeUnlocked } from '@/lib/entitlements'
+import { boundedMessage, deidentifyFreeText } from '@/lib/ai/phiBoundary'
 
 // The Anthropic SDK needs the Node runtime (never edge). A full evidentiary
 // letter is ~6000 output tokens (≈90–120s at Sonnet speeds), so the old 60s
@@ -12,15 +13,12 @@ import { disputeUnlocked } from '@/lib/entitlements'
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
-// Constructed lazily inside the handler, never at module scope (a module-scope
-// SDK client evaluates on import; keep all construction in-handler). The SDK
-// request timeout must sit just under maxDuration — at 60s it aborted long
-// letters before they completed.
-let _client: Anthropic | null = null
-function anthropic(): Anthropic {
-  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 290_000 })
-  return _client
-}
+// All Anthropic access goes through lib/ai/phiBoundary (EquiAI principle 2:
+// this route sends structured findings and scrubbed free text — identity
+// reaches the model only as the intentional [PATIENT NAME]/[ADDRESS]/…
+// placeholder tokens). The SDK request timeout must sit just under maxDuration
+// — at 60s it aborted long letters before they completed; passed per-request
+// via the boundary (290s).
 
 export async function POST(request: Request) {
   try {
@@ -166,12 +164,17 @@ export async function POST(request: Request) {
       )
     }
 
-    const userNotes: string = (
+    const rawUserNotes: string = (
       (caseData && typeof caseData.userNotes === 'string' && caseData.userNotes) ||
       (caseRecord.bill_data && typeof caseRecord.bill_data.userNotes === 'string'
         ? caseRecord.bill_data.userNotes
         : '')
     ).slice(0, 4000) // L4: bound the free-text note injected into the prompt.
+    // PHI boundary: patient-written notes routinely carry names, phone numbers,
+    // and account numbers — scrub before the prompt (lib/ai/phiBoundary). The
+    // letter's identity lines are the intentional bracketed placeholders, so
+    // nothing is lost by scrubbing here.
+    const userNotes = deidentifyFreeText(rawUserNotes).text
 
     const userNotesSection = userNotes.trim()
       ? `
@@ -209,7 +212,7 @@ E&M DISPUTE GUIDANCE:
     const totalFindings = errorCount + findingCount
 
     // Generate the dispute letter with Claude
-    const message = await anthropic().messages.create({
+    const message = await boundedMessage('letter-generation', 'deidentified', {
       model: 'claude-sonnet-4-6',
       // Enough headroom for every error section (tables included) — 2000 tokens
       // truncated multi-error letters mid-table.
@@ -265,7 +268,7 @@ The letter should:
 4. Reference ${isSelfPay ? "the No Surprises Act good-faith-estimate protections and the Hospital Price Transparency Rule" : "the No Surprises Act and applicable patient rights"}
 5. Include a professional closing requesting a corrected statement within 30 days`
       }]
-    })
+    }, { timeoutMs: 290_000 })
 
     const textBlock = message.content.find((b) => b.type === 'text')
     const letterContent = textBlock && textBlock.type === 'text' ? textBlock.text : ''
@@ -330,7 +333,12 @@ The letter should:
         { status: 503 }
       )
     }
-    console.error('Letter generation error:', error)
+    // PHI-safe: name/message only — a raw error object can echo request content
+    // (case findings, patient notes) into log storage.
+    console.error(
+      'Letter generation error:',
+      error instanceof Error ? `${error.name}: ${error.message}` : 'unknown'
+    )
     Sentry.captureException(error, { tags: { route: 'generate-letter', stage: 'handler' } })
     return NextResponse.json({ error: 'Failed to generate letter' }, { status: 500 })
   }
