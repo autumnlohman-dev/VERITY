@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { saveGuestClaim } from "@/lib/guestClaim";
 import { AuditProgress } from "@/components/AuditProgress";
 import type { CBSDiscrepancy } from "@/lib/cbs/schema";
+import { MAX_PAGES_PER_DOC, MAX_TOTAL_DOC_BYTES, isMergeableExt } from "@/lib/documents/limits";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -132,10 +133,62 @@ function Nav() {
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-// Hold the actual File object so it survives across steps and reaches the
-// backend. (The DropZones for step 1 unmount on later steps, so we cannot
-// recover the file from a DOM <input> at submit time.)
-type FileState = File;
+// Each bill/EOB slot holds an ORDERED list of page files: multiple files on one
+// slot are pages of a single document, merged server-side in this order before
+// extraction. We hold the actual File objects so they survive across steps and
+// reach the backend. (The DropZones for step 1 unmount on later steps, so we
+// cannot recover files from a DOM <input> at submit time.)
+type PageFile = {
+  id: string;
+  file: File;
+  // Eager per-file upload to storage: 'uploading' → 'done' (path set) or
+  // 'error' (retry button). Files stuck without a path fall back to inline
+  // base64 at submit when small enough.
+  status: "uploading" | "done" | "error";
+  path: string | null;
+};
+
+const MAX_PAGE_BYTES = 20 * 1024 * 1024;
+
+function newPageId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+// Per-file validation + batch caps. Returns the entries to add and the first
+// rejection message (if any) so the zone can show why something was dropped.
+function validateAdd(existing: PageFile[], incoming: File[]): { accepted: File[]; rejection: string | null } {
+  const accepted: File[] = [];
+  let rejection: string | null = null;
+  let count = existing.length;
+  let totalBytes = existing.reduce((s, e) => s + e.file.size, 0);
+  for (const f of incoming) {
+    const ext = f.name.split(".").pop()?.toLowerCase() ?? "";
+    if (!isMergeableExt(ext)) {
+      rejection = rejection ?? `"${f.name}" isn't a supported type. Use PDF, JPG, PNG, or HEIC.`;
+      continue;
+    }
+    if (f.size > MAX_PAGE_BYTES) {
+      rejection = rejection ?? `"${f.name}" is too large (20 MB max per file).`;
+      continue;
+    }
+    if (count >= MAX_PAGES_PER_DOC) {
+      rejection = rejection ?? `A document can have at most ${MAX_PAGES_PER_DOC} files.`;
+      break;
+    }
+    if (totalBytes + f.size > MAX_TOTAL_DOC_BYTES) {
+      rejection = rejection ?? "Those files together exceed the 20 MB document limit.";
+      continue;
+    }
+    accepted.push(f);
+    count += 1;
+    totalBytes += f.size;
+  }
+  return { accepted, rejection };
+}
 
 type GuestError = {
   cpt_code: string;
@@ -302,26 +355,35 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
   );
 }
 
-// ─── DropZone ─────────────────────────────────────────────────────────────────
+// ─── DropZone (multi-file: N files = N pages of one document) ──────────────────
 function DropZone({
   zonelabel,
   sublabel,
   required,
-  file,
-  setFile,
+  files,
+  zoneError,
+  onAdd,
+  onRemove,
+  onMove,
+  onRetry,
 }: {
   zonelabel: string;
   sublabel: string;
   required: boolean;
-  file: FileState | null;
-  setFile: (f: FileState | null) => void;
+  files: PageFile[];
+  zoneError: string | null;
+  onAdd: (files: File[]) => void;
+  onRemove: (id: string) => void;
+  onMove: (id: string, dir: -1 | 1) => void;
+  onRetry: (id: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const hasFiles = files.length > 0;
 
-  const handleFiles = (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    setFile(files[0]);
+  const handleFiles = (list: FileList | null) => {
+    if (!list || list.length === 0) return;
+    onAdd(Array.from(list));
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -343,17 +405,25 @@ function DropZone({
     return (bytes / 1048576).toFixed(1) + " MB";
   };
 
-  const borderColor = file
+  const borderColor = hasFiles
     ? "rgba(122,158,135,0.6)"
     : dragging
     ? "rgba(200,169,126,0.4)"
     : "#CFC6B4";
 
-  const bgColor = file ? "rgba(122,158,135,0.05)" : dragging ? "rgba(200,169,126,0.03)" : "#221C14";
+  const bgColor = hasFiles ? "rgba(122,158,135,0.05)" : dragging ? "rgba(200,169,126,0.03)" : "#221C14";
+
+  const iconBtn: React.CSSProperties = {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    padding: "2px 4px",
+    lineHeight: 1,
+  };
 
   return (
     <div
-      onClick={() => !file && inputRef.current?.click()}
+      onClick={() => !hasFiles && inputRef.current?.click()}
       onDrop={onDrop}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
@@ -361,42 +431,114 @@ function DropZone({
         border: `1px dashed ${borderColor}`,
         backgroundColor: bgColor,
         padding: "32px",
-        cursor: file ? "default" : "pointer",
+        cursor: hasFiles ? "default" : "pointer",
         transition: "border-color 0.2s, background-color 0.2s",
       }}
     >
       <input
         ref={inputRef}
         type="file"
+        multiple
         accept=".pdf,.jpg,.jpeg,.png,.heic,.heif"
         style={{ display: "none" }}
-        onChange={(e: ChangeEvent<HTMLInputElement>) => handleFiles(e.target.files)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => {
+          handleFiles(e.target.files);
+          // Allow re-selecting the same file after a remove.
+          e.target.value = "";
+        }}
       />
-      {file ? (
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <CheckCircle size={20} color="#5E7E66" style={{ flexShrink: 0 }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ ...sans("14px", "#221C14") }}>{file.name}</div>
-            <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "2px" }}>
-              {formatSize(file.size)}
+      {hasFiles ? (
+        <div>
+          {files.map((pf, i) => (
+            <div
+              key={pf.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "6px 0",
+                borderBottom: i < files.length - 1 ? "1px solid rgba(122,158,135,0.2)" : "none",
+              }}
+            >
+              {files.length > 1 && (
+                <span style={{ ...sans("11px", "#8A7F6E"), width: "16px", flexShrink: 0 }}>{i + 1}</span>
+              )}
+              {pf.status === "done" ? (
+                <CheckCircle size={18} color="#5E7E66" style={{ flexShrink: 0 }} />
+              ) : pf.status === "uploading" ? (
+                <span
+                  style={{
+                    width: "14px",
+                    height: "14px",
+                    flexShrink: 0,
+                    border: "2px solid #C8A97E",
+                    borderTopColor: "transparent",
+                    borderRadius: "50%",
+                    display: "inline-block",
+                    animation: "spin 0.8s linear infinite",
+                  }}
+                />
+              ) : (
+                <span style={{ ...sans("14px", "#B0604C"), flexShrink: 0, lineHeight: 1 }}>!</span>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ ...sans("13px", "#221C14"), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {pf.file.name}
+                </div>
+                <div style={{ ...sans("11px", pf.status === "error" ? "#B0604C" : "#8A7F6E"), marginTop: "1px" }}>
+                  {pf.status === "error" ? "Upload failed" : formatSize(pf.file.size)}
+                </div>
+              </div>
+              {pf.status === "error" && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onRetry(pf.id); }}
+                  style={{ ...iconBtn, ...sans("11px", "#C8A97E"), letterSpacing: "0.08em", textTransform: "uppercase" }}
+                >
+                  Retry
+                </button>
+              )}
+              {files.length > 1 && (
+                <>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onMove(pf.id, -1); }}
+                    disabled={i === 0}
+                    aria-label="Move page up"
+                    style={{ ...iconBtn, ...sans("13px", i === 0 ? "#CFC6B4" : "#8A7F6E"), cursor: i === 0 ? "default" : "pointer" }}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onMove(pf.id, 1); }}
+                    disabled={i === files.length - 1}
+                    aria-label="Move page down"
+                    style={{ ...iconBtn, ...sans("13px", i === files.length - 1 ? "#CFC6B4" : "#8A7F6E"), cursor: i === files.length - 1 ? "default" : "pointer" }}
+                  >
+                    ↓
+                  </button>
+                </>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); onRemove(pf.id); }}
+                aria-label="Remove file"
+                style={{ ...iconBtn, ...sans("16px", "#8A7F6E") }}
+              >
+                ×
+              </button>
             </div>
+          ))}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "12px" }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+              style={{ ...iconBtn, ...sans("11px", "#C8A97E"), letterSpacing: "0.12em", textTransform: "uppercase", padding: 0 }}
+            >
+              + Add pages
+            </button>
+            {files.length > 1 && (
+              <span style={{ ...sans("11px", "#8A7F6E") }}>
+                Combined as one document, in this order
+              </span>
+            )}
           </div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setFile(null);
-            }}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              ...sans("18px", "#8A7F6E"),
-              padding: "4px",
-              lineHeight: 1,
-            }}
-          >
-            ×
-          </button>
         </div>
       ) : (
         <div style={{ textAlign: "center" }}>
@@ -409,7 +551,7 @@ function DropZone({
             {sublabel}
           </div>
           <div style={{ ...sans("12px", "#C9BFAC"), marginTop: "8px" }}>
-            Drop here, or click to browse — PDF, JPG, PNG, HEIC
+            Drop here, or click to browse — PDF, JPG, PNG, HEIC · multiple pages OK
           </div>
           <div
             style={{
@@ -425,6 +567,9 @@ function DropZone({
             or take a photo
           </div>
         </div>
+      )}
+      {zoneError && (
+        <p style={{ ...sans("12px", "#B0604C"), marginTop: "10px", marginBottom: 0 }}>{zoneError}</p>
       )}
     </div>
   );
@@ -475,8 +620,10 @@ function UploadPageInner() {
     const param = searchParams.get("tier");
     return param === "audit" || param === "dispute" || param === "membership" ? param : null;
   });
-  const [billFile, setBillFile] = useState<FileState | null>(null);
-  const [eobFile, setEobFile] = useState<FileState | null>(null);
+  const [billFiles, setBillFiles] = useState<PageFile[]>([]);
+  const [eobFiles, setEobFiles] = useState<PageFile[]>([]);
+  const [billZoneError, setBillZoneError] = useState<string | null>(null);
+  const [eobZoneError, setEobZoneError] = useState<string | null>(null);
   const [careType, setCareType] = useState<string | null>(null);
   const [insuranceType, setInsuranceType] = useState<string | null>(null);
   const [gfe, setGfe] = useState<string | null>(null);
@@ -489,6 +636,100 @@ function UploadPageInner() {
   const [guestResults, setGuestResults] = useState<GuestAudit | null>(null);
   const loading = phase === "running";
 
+  // ── Per-slot multi-file handlers ─────────────────────────────────────────
+  // Files upload to storage EAGERLY on add (per-file status + retry), so by
+  // submit time most pages already have a storage path and never touch the
+  // request body. Order in the array is the page order of the merged document.
+  const startUpload = async (
+    slot: "bill" | "eob",
+    setFiles: React.Dispatch<React.SetStateAction<PageFile[]>>,
+    entry: PageFile,
+  ) => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const path = await uploadToBills(supabase, entry.file, slot, user ? null : getGuestSessionId());
+    setFiles((prev) =>
+      prev.map((p) =>
+        p.id === entry.id ? { ...p, status: path ? "done" : "error", path } : p
+      )
+    );
+  };
+
+  const makeSlotHandlers = (
+    slot: "bill" | "eob",
+    files: PageFile[],
+    setFiles: React.Dispatch<React.SetStateAction<PageFile[]>>,
+    setZoneError: (e: string | null) => void,
+  ) => ({
+    onAdd: (incoming: File[]) => {
+      const { accepted, rejection } = validateAdd(files, incoming);
+      setZoneError(rejection);
+      if (slot === "bill" && accepted.length > 0) setError(null);
+      const entries: PageFile[] = accepted.map((file) => ({
+        id: newPageId(),
+        file,
+        status: "uploading",
+        path: null,
+      }));
+      if (entries.length === 0) return;
+      setFiles((prev) => [...prev, ...entries]);
+      for (const entry of entries) void startUpload(slot, setFiles, entry);
+    },
+    onRemove: (id: string) => {
+      setZoneError(null);
+      setFiles((prev) => prev.filter((p) => p.id !== id));
+    },
+    onMove: (id: string, dir: -1 | 1) => {
+      setFiles((prev) => {
+        const i = prev.findIndex((p) => p.id === id);
+        const j = i + dir;
+        if (i === -1 || j < 0 || j >= prev.length) return prev;
+        const next = [...prev];
+        [next[i], next[j]] = [next[j], next[i]];
+        return next;
+      });
+    },
+    onRetry: (id: string) => {
+      const entry = files.find((p) => p.id === id);
+      if (!entry) return;
+      setFiles((prev) => prev.map((p) => (p.id === id ? { ...p, status: "uploading" } : p)));
+      void startUpload(slot, setFiles, { ...entry, status: "uploading" });
+    },
+  });
+
+  const billHandlers = makeSlotHandlers("bill", billFiles, setBillFiles, setBillZoneError);
+  const eobHandlers = makeSlotHandlers("eob", eobFiles, setEobFiles, setEobZoneError);
+
+  // Resolve one slot's files for submission: reuse eager-upload paths, retry
+  // any file that still lacks one, and fall back to inline base64 for the
+  // whole slot only if a path is still missing (mixed path/base64 within one
+  // slot isn't part of the API contract).
+  async function resolveSlotForSubmit(
+    slot: "bill" | "eob",
+    files: PageFile[],
+    setFiles: React.Dispatch<React.SetStateAction<PageFile[]>>,
+    supabase: ReturnType<typeof createClient>,
+    guestSessionId: string | null,
+  ): Promise<{ paths: string[] | null; base64s: string[] | null; names: string[] }> {
+    const names = files.map((p) => p.file.name);
+    const paths: (string | null)[] = [];
+    for (const pf of files) {
+      let path = pf.path;
+      if (!path) {
+        path = await uploadToBills(supabase, pf.file, slot, guestSessionId);
+        if (path) {
+          setFiles((prev) => prev.map((p) => (p.id === pf.id ? { ...p, status: "done", path } : p)));
+        }
+      }
+      paths.push(path);
+    }
+    if (paths.every((p): p is string => p !== null)) {
+      return { paths, base64s: null, names };
+    }
+    const base64s = await Promise.all(files.map((p) => fileToBase64(p.file)));
+    return { paths: null, base64s, names };
+  }
+
   // Runs the audit (guest or signed-in). Extracted so the progress screen's
   // "Try again" can re-invoke it. Drives `phase`: success either shows the guest
   // results inline or navigates to the case page; failure flips to 'error'.
@@ -496,8 +737,7 @@ function UploadPageInner() {
     if (!tier) return;
     // Validate the bill against React state — the single source of truth that
     // survives the step-1 DropZones unmounting on later steps.
-    const file = billFile;
-    if (!file) {
+    if (billFiles.length === 0) {
       setError("Please upload your bill to run the audit.");
       return;
     }
@@ -514,22 +754,39 @@ function UploadPageInner() {
 
       // ── Guest path: run a free, anonymous audit and show results inline ──
       if (!user) {
-        // Primary path: push the files straight to Storage (no body-size limit),
-        // then send just the storage paths. Fall back to inline base64 only when
-        // the direct upload couldn't be set up — fine for small files.
+        // Primary path: files are already in Storage from the eager per-file
+        // upload (no body-size limit) — send just the storage paths, in page
+        // order. Fall back to inline base64 only when a direct upload couldn't
+        // be completed — fine for small files.
         const guestSessionId = getGuestSessionId();
-        const billPath = await uploadToBills(supabase, file, "bill", guestSessionId);
-        const eobPath = eobFile ? await uploadToBills(supabase, eobFile, "eob", guestSessionId) : null;
-        const body: Record<string, unknown> = {
-          fileName: file.name,
-          insuranceType,
-          eobFileName: eobFile?.name,
-          guestSessionId,
-        };
-        if (billPath) body.billPath = billPath;
-        else body.fileBase64 = await fileToBase64(file);
-        if (eobPath) body.eobPath = eobPath;
-        else if (eobFile) body.eobFileBase64 = await fileToBase64(eobFile);
+        const billSlot = await resolveSlotForSubmit("bill", billFiles, setBillFiles, supabase, guestSessionId);
+        const eobSlot = eobFiles.length > 0
+          ? await resolveSlotForSubmit("eob", eobFiles, setEobFiles, supabase, guestSessionId)
+          : null;
+
+        const body: Record<string, unknown> = { insuranceType, guestSessionId };
+        // Single file → legacy single-file fields (byte-identical server path);
+        // multiple files → ordered arrays merged server-side into one document.
+        if (billFiles.length === 1) {
+          body.fileName = billSlot.names[0];
+          if (billSlot.paths) body.billPath = billSlot.paths[0];
+          else body.fileBase64 = billSlot.base64s![0];
+        } else {
+          body.billFileNames = billSlot.names;
+          if (billSlot.paths) body.billPaths = billSlot.paths;
+          else body.billFilesBase64 = billSlot.base64s;
+        }
+        if (eobSlot) {
+          if (eobFiles.length === 1) {
+            body.eobFileName = eobSlot.names[0];
+            if (eobSlot.paths) body.eobPath = eobSlot.paths[0];
+            else body.eobFileBase64 = eobSlot.base64s![0];
+          } else {
+            body.eobFileNames = eobSlot.names;
+            if (eobSlot.paths) body.eobPaths = eobSlot.paths;
+            else body.eobFilesBase64 = eobSlot.base64s;
+          }
+        }
 
         const res = await fetch("/api/audit-guest", {
           method: "POST",
@@ -554,11 +811,14 @@ function UploadPageInner() {
       }
 
       // ── Signed-in path: save the case so it persists + generates letters ──
-      // Push the bill (and EOB) straight to Storage; the audit downloads them
-      // server-side from these paths, so large files never hit the body limit.
-      // A failed upload doesn't block case creation — extract falls back to base64.
-      const billPath = await uploadToBills(supabase, file, "bill", null);
-      const eobPath = eobFile ? await uploadToBills(supabase, eobFile, "eob", null) : null;
+      // Files are already in Storage from the eager per-file upload; the audit
+      // downloads them server-side from these paths, so large files never hit
+      // the body limit. A failed upload doesn't block case creation — extract
+      // falls back to base64.
+      const billSlot = await resolveSlotForSubmit("bill", billFiles, setBillFiles, supabase, null);
+      const eobSlot = eobFiles.length > 0
+        ? await resolveSlotForSubmit("eob", eobFiles, setEobFiles, supabase, null)
+        : null;
 
       const response = await fetch("/api/cases", {
         method: "POST",
@@ -570,7 +830,7 @@ function UploadPageInner() {
           tier,
           userNotes,
           amountBilled: 0,
-          billPath,
+          billPath: billSlot.paths?.[0] ?? null,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -591,17 +851,30 @@ function UploadPageInner() {
       let landingCaseId: string = data.caseId;
       let isDuplicate = false;
       if (data.caseId) {
-        const extractBody: Record<string, unknown> = {
-          caseId: data.caseId,
-          billFileName: file.name,
-          eobFileName: eobFile?.name,
-        };
-        // Prefer the storage paths; fall back to inline base64 (small files only)
-        // when a direct upload didn't go through.
-        if (billPath) extractBody.billPath = billPath;
-        else extractBody.billFileBase64 = await fileToBase64(file);
-        if (eobPath) extractBody.eobPath = eobPath;
-        else if (eobFile) extractBody.eobFileBase64 = await fileToBase64(eobFile);
+        const extractBody: Record<string, unknown> = { caseId: data.caseId };
+        // Single file → legacy single-file fields (byte-identical server path);
+        // multiple files → ordered arrays merged server-side into one document.
+        // Storage paths preferred; inline base64 (small files only) as fallback.
+        if (billFiles.length === 1) {
+          extractBody.billFileName = billSlot.names[0];
+          if (billSlot.paths) extractBody.billPath = billSlot.paths[0];
+          else extractBody.billFileBase64 = billSlot.base64s![0];
+        } else {
+          extractBody.billFileNames = billSlot.names;
+          if (billSlot.paths) extractBody.billPaths = billSlot.paths;
+          else extractBody.billFilesBase64 = billSlot.base64s;
+        }
+        if (eobSlot) {
+          if (eobFiles.length === 1) {
+            extractBody.eobFileName = eobSlot.names[0];
+            if (eobSlot.paths) extractBody.eobPath = eobSlot.paths[0];
+            else extractBody.eobFileBase64 = eobSlot.base64s![0];
+          } else {
+            extractBody.eobFileNames = eobSlot.names;
+            if (eobSlot.paths) extractBody.eobPaths = eobSlot.paths;
+            else extractBody.eobFilesBase64 = eobSlot.base64s;
+          }
+        }
 
         const extractRes = await fetch("/api/extract", {
           method: "POST",
@@ -789,8 +1062,10 @@ function UploadPageInner() {
                   // Reset ALL inputs, not just the bill — otherwise the next audit
                   // silently reuses the previous EOB / care type / insurance / notes.
                   setGuestResults(null);
-                  setBillFile(null);
-                  setEobFile(null);
+                  setBillFiles([]);
+                  setEobFiles([]);
+                  setBillZoneError(null);
+                  setEobZoneError(null);
                   setCareType(null);
                   setInsuranceType(null);
                   setGfe(null);
@@ -916,15 +1191,17 @@ function UploadPageInner() {
                   zonelabel="Medical bill"
                   sublabel="Itemized bill, not the summary"
                   required={true}
-                  file={billFile}
-                  setFile={(f) => { setBillFile(f); setError(null); }}
+                  files={billFiles}
+                  zoneError={billZoneError}
+                  {...billHandlers}
                 />
                 <DropZone
                   zonelabel="Explanation of Benefits (EOB)"
                   sublabel="From your insurer — optional but recommended"
                   required={false}
-                  file={eobFile}
-                  setFile={setEobFile}
+                  files={eobFiles}
+                  zoneError={eobZoneError}
+                  {...eobHandlers}
                 />
               </div>
 
@@ -934,17 +1211,17 @@ function UploadPageInner() {
               </p>
 
               <button
-                onClick={() => billFile && setStep(2)}
-                disabled={!billFile}
+                onClick={() => billFiles.length > 0 && setStep(2)}
+                disabled={billFiles.length === 0}
                 style={{
                   marginTop: "40px",
                   width: "100%",
-                  backgroundColor: billFile ? "#C8A97E" : "#EFE9DD",
-                  color: billFile ? "#221C14" : "#8A7F6E",
+                  backgroundColor: billFiles.length > 0 ? "#C8A97E" : "#EFE9DD",
+                  color: billFiles.length > 0 ? "#221C14" : "#8A7F6E",
                   border: "none",
                   padding: "16px",
-                  cursor: billFile ? "pointer" : "not-allowed",
-                  ...sans("11px", billFile ? "#221C14" : "#8A7F6E"),
+                  cursor: billFiles.length > 0 ? "pointer" : "not-allowed",
+                  ...sans("11px", billFiles.length > 0 ? "#221C14" : "#8A7F6E"),
                   letterSpacing: "0.2em",
                   textTransform: "uppercase",
                   transition: "background-color 0.2s",
@@ -1312,10 +1589,10 @@ function UploadPageInner() {
                     Documents uploaded
                   </div>
                   {[
-                    { f: billFile, lbl: "Medical Bill" },
-                    { f: eobFile, lbl: "Explanation of Benefits" },
+                    { files: billFiles, lbl: "Medical Bill" },
+                    { files: eobFiles, lbl: "Explanation of Benefits" },
                   ]
-                    .filter((x) => x.f)
+                    .filter((x) => x.files.length > 0)
                     .map((x) => (
                       <div
                         key={x.lbl}
@@ -1327,7 +1604,11 @@ function UploadPageInner() {
                         }}
                       >
                         <CheckCircle size={14} color="#5E7E66" />
-                        <span style={{ ...sans("13px", "#5F5648") }}>{x.f!.name}</span>
+                        <span style={{ ...sans("13px", "#5F5648") }}>
+                          {x.files.length === 1
+                            ? x.files[0].file.name
+                            : `${x.lbl} — ${x.files.length} pages`}
+                        </span>
                       </div>
                     ))}
                 </div>
@@ -1355,16 +1636,16 @@ function UploadPageInner() {
 )}
 <button
   onClick={runAudit}
-  disabled={!tier || !billFile || loading}
+  disabled={!tier || billFiles.length === 0 || loading}
   style={{
     marginTop: "24px",
     width: "100%",
-    backgroundColor: tier && billFile && !loading ? "#C8A97E" : "#EFE9DD",
-    color: tier && billFile && !loading ? "#221C14" : "#8A7F6E",
+    backgroundColor: tier && billFiles.length > 0 && !loading ? "#C8A97E" : "#EFE9DD",
+    color: tier && billFiles.length > 0 && !loading ? "#221C14" : "#8A7F6E",
     border: "none",
     padding: "16px",
-    cursor: tier && billFile && !loading ? "pointer" : "not-allowed",
-    ...sans("11px", tier && billFile && !loading ? "#221C14" : "#8A7F6E"),
+    cursor: tier && billFiles.length > 0 && !loading ? "pointer" : "not-allowed",
+    ...sans("11px", tier && billFiles.length > 0 && !loading ? "#221C14" : "#8A7F6E"),
     letterSpacing: "0.2em",
     textTransform: "uppercase",
     transition: "background-color 0.2s",

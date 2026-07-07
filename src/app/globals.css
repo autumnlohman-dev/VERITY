@@ -92,3 +92,6 @@ h1, h2, h3, h4 {
   .r-grid-2 { grid-template-columns: 1fr !important; }
   .r-hero-h1 { font-size: 52px !important; }
 }
+
+/* Upload page: per-file uploading spinner */
+@keyframes spin { to { transform: rotate(360deg); } }

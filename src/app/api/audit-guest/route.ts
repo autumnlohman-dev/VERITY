@@ -5,7 +5,9 @@ import { isHeicBuffer } from '@/lib/heic'
 import { runFullAudit } from '@/lib/audit/runFullAudit'
 import { normalizeInsuranceType } from '@/lib/insuranceMapping'
 import { MAX_FILE_BYTES } from '@/lib/billExtractor'
-import { downloadBillBase64, isUuid, pathHasPrefix } from '@/lib/storage/bills'
+import { isUuid } from '@/lib/storage/bills'
+import { MergeError } from '@/lib/documents/mergePages'
+import { resolveSlot } from '@/lib/documents/resolveUpload'
 import { checkRateLimit, clientIp, decodedBase64Bytes } from '@/lib/rateLimit'
 import { NextResponse } from 'next/server'
 
@@ -24,59 +26,62 @@ const GUEST_RATE_WINDOW_SECONDS = 600
 // a guest sees are exactly the numbers they get once the case is saved.
 export async function POST(request: Request) {
   try {
-    const { fileBase64, billPath, fileName, insuranceType, eobFileBase64, eobPath, eobFileName, guestSessionId } =
-      await request.json()
+    const {
+      fileBase64, billPath, fileName, insuranceType,
+      eobFileBase64, eobPath, eobFileName, guestSessionId,
+      // Multi-file contract: ordered arrays — N files are N pages of ONE
+      // document, merged server-side before extraction.
+      billPaths, billFilesBase64, billFileNames,
+      eobPaths, eobFilesBase64, eobFileNames,
+    } = await request.json()
 
-    // Extension is only a hint here — an iPhone HEIC can arrive with no
-    // extension or an image/heic mimetype. We resolve the real type from the
-    // file's magic bytes after download (below) before rejecting anything.
-    let ext = String(fileName ?? '').split('.').pop()?.toLowerCase() ?? ''
-
-    // The bill (and EOB) arrive either as a scoped storage path — the primary
-    // path, so large files never touch this request body — or as inline base64
-    // for small/legacy callers. Any storage path must sit under this guest's own
-    // session folder so one guest can't read another's upload via a forged path.
-    const usingStorage = Boolean((typeof billPath === 'string' && billPath) || (typeof eobPath === 'string' && eobPath))
+    // Any storage path must sit under this guest's own session folder so one
+    // guest can't read another's upload via a forged path (enforced inside
+    // resolveSlot against the guest prefix).
+    const pathArrays = [billPaths, eobPaths].filter(Array.isArray).flat()
+    const usingStorage = Boolean(
+      (typeof billPath === 'string' && billPath) ||
+      (typeof eobPath === 'string' && eobPath) ||
+      pathArrays.length > 0
+    )
     if (usingStorage && !isUuid(guestSessionId)) {
       return NextResponse.json({ error: 'Missing session' }, { status: 400 })
     }
-    for (const p of [billPath, eobPath]) {
-      if (typeof p === 'string' && p && !pathHasPrefix(p, `guest/${guestSessionId}`)) {
-        return NextResponse.json({ error: 'Invalid upload reference' }, { status: 400 })
-      }
-    }
 
-    let billBase64: string
-    let resolvedEobBase64: string | undefined
+    let bill: Awaited<ReturnType<typeof resolveSlot>>
+    let eobSlot: Awaited<ReturnType<typeof resolveSlot>>
     try {
       const admin = createAdminClient()
-      billBase64 =
-        typeof billPath === 'string' && billPath
-          ? await downloadBillBase64(admin, billPath)
-          : typeof fileBase64 === 'string'
-          ? fileBase64
-          : ''
-      resolvedEobBase64 =
-        typeof eobPath === 'string' && eobPath
-          ? await downloadBillBase64(admin, eobPath)
-          : typeof eobFileBase64 === 'string' && eobFileBase64
-          ? eobFileBase64
-          : undefined
+      const prefix = `guest/${guestSessionId}`
+      bill = await resolveSlot(admin, prefix, {
+        paths: billPaths, base64s: billFilesBase64, names: billFileNames,
+        path: billPath, base64: fileBase64, name: fileName,
+      })
+      eobSlot = await resolveSlot(admin, prefix, {
+        paths: eobPaths, base64s: eobFilesBase64, names: eobFileNames,
+        path: eobPath, base64: eobFileBase64, name: eobFileName,
+      })
     } catch (e) {
-      console.error('Bill download error:', e)
+      if (e instanceof MergeError) {
+        return NextResponse.json({ error: e.message }, { status: e.status })
+      }
+      console.error('Bill download error:', e instanceof Error ? `${e.name}: ${e.message}` : 'unknown')
       return NextResponse.json(
         { error: 'We couldn’t read your uploaded file. Please try again.' },
         { status: 400 }
       )
     }
 
-    if (!billBase64) {
+    if (!bill.doc) {
       return NextResponse.json({ error: 'Missing file' }, { status: 400 })
     }
+    const billBase64 = bill.doc.base64
+    const resolvedEobBase64 = eobSlot.doc?.base64
 
     // Resolve the true type from content: a HEIC with no/odd extension is still
     // a HEIC (the extraction boundary transcodes it to JPEG). Reject only what is
     // genuinely unsupported, now that we've seen the bytes.
+    let ext = bill.doc.ext
     if (!isSupportedExt(ext) && isHeicBuffer(Buffer.from(billBase64, 'base64'))) ext = 'heic'
     if (!isSupportedExt(ext)) {
       return NextResponse.json(
@@ -124,14 +129,11 @@ export async function POST(request: Request) {
 
     // Anon client can read the public rules tables.
     const supabase = await createClient()
-    // Derive the EOB extension from the filename, falling back to the storage
-    // path (which embeds the original filename) so a missing eobFileName doesn't
-    // silently drop a perfectly readable EOB.
-    const eobExt =
-      (String(eobFileName ?? '').split('.').pop()?.toLowerCase() ?? '') ||
-      (typeof eobPath === 'string' ? eobPath.split('.').pop()?.toLowerCase() ?? '' : '')
+    // resolveSlot already derived the EOB extension (filename → storage path →
+    // 'pdf' for a merged multi-file document).
+    const eobExt = eobSlot.doc?.ext ?? ''
     console.info(
-      `audit-guest: EOB inputs — eobPath:${!!eobPath} eobBase64:${!!eobFileBase64} resolved:${!!resolvedEobBase64} ext:"${eobExt}"`
+      `audit-guest: EOB inputs — pages:${eobSlot.pageRefs.length} merged:${eobSlot.merged} resolved:${!!resolvedEobBase64} ext:"${eobExt}"`
     )
     const result = await runFullAudit({
       lineItems,

@@ -6,7 +6,9 @@ import { runFullAudit } from '@/lib/audit/runFullAudit'
 import { findDuplicateCase } from '@/lib/audit/dedup'
 import { normalizeInsuranceType } from '@/lib/insuranceMapping'
 import { MAX_FILE_BYTES } from '@/lib/billExtractor'
-import { downloadBillBase64, pathHasPrefix } from '@/lib/storage/bills'
+import { BILLS_BUCKET } from '@/lib/storage/bills'
+import { MergeError } from '@/lib/documents/mergePages'
+import { resolveSlot } from '@/lib/documents/resolveUpload'
 import { checkRateLimit, decodedBase64Bytes } from '@/lib/rateLimit'
 import { NextResponse } from 'next/server'
 
@@ -30,58 +32,57 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    const { caseId, billPath, billFileBase64, billFileName, eobPath, eobFileBase64, eobFileName } =
-      await request.json()
+    const {
+      caseId,
+      billPath, billFileBase64, billFileName,
+      eobPath, eobFileBase64, eobFileName,
+      // Multi-file contract: ordered arrays — N files are N pages of ONE
+      // document, merged server-side before extraction.
+      billPaths, billFilesBase64, billFileNames,
+      eobPaths, eobFilesBase64, eobFileNames,
+    } = await request.json()
 
     if (typeof caseId !== 'string' || !caseId) {
       return NextResponse.json({ error: 'Missing caseId' }, { status: 400 })
     }
-    // Extension is only a hint here — an iPhone HEIC can arrive with no
-    // extension or an image/heic mimetype. We resolve the real type from the
-    // file's magic bytes after download (below) before rejecting anything.
-    let ext = String(billFileName ?? '').split('.').pop()?.toLowerCase() ?? ''
 
-    // The bill (and EOB) arrive either as a scoped storage path — the primary
-    // path, so large files never touch this request body — or as inline base64
-    // for small/legacy callers. Any storage path must sit under this user's own
-    // folder so one user can't read another's upload via a forged path.
-    for (const p of [billPath, eobPath]) {
-      if (typeof p === 'string' && p && !pathHasPrefix(p, user.id)) {
-        return NextResponse.json({ error: 'Invalid upload reference' }, { status: 400 })
-      }
-    }
-
-    let billBase64: string
-    let resolvedEobBase64: string | undefined
+    // Resolve each slot (multi-file arrays or legacy single fields) into the
+    // ONE document the pipeline sees. Storage paths must sit under this user's
+    // own folder — enforced inside resolveSlot — so one user can't read
+    // another's upload via a forged path. Multi-file uploads merge to one PDF.
+    const admin = createAdminClient()
+    let bill: Awaited<ReturnType<typeof resolveSlot>>
+    let eobSlot: Awaited<ReturnType<typeof resolveSlot>>
     try {
-      const admin = createAdminClient()
-      billBase64 =
-        typeof billPath === 'string' && billPath
-          ? await downloadBillBase64(admin, billPath)
-          : typeof billFileBase64 === 'string'
-          ? billFileBase64
-          : ''
-      resolvedEobBase64 =
-        typeof eobPath === 'string' && eobPath
-          ? await downloadBillBase64(admin, eobPath)
-          : typeof eobFileBase64 === 'string' && eobFileBase64
-          ? eobFileBase64
-          : undefined
+      bill = await resolveSlot(admin, user.id, {
+        paths: billPaths, base64s: billFilesBase64, names: billFileNames,
+        path: billPath, base64: billFileBase64, name: billFileName,
+      })
+      eobSlot = await resolveSlot(admin, user.id, {
+        paths: eobPaths, base64s: eobFilesBase64, names: eobFileNames,
+        path: eobPath, base64: eobFileBase64, name: eobFileName,
+      })
     } catch (e) {
-      console.error('Bill download error:', e)
+      if (e instanceof MergeError) {
+        return NextResponse.json({ error: e.message }, { status: e.status })
+      }
+      console.error('Bill download error:', e instanceof Error ? `${e.name}: ${e.message}` : 'unknown')
       return NextResponse.json(
         { error: 'We couldn’t read your uploaded file. Please try again.' },
         { status: 400 }
       )
     }
 
-    if (!billBase64) {
+    if (!bill.doc) {
       return NextResponse.json({ error: 'Missing file' }, { status: 400 })
     }
+    const billBase64 = bill.doc.base64
+    const resolvedEobBase64 = eobSlot.doc?.base64
 
     // Resolve the true type from content: a HEIC with no/odd extension is still
     // a HEIC (the extraction boundary transcodes it to JPEG). Reject only what is
     // genuinely unsupported, now that we've seen the bytes.
+    let ext = bill.doc.ext
     if (!isSupportedExt(ext) && isHeicBuffer(Buffer.from(billBase64, 'base64'))) ext = 'heic'
     if (!isSupportedExt(ext)) {
       return NextResponse.json(
@@ -99,6 +100,23 @@ export async function POST(request: Request) {
         { error: 'That file is too large (20 MB max). Upload a smaller PDF or photo.' },
         { status: 413 }
       )
+    }
+
+    // Persist the merged artifact alongside the originals: the case record
+    // keeps one bill/EOB document plus references to its page files.
+    let billMergedPath: string | null = null
+    let eobMergedPath: string | null = null
+    for (const [slot, resolved] of [['bill', bill], ['eob', eobSlot]] as const) {
+      if (!resolved.merged || !resolved.doc) continue
+      const path = `${user.id}/${Date.now()}-${slot}-merged.pdf`
+      const { error: upErr } = await admin.storage
+        .from(BILLS_BUCKET)
+        .upload(path, Buffer.from(resolved.doc.base64, 'base64'), { contentType: 'application/pdf' })
+      if (upErr) {
+        // Non-fatal: the audit still runs from memory; only the stored artifact is missing.
+        console.error(`extract[${caseId}]: merged ${slot} artifact upload failed: ${upErr.message}`)
+      } else if (slot === 'bill') billMergedPath = path
+      else eobMergedPath = path
     }
 
     // Per-user throttle on the signed-in audit.
@@ -149,14 +167,11 @@ export async function POST(request: Request) {
         : {}
 
     const insuranceType = normalizeInsuranceType(caseRow.insurance_type ?? existingBillData.insuranceType)
-    // Derive the EOB extension from the filename, falling back to the storage
-    // path (which embeds the original filename) so a missing eobFileName doesn't
-    // silently drop a perfectly readable EOB.
-    const eobExt =
-      (String(eobFileName ?? '').split('.').pop()?.toLowerCase() ?? '') ||
-      (typeof eobPath === 'string' ? eobPath.split('.').pop()?.toLowerCase() ?? '' : '')
+    // resolveSlot already derived the EOB extension (filename → storage path →
+    // 'pdf' for a merged multi-file document).
+    const eobExt = eobSlot.doc?.ext ?? ''
     console.info(
-      `extract[${caseId}]: EOB inputs — eobPath:${!!eobPath} eobBase64:${!!eobFileBase64} resolved:${!!resolvedEobBase64} ext:"${eobExt}"`
+      `extract[${caseId}]: EOB inputs — pages:${eobSlot.pageRefs.length} merged:${eobSlot.merged} resolved:${!!resolvedEobBase64} ext:"${eobExt}"`
     )
 
     const result = await runFullAudit({
@@ -257,6 +272,12 @@ export async function POST(request: Request) {
       hasEob: result.hasEob,
       eobError: result.eobError,
       lowConfidence: result.lowConfidence,
+      // One bill/EOB record with page references: the original page files (in
+      // merge order) plus the merged artifact when the upload was multi-file.
+      ...(bill.pageRefs.length > 0 ? { billPages: bill.pageRefs } : {}),
+      ...(billMergedPath ? { billMergedPath } : {}),
+      ...(eobSlot.pageRefs.length > 0 ? { eobPages: eobSlot.pageRefs } : {}),
+      ...(eobMergedPath ? { eobMergedPath } : {}),
     }
 
     const { error: updateErr } = await supabase
