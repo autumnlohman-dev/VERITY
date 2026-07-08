@@ -7,6 +7,7 @@ import type {
   NormalizedCBSSet,
   TimelineEvent,
 } from './schema'
+import { normalizeDate } from './extractor'
 
 const COLLECTION_NOTICE_PERIOD_DAYS = 30 // FDCPA § 1692g
 
@@ -90,10 +91,16 @@ function amountsMatch(a: number | undefined, b: number | undefined): boolean {
   return Math.abs(a - b) <= AMOUNT_MATCH_TOLERANCE
 }
 
-function datesMatch(a: string | undefined, b: string | undefined): boolean {
+// Exported for unit tests (cbsMatching.test.ts) — not part of the public API.
+export function datesMatch(a: string | undefined, b: string | undefined): boolean {
   // Only a constraint when both sides carry a date; otherwise don't block.
   if (!a || !b) return true
-  return a === b
+  // Bill-side dates arrive verbatim from vision output (e.g. "03/14/2025")
+  // while EOB-side dates are already ISO ("2025-03-14") — normalize both so
+  // the amount+date pairing fallback isn't defeated by formatting.
+  // normalizeDate returns its input unchanged when it can't parse, so this
+  // degrades to raw equality for unparseable strings.
+  return normalizeDate(a) === normalizeDate(b)
 }
 
 interface LinePair {

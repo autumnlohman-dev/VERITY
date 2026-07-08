@@ -49,7 +49,12 @@ function extractDate(text: string, labels: string[]): string | undefined {
   return undefined
 }
 
-function normalizeDate(raw: string): string {
+// Shared date normalizer: MM/DD/YYYY (and 2-digit-year / dash variants) → ISO
+// YYYY-MM-DD. Returns the input unchanged when it doesn't parse, so comparing
+// two normalized values degrades to raw equality for unparseable strings.
+// Exported because the normalizer's bill↔EOB line matching must compare a
+// verbatim bill date (e.g. "03/14/2025") against an already-ISO EOB date.
+export function normalizeDate(raw: string): string {
   if (!raw) return ''
   // Already ISO
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
