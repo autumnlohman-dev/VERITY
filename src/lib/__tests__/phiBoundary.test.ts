@@ -6,7 +6,7 @@
  * clean prose must pass through untouched.
  */
 import { describe, it, expect } from 'vitest';
-import { deidentifyFreeText } from '../ai/phiBoundary';
+import { deidentifyFreeText, validateBedrockEnv } from '../ai/phiBoundary';
 
 describe('deidentifyFreeText — known identifier literals', () => {
   it('scrubs a supplied patient name (case-insensitive)', () => {
@@ -79,5 +79,45 @@ describe('deidentifyFreeText — acceptance combo (H6)', () => {
     expect(r.text).toContain('[PHONE]');
     expect(r.text).toContain('[ACCOUNT NUMBER]');
     expect(r.text).toContain('[REDACTED]');
+  });
+});
+
+describe('validateBedrockEnv — fail-fast Bedrock config validation', () => {
+  it('accepts a cross-region inference-profile ID with a region', () => {
+    expect(
+      validateBedrockEnv({
+        BEDROCK_MODEL_ID: 'us.anthropic.claude-sonnet-4-6-v1:0',
+        AWS_REGION: 'us-east-1',
+      })
+    ).toEqual([]);
+  });
+
+  it('rejects a missing model ID, naming the variable', () => {
+    const problems = validateBedrockEnv({ AWS_REGION: 'us-east-1' });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('BEDROCK_MODEL_ID');
+    expect(problems[0]).toContain('us.anthropic.claude-');
+  });
+
+  it('rejects the bare model-ID form (anthropic.claude-...)', () => {
+    const problems = validateBedrockEnv({
+      BEDROCK_MODEL_ID: 'anthropic.claude-sonnet-4-6-v1:0',
+      AWS_REGION: 'us-east-1',
+    });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('cross-region inference-profile');
+    expect(problems[0]).toContain('anthropic.claude-sonnet-');
+  });
+
+  it('rejects a missing region, naming the variable', () => {
+    const problems = validateBedrockEnv({
+      BEDROCK_MODEL_ID: 'us.anthropic.claude-sonnet-4-6-v1:0',
+    });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('AWS_REGION');
+  });
+
+  it('reports every problem at once for the smoke script', () => {
+    expect(validateBedrockEnv({})).toHaveLength(2);
   });
 });

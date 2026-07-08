@@ -53,12 +53,52 @@ function bedrockEnabled(): boolean {
   return process.env.ANTHROPIC_BACKEND === 'bedrock'
 }
 
+// Bedrock requires the CROSS-REGION INFERENCE-PROFILE model ID form
+// (us.anthropic.claude-...), not the bare model ID (anthropic.claude-...):
+// on-demand throughput rejects the bare form, and the failure would otherwise
+// surface as a cryptic invocation error mid-request.
+const BEDROCK_PROFILE_ID_PATTERN = /^us\.anthropic\./
+
+// Pure fail-fast validation of the Bedrock configuration. Returns a list of
+// specific problems (empty = valid) so the boundary can throw before any
+// client is constructed and the smoke script can print every issue at once.
+// Exported for scripts/bedrock-smoke.ts and tests.
+export function validateBedrockEnv(env: Record<string, string | undefined>): string[] {
+  const problems: string[] = []
+  const modelId = env.BEDROCK_MODEL_ID?.trim()
+  if (!modelId) {
+    problems.push(
+      'BEDROCK_MODEL_ID is not set. Set it to the Bedrock cross-region inference-profile ID (us.anthropic.claude-...).'
+    )
+  } else if (!BEDROCK_PROFILE_ID_PATTERN.test(modelId)) {
+    problems.push(
+      `BEDROCK_MODEL_ID must be the cross-region inference-profile form (us.anthropic.claude-...); got a value starting with "${modelId.slice(0, 24)}". The bare model ID (anthropic.claude-...) is rejected by on-demand throughput.`
+    )
+  }
+  if (!env.AWS_REGION?.trim()) {
+    problems.push('AWS_REGION is not set (e.g. us-east-1).')
+  }
+  return problems
+}
+
+function assertBedrockConfig(): void {
+  const problems = validateBedrockEnv(process.env)
+  if (problems.length > 0) {
+    throw new Error(`ANTHROPIC_BACKEND=bedrock is misconfigured: ${problems.join(' ')}`)
+  }
+}
+
 let _client: BoundaryClient | null = null
 function client(): BoundaryClient {
   if (!_client) {
-    _client = bedrockEnabled()
-      ? (new AnthropicBedrock({ awsRegion: process.env.AWS_REGION }) as unknown as BoundaryClient)
-      : new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    if (bedrockEnabled()) {
+      // Fail fast at construction, naming the misconfigured var, before any
+      // request (and before any payload) exists.
+      assertBedrockConfig()
+      _client = new AnthropicBedrock({ awsRegion: process.env.AWS_REGION }) as unknown as BoundaryClient
+    } else {
+      _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    }
   }
   return _client
 }
@@ -67,13 +107,8 @@ function client(): BoundaryClient {
 // canonical Anthropic model name and the boundary rewrites it at the edge.
 function resolveModel(model: string): string {
   if (!bedrockEnabled()) return model
-  const id = process.env.BEDROCK_MODEL_ID
-  if (!id) {
-    throw new Error(
-      'ANTHROPIC_BACKEND=bedrock requires BEDROCK_MODEL_ID (the Bedrock inference-profile ID)'
-    )
-  }
-  return id
+  assertBedrockConfig()
+  return process.env.BEDROCK_MODEL_ID!.trim()
 }
 
 // Structural size of an outbound message: counts and character totals only —
@@ -114,15 +149,17 @@ export async function boundedMessage(
 ): Promise<Anthropic.Message> {
   const shape = payloadShape(params)
   const backend = opts?.injectedClient ? 'injected' : bedrockEnabled() ? 'bedrock' : 'direct'
-  // PHI-SAFE: stage, class, backend, and shape only — never content.
-  console.info(
-    `phiBoundary[${stage}]: class=${payloadClass}, backend=${backend}, blocks=${shape.blocks}, ` +
-      `documentBlocks=${shape.documentBlocks}, textChars=${shape.textChars}, ` +
-      `maxTokens=${params.max_tokens}`
-  )
   // Injected clients (tests) bypass model rewriting; live traffic resolves the
   // model per backend.
   const finalParams = opts?.injectedClient ? params : { ...params, model: resolveModel(params.model) }
+  // PHI-SAFE: stage, class, backend, resolved model ID, and shape only — never
+  // content. This line is the post-flip verification that PHI calls actually
+  // route through Bedrock: backend=bedrock + the us.anthropic... model ID.
+  console.info(
+    `phiBoundary[${stage}]: class=${payloadClass}, backend=${backend}, model=${finalParams.model}, ` +
+      `blocks=${shape.blocks}, documentBlocks=${shape.documentBlocks}, textChars=${shape.textChars}, ` +
+      `maxTokens=${params.max_tokens}`
+  )
   const c: BoundaryClient = opts?.injectedClient ?? client()
   return c.messages.create(finalParams, opts?.timeoutMs ? { timeout: opts.timeoutMs } : undefined)
 }
@@ -213,14 +250,19 @@ export function deidentifyFreeText(
 
 // PHI-safe error logging: an Anthropic APIError (and some transport errors) can
 // echo request content. Log identity-free fields only, never the object.
+// Bedrock SDK errors are NOT reliably instances of @anthropic-ai/sdk's
+// APIError (the bedrock package bundles its own core, so cross-package
+// instanceof fails); the structural branch extracts the same fields (status,
+// name, truncated message) so Bedrock failures log with equal fidelity.
 export function logAnthropicError(stage: string, error: unknown): void {
   if (error instanceof Anthropic.APIError) {
     console.error(`phiBoundary[${stage}] Anthropic error: status=${error.status}, ${error.name}: ${error.message}`)
     return
   }
-  const e = error as { name?: unknown; message?: unknown }
+  const e = error as { status?: unknown; name?: unknown; message?: unknown }
+  const status = typeof e?.status === 'number' ? `status=${e.status}, ` : ''
   console.error(
-    `phiBoundary[${stage}] error: ${typeof e?.name === 'string' ? e.name : 'Error'}: ` +
+    `phiBoundary[${stage}] error: ${status}${typeof e?.name === 'string' ? e.name : 'Error'}: ` +
       `${typeof e?.message === 'string' ? e.message.slice(0, 300) : 'unknown'}`
   )
 }
