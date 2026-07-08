@@ -103,10 +103,10 @@ describe('contrast floor (WCAG AA 4.5:1) for token text pairs in use', () => {
     ['ink', 'surface-raised'],
     ['ink-soft', 'surface'],
     ['ink-soft', 'surface-raised'],
-    ['brand', 'surface'],
+    ['brand', 'surface'], // bronze links / emphasized figures on cream
     ['urgent-red', 'surface'],
     ['urgent-red', 'surface-raised'],
-    ['surface-raised', 'brand'], // button text on brand buttons
+    ['ink', 'brand-fill'], // the ONLY allowed text on camel CTA fills
     ['surface-raised', 'urgent-red'], // destructive button text
   ];
 
@@ -120,6 +120,34 @@ describe('contrast floor (WCAG AA 4.5:1) for token text pairs in use', () => {
     expect(contrast(t['urgent-amber'], t['surface'])).toBeLessThan(4.5); // documents WHY the rule exists
     const offenders = allUiSource()
       .filter((f) => /color:\s*["']var\(--urgent-amber\)|label\(["']var\(--urgent-amber\)/.test(f.content))
+      .map((f) => f.path);
+    expect(offenders).toEqual([]);
+  });
+
+  it('cream text on brand-fill is forbidden (fails AA); camel fills always carry ink text', () => {
+    // Documents WHY: cream on camel measurably fails.
+    expect(contrast(t['surface-raised'], t['brand-fill'])).toBeLessThan(4.5);
+    expect(contrast(t['surface'], t['brand-fill'])).toBeLessThan(4.5);
+    // Guard: no style block that fills with brand-fill may set cream text
+    // nearby (style objects are small; a 300-char window covers them).
+    const offenders: string[] = [];
+    for (const f of allUiSource()) {
+      let idx = f.content.indexOf('var(--brand-fill)');
+      while (idx !== -1) {
+        const windowText = f.content.slice(Math.max(0, idx - 300), idx + 300);
+        if (/color:\s*["']var\(--surface|sans\(["'][^"']+["'],\s*["']var\(--surface/.test(windowText)) {
+          offenders.push(f.path);
+          break;
+        }
+        idx = f.content.indexOf('var(--brand-fill)', idx + 1);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('the green brand family is retired', () => {
+    const offenders = allUiSource()
+      .filter((f) => /#2E7D5B|#1E5940/i.test(f.content))
       .map((f) => f.path);
     expect(offenders).toEqual([]);
   });

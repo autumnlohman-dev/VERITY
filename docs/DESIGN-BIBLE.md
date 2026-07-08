@@ -119,7 +119,7 @@ UI task touching that screen.
 - Contrast through weight extremes (300 vs 700+) and size jumps of 2.5–3x,
   not 400-vs-600 timidity.
 
-### Color (LOCKED 2026-07-08 — Option C, charcoal + green accent)
+### Color (LOCKED 2026-07-08, palette v2 same day — bronze replaces green)
 - The palette, as CSS variables in `globals.css` (semantic names only; **no
   component may contain a hex literal**):
   - `--surface: #F6F3EC` (the ONE cream; the other two die)
@@ -127,11 +127,18 @@ UI task touching that screen.
   - `--ink: #33312B` (primary text)
   - `--ink-soft: #5C594F` (secondary text)
   - `--line: #E2DACB` (hairline borders)
-  - `--brand: #2E7D5B` (actions and links ONLY; the UI is neutral at rest,
-    green appears when something is tappable)
-  - `--brand-deep: #1E5940` (hover/active)
+  - `--brand: #8A6A35` (deep bronze — links, emphasized figures, any gold
+    text on cream; the UI is neutral at rest, bronze appears when something
+    is tappable or emphasized)
+  - `--brand-fill: #C9A876` (camel — button/CTA fills, ALWAYS with `--ink`
+    text, never cream text: cream on camel fails contrast and is forbidden
+    by a guard test)
+  - `--brand-deep: #6E5222` (hover/active)
   - `--urgent-amber: #B7791F` and `--urgent-red: #A32D2D` (reserved for
     genuine deadlines/critical findings per the rule below)
+- Rationale: the palette is anchored to the marketing landing aesthetic —
+  bronze/camel on editorial warm paper. The green family (#2E7D5B) is
+  retired.
 - **One dominant brand color + one accent + warm neutrals.** Everything else
   is noise.
 - Semantic colors are reserved: red/amber ONLY for genuine urgency (a real

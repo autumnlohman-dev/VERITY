@@ -104,8 +104,8 @@ function Nav() {
       <Link href="/upload" style={{ textDecoration: "none" }}>
         <span
           style={{
-            ...sans("11px", "var(--surface-raised)"),
-            backgroundColor: "var(--brand)",
+            ...sans("11px", "var(--ink)"),
+            backgroundColor: "var(--brand-fill)",
             padding: "12px 24px",
             letterSpacing: "0.2em",
             textTransform: "uppercase",
@@ -406,8 +406,8 @@ function EmptyState() {
           <Link href="/upload" style={{ textDecoration: "none", marginTop: "40px", display: "inline-block" }}>
             <span
               style={{
-                ...sans("11px", "var(--surface-raised)"),
-                backgroundColor: "var(--brand)",
+                ...sans("11px", "var(--ink)"),
+                backgroundColor: "var(--brand-fill)",
                 padding: "16px 32px",
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
@@ -503,7 +503,7 @@ function DeleteConfirmModal({
             onClick={onConfirm}
             disabled={deleting}
             style={{
-              ...sans("11px", "var(--surface-raised)"),
+              ...sans("11px", "var(--ink)"),
               letterSpacing: "0.2em",
               textTransform: "uppercase",
               backgroundColor: "var(--urgent-red)",
@@ -664,8 +664,8 @@ export default function DashboardPage() {
   const primaryHasLetter = primary.c.status === "letter_ready" || mailed(primary.c);
 
   const actionButtonStyle: React.CSSProperties = {
-    ...sans("11px", "var(--surface-raised)"),
-    backgroundColor: "var(--brand)",
+    ...sans("11px", "var(--ink)"),
+    backgroundColor: "var(--brand-fill)",
     padding: "14px 28px",
     letterSpacing: "0.2em",
     textTransform: "uppercase",

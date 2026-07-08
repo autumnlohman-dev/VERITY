@@ -1,18 +1,21 @@
 @import "tailwindcss";
 
-/* ─── VERITY design tokens (DESIGN-BIBLE, LOCKED 2026-07-08) ───────────────
-   Option C: charcoal + green accent. Semantic names only; no component may
-   contain a hex literal. The UI is neutral at rest; --brand (green) appears
-   only where something is tappable; --urgent-* are reserved for genuine
-   deadlines and critical findings. */
+/* ─── VERITY design tokens (DESIGN-BIBLE, LOCKED 2026-07-08; palette v2) ────
+   Palette v2: bronze/camel on editorial warm paper, anchored to the marketing
+   landing aesthetic. Semantic names only; no component may contain a hex
+   literal. The UI is neutral at rest; bronze appears where something is
+   tappable or emphasized; --brand-fill is ALWAYS paired with --ink text
+   (cream on camel fails contrast and is guard-tested); --urgent-* are
+   reserved for genuine deadlines and critical findings. */
 :root {
   --surface: #F6F3EC;        /* the ONE cream */
   --surface-raised: #FCFAF5;
   --ink: #33312B;            /* primary text */
   --ink-soft: #5C594F;       /* secondary text */
   --line: #E2DACB;           /* hairline borders */
-  --brand: #2E7D5B;          /* actions and links ONLY */
-  --brand-deep: #1E5940;     /* hover/active */
+  --brand: #8A6A35;          /* deep bronze: links, emphasized figures */
+  --brand-fill: #C9A876;     /* camel: button/CTA fills, ALWAYS with --ink text */
+  --brand-deep: #6E5222;     /* hover/active */
   --urgent-amber: #B7791F;   /* reserved: genuine deadlines */
   --urgent-red: #A32D2D;     /* reserved: genuine critical findings */
 }
@@ -25,6 +28,7 @@
   --color-ink-soft: var(--ink-soft);
   --color-line: var(--line);
   --color-brand: var(--brand);
+  --color-brand-fill: var(--brand-fill);
   --color-brand-deep: var(--brand-deep);
   --color-urgent-amber: var(--urgent-amber);
   --color-urgent-red: var(--urgent-red);
@@ -32,13 +36,13 @@
   /* shadcn compat (kept minimal, mapped to tokens) */
   --color-background: var(--surface);
   --color-foreground: var(--ink);
-  --color-primary: var(--brand);
-  --color-primary-foreground: var(--surface-raised);
+  --color-primary: var(--brand-fill);
+  --color-primary-foreground: var(--ink);
   --color-secondary: var(--surface-raised);
   --color-secondary-foreground: var(--ink);
   --color-muted-foreground: var(--ink-soft);
   --color-accent: var(--brand);
-  --color-accent-foreground: var(--surface-raised);
+  --color-accent-foreground: var(--ink);
   --color-destructive: var(--urgent-red);
   --color-border: var(--line);
   --color-input: var(--line);

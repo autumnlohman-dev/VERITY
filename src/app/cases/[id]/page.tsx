@@ -1024,8 +1024,8 @@ export default function CaseDetailPage({
               onClick={() => void handleStaleRerun()}
               disabled={rerunning}
               style={{
-                ...sans("10px", "var(--surface-raised)"),
-                backgroundColor: "var(--brand)",
+                ...sans("10px", "var(--ink)"),
+                backgroundColor: "var(--brand-fill)",
                 border: "none",
                 padding: "10px 20px",
                 letterSpacing: "0.2em",
