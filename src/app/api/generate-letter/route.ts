@@ -8,6 +8,7 @@ import { boundedMessage, deidentifyFreeText } from '@/lib/ai/phiBoundary'
 import { checkRateLimit } from '@/lib/rateLimit'
 import { letterRecipient } from '@/lib/letters/recipient'
 import { reconcileLetterNumbers } from '@/lib/letters/reconcile'
+import { JUSTIFICATION_ONLY_WHEN_ADJUDICATED } from '@/lib/audit/savings'
 
 // The Anthropic SDK needs the Node runtime (never edge). A full evidentiary
 // letter is ~6000 output tokens (≈90–120s at Sonnet speeds), so the old 60s
@@ -191,12 +192,25 @@ export async function POST(request: Request) {
       typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null
     const billPatientResp = numOrNull(billDataObj.billPatientResponsibility)
     const eobPatientResp = numOrNull(billDataObj.eobPatientResponsibility)
+
+    // Fully adjudicated claim (the EOB states a "You Owe" total): benchmark and
+    // MUE findings request justification but demand $0 — the correction the
+    // letter asks for is the cross-document delta. Derived server-side from the
+    // persisted EOB total (never trusted from the client payload), so the
+    // summary table's total always equals the case's headline savings.
+    const claimAdjudicated = eobPatientResp !== null
+    const letterErrors = disputableErrors.map((e) => {
+      const justificationOnly =
+        claimAdjudicated && JUSTIFICATION_ONLY_WHEN_ADJUDICATED.has(e.error_type)
+      return {
+        ...e,
+        justification_only: justificationOnly,
+        correction_amount: justificationOnly ? 0 : Math.max(0, e.billed_amount - e.expected_amount),
+      }
+    })
     const findingAmounts = [
       ...crossDocFindings.map((d) => ({ type: d.finding_type, amount: d.estimated_dollar_impact })),
-      ...disputableErrors.map((e) => ({
-        type: e.error_type,
-        amount: Math.max(0, e.billed_amount - e.expected_amount),
-      })),
+      ...letterErrors.map((e) => ({ type: e.error_type, amount: e.correction_amount })),
     ]
     const recon = reconcileLetterNumbers({
       totalBilled: safeCaseData.amount_billed,
@@ -330,8 +344,8 @@ ${JSON.stringify(crossDocFindings, null, 2)}
 }${
   errorCount > 0
     ? `
-CODING/BILLING ERRORS FROM THE AUDIT (present these after the cross-document findings). Reference each error's "rule_violated" text introduced as "Applicable authority: …" without altering its substance — in particular, do NOT relabel a Clinical Laboratory Fee Schedule citation as the Physician Fee Schedule (or vice versa). CMS-benchmark (fee schedule) findings are requests for justification or repricing — phrase them as such, never as an amount the provider owes:
-${JSON.stringify(disputableErrors, null, 2)}`
+CODING/BILLING ERRORS FROM THE AUDIT (present these after the cross-document findings). Reference each error's "rule_violated" text introduced as "Applicable authority: …" without altering its substance — in particular, do NOT relabel a Clinical Laboratory Fee Schedule citation as the Physician Fee Schedule (or vice versa). CMS-benchmark (fee schedule) findings are requests for justification or repricing — phrase them as such, never as an amount the provider owes. Each error's "correction_amount" is the ONLY dollar figure it may contribute to the demanded correction. For errors marked "justification_only": true, their benchmark difference is NOT included in the summary correction and must never be phrased as if it were — phrase each one as "justification requested; any resulting reduction would lower the balance further", and list it in the summary table with a correction amount of $0.00:
+${JSON.stringify(letterErrors, null, 2)}`
     : ''
 }${userNotesSection}${emReviewSection}
 
@@ -340,8 +354,11 @@ SENDER BLOCK — begin the letter with exactly these placeholder tokens, each on
 [ADDRESS]
 [PHONE]
 [EMAIL]
+[DATE]
 
-The ONLY bracketed placeholders allowed anywhere in the letter are: [PATIENT NAME], [ADDRESS], [PHONE], [EMAIL], [ACCOUNT NUMBER]${isSelfPay ? '' : ', [MEMBER ID]'}. Represent the patient's full mailing address with the single token [ADDRESS] — never split it into separate street / city / state / ZIP lines, and never add a "[City, State, ZIP]" line. Reference the account number as [ACCOUNT NUMBER] where appropriate.${isSelfPay ? ' This is a SELF-PAY / uninsured patient: do NOT include a Member ID line or any insurer/member-portal references.' : ''}
+Date the letter with the single token [DATE] — NEVER write an actual calendar date as the letter's date; the system fills it with the real date when the patient downloads the letter. (Dates of service and document dates from the findings data are fine to state.)
+
+The ONLY bracketed placeholders allowed anywhere in the letter are: [PATIENT NAME], [ADDRESS], [PHONE], [EMAIL], [DATE], [ACCOUNT NUMBER]${isSelfPay ? '' : ', [MEMBER ID]'}. Represent the patient's full mailing address with the single token [ADDRESS] — never split it into separate street / city / state / ZIP lines, and never add a "[City, State, ZIP]" line. Reference the account number as [ACCOUNT NUMBER] where appropriate.${isSelfPay ? ' This is a SELF-PAY / uninsured patient: do NOT include a Member ID line or any insurer/member-portal references.' : ''}
 
 The letter should:
 1. Be addressed to ${addressee}${recipient === 'provider' && !isSelfPay ? ' (this is a dispute of the PROVIDER\'s bill against the insurer\'s adjudication — do not frame it as an insurance appeal, and do not tell the reader to use an insurer portal)' : ''}${recipient === 'insurer' ? ' (this is an appeal of the insurer\'s adjudication — frame requests to the plan, not the provider)' : ''}

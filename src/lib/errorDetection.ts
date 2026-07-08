@@ -55,6 +55,10 @@ export interface BillingError {
   confidence: Confidence
   explanation: string
   rule_violated: string
+  /** Set when the EOB adjudicated the claim in full ("You Owe" total): this
+   *  finding stays visible as a justification request but contributes $0 to
+   *  potential savings and to a letter's demanded correction. */
+  justification_only?: boolean
 }
 
 export type InsuranceType =

@@ -250,40 +250,68 @@ export function calculateDeadlines(
 
   }
 
-  // ── NSA balance-billing card — at most ONE per case ──────────────────────────
+  // ── Cross-document dispute cards — at most ONE of each per case ─────────────
   // Insured patients only (self-pay gets the GFE/PPDR variant through the rules
-  // loop above — emitting both was a guaranteed duplicate), and only when a
-  // finding actually supports the NSA: a per-line balance-billing violation, or
-  // a patient-responsibility mismatch whose regulations cite the NSA (the
-  // normalizer attaches it only with emergency context). Hoisted out of the
-  // per-document loop, which stamped one card per document carrying a billDate.
-  const nsaQualifying = cbsSet.crossDocumentDiscrepancies.filter(
-    (d) =>
-      d.type === 'balance_billing_violation' ||
-      (d.type === 'patient_responsibility_mismatch' &&
-        (d.applicableRegulations ?? []).some((r) => /no surprises/i.test(r)))
-  )
+  // loop above — emitting both was a guaranteed duplicate). Titles derive from
+  // the actual finding type: only a balance-billing VIOLATION is a No Surprises
+  // Act dispute; a patient-responsibility mismatch is a provider billing
+  // reconciliation (the NSA may appear among its citations with emergency
+  // context, but the dispute itself is "make the bill match the adjudication").
+  // Hoisted out of the per-document loop, which stamped one card per document
+  // carrying a billDate.
   const billDoc = cbsSet.documents.find(
     (d) => d.sourceDocumentType === 'itemized_bill' && d.billDate
   )
-  if (!selfPay && nsaQualifying.length > 0 && billDoc?.billDate) {
-    const rule = DEADLINE_RULES.find((r) => r.ruleId === 'nsa_balance_billing')!
-    const content = resolveRule(rule, selfPay)
-    const deadlineDate = addDays(billDoc.billDate, rule.daysFromTrigger)
-    const daysRemaining = daysUntilDate(deadlineDate)
-    results.push({
-      deadlineId: crypto.randomUUID(),
-      deadlineType: content.deadlineType,
-      description: content.description,
-      triggerDate: billDoc.billDate,
-      deadlineDate,
-      daysRemaining,
-      urgencyLevel: classifyUrgency(daysRemaining),
-      actionRequired: content.actionRequired,
-      escalationPath: content.escalationPath,
-      applicableRegulation: content.federalBasis,
-      estimatedRecovery: nsaQualifying.reduce((sum, d) => sum + d.estimatedDollarImpact, 0),
-    })
+  if (!selfPay && billDoc?.billDate) {
+    const nsaQualifying = cbsSet.crossDocumentDiscrepancies.filter(
+      (d) => d.type === 'balance_billing_violation'
+    )
+    if (nsaQualifying.length > 0) {
+      const rule = DEADLINE_RULES.find((r) => r.ruleId === 'nsa_balance_billing')!
+      const content = resolveRule(rule, selfPay)
+      const deadlineDate = addDays(billDoc.billDate, rule.daysFromTrigger)
+      const daysRemaining = daysUntilDate(deadlineDate)
+      results.push({
+        deadlineId: crypto.randomUUID(),
+        deadlineType: content.deadlineType,
+        description: content.description,
+        triggerDate: billDoc.billDate,
+        deadlineDate,
+        daysRemaining,
+        urgencyLevel: classifyUrgency(daysRemaining),
+        actionRequired: content.actionRequired,
+        escalationPath: content.escalationPath,
+        applicableRegulation: content.federalBasis,
+        estimatedRecovery: nsaQualifying.reduce((sum, d) => sum + d.estimatedDollarImpact, 0),
+      })
+    }
+
+    const reconciliation = cbsSet.crossDocumentDiscrepancies.filter(
+      (d) =>
+        d.type === 'patient_responsibility_mismatch' &&
+        (d.estimatedDollarImpact > 0 || d.severity === 'critical' || d.severity === 'high')
+    )
+    if (reconciliation.length > 0) {
+      const deadlineDate = addDays(billDoc.billDate, 120)
+      const daysRemaining = daysUntilDate(deadlineDate)
+      results.push({
+        deadlineId: crypto.randomUUID(),
+        deadlineType: 'Billing Dispute — Provider Reconciliation Deadline',
+        description:
+          "Dispute the bill with the provider's billing office and request it be reconciled to your insurer's adjudication",
+        triggerDate: billDoc.billDate,
+        deadlineDate,
+        daysRemaining,
+        urgencyLevel: classifyUrgency(daysRemaining),
+        actionRequired:
+          "Send a written dispute to the provider's billing office (certified mail or their portal) requesting a corrected statement matching the EOB's adjudicated patient responsibility. Include the EOB and the itemized bill. Dispute before the account ages toward collections.",
+        escalationPath:
+          'If unresolved: file a complaint with your state attorney general / consumer protection office, and ask your insurer to intervene on the adjudication',
+        applicableRegulation:
+          "Your plan's adjudication (EOB) establishes the enforceable patient responsibility; providers billing above it must justify or correct the balance",
+        estimatedRecovery: reconciliation.reduce((sum, d) => sum + d.estimatedDollarImpact, 0),
+      })
+    }
   }
 
   // Sort: missed first, then by days remaining ascending

@@ -16,16 +16,19 @@
  *  - ZERO balance-billing findings
  *  - NCCI (85025/80053) and MUE (J7050) demote to informational coding
  *    observations because the EOB adjudicated those lines separately
- *  - potential savings hard-capped at $3,641.01
+ *  - with the EOB's "You Owe" total present, benchmark/MUE findings on
+ *    UNMATCHED lines are justification-only ($0) — the headline savings is
+ *    the $300.00 cross-document delta, hard-capped at $3,641.01
  *  - the letter-number reconciliation guard FAILS LOUDLY on the pre-fix
  *    numbers (guard tested, not just the happy path)
  */
 import { describe, it, expect, vi } from 'vitest';
 import type { CanonicalBillingSchema } from '../cbs/schema';
 import { normalizeCBSSet } from '../cbs/normalizer';
-import { capPotentialSavings, computeRecoverable } from '../audit/savings';
+import { capPotentialSavings, computeRecoverable, markJustificationOnly } from '../audit/savings';
 import { reconcileLetterNumbers } from '../letters/reconcile';
 import { letterRecipient } from '../letters/recipient';
+import { calculateDeadlines } from '../deadlines/calculator';
 
 // ── Mocks so runAudit is testable without Supabase / Sentry / Next ────────────
 vi.mock('@sentry/nextjs', () => ({
@@ -217,6 +220,111 @@ describe('golden case #7A428426 — savings cap invariant', () => {
     expect(capPotentialSavings(-5, BILL_PR)).toBe(0);
     // No stated patient responsibility → raw figure stands.
     expect(capPotentialSavings(12549, null)).toBe(12549);
+  });
+});
+
+describe('golden case #7A428426 — headline savings on an adjudicated claim', () => {
+  // The real case: extraction left one bill line unmatched against the EOB, so
+  // the benchmark check priced a $1,519.07 overcharge on it. With the EOB's
+  // "You Owe" total present, that finding is a justification request, not
+  // recoverable dollars — the honest headline is the cross-document delta.
+  const unmatchedOvercharge = {
+    cpt_code: 'C9999',
+    description: 'UNMATCHED FACILITY LINE',
+    error_type: 'overcharge' as const,
+    billed_amount: 1719.07,
+    expected_amount: 200.0,
+    confidence: 'HIGH' as const,
+    explanation: '',
+    rule_violated: '',
+  };
+  const crossDocDelta = 300.0; // the $300.00 patient-responsibility mismatch
+
+  it('collapses the headline from $1,819.07 to the $300.00 cross-document delta', () => {
+    // Pre-fix: benchmark dollars on the unmatched line inflated the headline.
+    const preFix = capPotentialSavings(
+      computeRecoverable([unmatchedOvercharge], 20905) + crossDocDelta,
+      BILL_PR
+    );
+    expect(preFix).toBeCloseTo(1819.07, 2);
+
+    // Post-fix: the EOB carries a "You Owe" total → the overcharge is marked
+    // justification-only, contributes $0, and the headline is $300.00.
+    const marked = markJustificationOnly([unmatchedOvercharge], EOB_PR);
+    expect(marked[0].justification_only).toBe(true);
+    expect(computeRecoverable(marked, 20905)).toBe(0);
+    const headline = capPotentialSavings(
+      computeRecoverable(marked, 20905) + crossDocDelta,
+      BILL_PR
+    );
+    expect(headline).toBe(300.0);
+  });
+
+  it('marks MUE findings justification-only too, but leaves other types priced', () => {
+    const mue = { ...unmatchedOvercharge, error_type: 'mue' as const };
+    const duplicate = { ...unmatchedOvercharge, error_type: 'duplicate' as const };
+    const marked = markJustificationOnly([mue, duplicate], EOB_PR);
+    expect(marked[0].justification_only).toBe(true);
+    expect(marked[1].justification_only).toBeUndefined();
+    // A duplicate charge is a real correction even after adjudication.
+    expect(computeRecoverable(marked, 20905)).toBeCloseTo(1519.07, 2);
+  });
+
+  it('leaves benchmark dollars intact when there is no EOB "You Owe" total', () => {
+    const marked = markJustificationOnly([unmatchedOvercharge], null);
+    expect(marked[0].justification_only).toBeUndefined();
+    expect(computeRecoverable(marked, 20905)).toBeCloseTo(1519.07, 2);
+  });
+
+  it("letter reconciliation: TOTAL CORRECTION REQUESTED equals the headline (justification-only rows carry $0)", () => {
+    const r = reconcileLetterNumbers({
+      totalBilled: 20905,
+      billPatientResponsibility: BILL_PR,
+      eobPatientResponsibility: EOB_PR,
+      findings: [
+        { type: 'patient_responsibility_mismatch', amount: crossDocDelta },
+        { type: 'overcharge', amount: 0 }, // justification-only: excluded dollars
+      ],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.demandedTotal).toBe(300.0);
+  });
+});
+
+describe('golden case #7A428426 — deadline card titles derive from finding type', () => {
+  const result = normalizeCBSSet([makeBillCbs(), makeEobCbs()]);
+
+  it('a patient_responsibility_mismatch yields the provider-reconciliation card, never the NSA title', () => {
+    const deadlines = calculateDeadlines(result, { insuranceType: 'commercial' });
+    const titles = deadlines.map((d) => d.deadlineType);
+    expect(titles).toContain('Billing Dispute — Provider Reconciliation Deadline');
+    expect(titles).not.toContain('No Surprises Act Balance Billing Dispute');
+    const card = deadlines.find(
+      (d) => d.deadlineType === 'Billing Dispute — Provider Reconciliation Deadline'
+    )!;
+    expect(card.estimatedRecovery).toBe(300.0);
+  });
+
+  it('a balance_billing_violation still yields the NSA card', () => {
+    const withViolation = normalizeCBSSet([makeBillCbs(), makeEobCbs()]);
+    withViolation.crossDocumentDiscrepancies.push({
+      discrepancyId: 'test_bbv',
+      type: 'balance_billing_violation',
+      severity: 'critical',
+      confidenceScore: 0.9,
+      estimatedDollarImpact: 150,
+      documentA: 'bill_7A428426',
+      documentB: 'eob_7A428426',
+      fieldName: 'patientResponsibility',
+      valueA: '$1,350.00',
+      valueB: '$1,200.00',
+      description: 'test violation',
+      applicableRegulations: ['No Surprises Act (42 U.S.C. § 300gg-111)'],
+    });
+    const titles = calculateDeadlines(withViolation, { insuranceType: 'commercial' }).map(
+      (d) => d.deadlineType
+    );
+    expect(titles).toContain('No Surprises Act Balance Billing Dispute');
   });
 });
 

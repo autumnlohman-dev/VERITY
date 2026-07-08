@@ -88,8 +88,8 @@ export interface FullAuditResult {
 // Savings math lives in the dependency-light ./savings module (tests and
 // client code import it without this file's server-only graph); re-exported
 // here so existing server imports are unchanged.
-import { computeRecoverable, capPotentialSavings } from './savings'
-export { computeRecoverable, capPotentialSavings }
+import { computeRecoverable, capPotentialSavings, markJustificationOnly } from './savings'
+export { computeRecoverable, capPotentialSavings, markJustificationOnly }
 
 export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResult> {
   const {
@@ -211,10 +211,9 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
 
   // One CPT line, one finding: a line flagged as overcharge + unbundling +
   // patient-disputed is one charge counted three times. Strongest evidence wins.
-  const dedupedErrors = dedupeErrorsByLine(errors)
+  const dedupedRaw = dedupeErrorsByLine(errors)
 
   const totalBilled = lineItems.reduce((s, li) => s + Number(li.billed_amount || 0), 0)
-  const needsReviewCount = dedupedErrors.filter((e) => e.error_type === 'rate_unavailable').length
 
   // ── Honest totals ────────────────────────────────────────────────────────────
   const billPatientResponsibility =
@@ -227,6 +226,13 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
     eobCbs && typeof eobCbs.totalPatientResponsibility === 'number'
       ? eobCbs.totalPatientResponsibility
       : null
+
+  // Fully adjudicated claim (the EOB states a "You Owe" total): benchmark
+  // overcharges and MUE findings on lines the EOB didn't match stay visible as
+  // justification requests but contribute $0 — the enforceable obligation is
+  // the EOB total, so the honest headline is the cross-document delta.
+  const dedupedErrors = markJustificationOnly(dedupedRaw, eobPatientResponsibility)
+  const needsReviewCount = dedupedErrors.filter((e) => e.error_type === 'rate_unavailable').length
 
   // Partial-read guard: extracted lines summing materially below the bill's own
   // printed total means pages (or rows) were missed — say so loudly instead of
