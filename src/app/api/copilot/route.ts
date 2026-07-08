@@ -103,15 +103,21 @@ export async function POST(request: Request) {
       statement?: unknown
       caseId?: unknown
     }
-    // PHI boundary: the patient types what a live rep just said — it routinely
-    // quotes the patient's own name, phone, or account number back at them.
-    // Scrub before it crosses to the API (lib/ai/phiBoundary); coaching needs
-    // the substance of the statement, not the identifiers.
-    const statement = deidentifyFreeText(cap(body.statement, 2000).trim()).text
-    if (!statement) {
+    const rawStatement = cap(body.statement, 2000).trim()
+    if (!rawStatement) {
       return NextResponse.json({ error: 'Missing statement' }, { status: 400 })
     }
     const caseId = typeof body.caseId === 'string' ? body.caseId : null
+
+    // PHI boundary: the patient types what a live rep just said — it routinely
+    // quotes the patient's own name, phone, or account number back at them.
+    // Scrub before it crosses to the API (lib/ai/phiBoundary); coaching needs
+    // the substance of the statement, not the identifiers. The caseId doubles
+    // as the account reference in every letter we generate, so patients quote
+    // it back — scrub its literal value too.
+    const statement = deidentifyFreeText(rawStatement, {
+      accountNumber: caseId ?? undefined,
+    }).text
 
     // Resolve auth ONCE, before any Anthropic call — the throttle below keys on
     // it, and the previous shape (auth checked only inside the caseId branch)

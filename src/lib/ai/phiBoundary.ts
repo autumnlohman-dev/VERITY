@@ -143,6 +143,13 @@ export async function boundedMessage(
 const EMAIL_PATTERN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g
 const SSN_PATTERN = /\b\d{3}-\d{2}-\d{4}\b/g
 const PHONE_PATTERN = /(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g
+// A date is only PHI-shaped when the text SAYS it's a birth date — redacting
+// every date would destroy service dates, which the dispute analysis needs.
+const DOB_PATTERN =
+  /\b(?:dob|date of birth|born)\b[\s:.\-]{0,6}(?:\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}-\d{2}-\d{2})/gi
+// US street addresses: house number + street name + a street-type suffix.
+const ADDRESS_PATTERN =
+  /\d+\s+\w+(\s\w+)*\s(st|street|ave|avenue|rd|road|dr|drive|ln|lane|trl|trail|blvd|way|ct|court)\b/gi
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -191,6 +198,14 @@ export function deidentifyFreeText(
   out = out.replace(PHONE_PATTERN, () => {
     redactions += 1
     return '[PHONE]'
+  })
+  out = out.replace(DOB_PATTERN, () => {
+    redactions += 1
+    return '[REDACTED]'
+  })
+  out = out.replace(ADDRESS_PATTERN, () => {
+    redactions += 1
+    return '[REDACTED]'
   })
 
   return { text: out, redactions }

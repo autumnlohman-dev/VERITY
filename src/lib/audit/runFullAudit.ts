@@ -104,7 +104,12 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
   // whole audit, so we log and continue with the rules findings only.
   if (userNotes && userNotes.trim()) {
     try {
-      const disputeErrors = await analyzeDisputedProcedures(lineItems, userNotes)
+      // Pass the identifiers this pipeline knows so their literal values are
+      // scrubbed from the note (accountNumber is the case/account reference —
+      // the only identifier stored server-side under the de-id default).
+      const disputeErrors = await analyzeDisputedProcedures(lineItems, userNotes, {
+        accountNumber,
+      })
       if (disputeErrors.length > 0) errors.push(...disputeErrors)
     } catch (err) {
       logAnthropicError('dispute-analysis', err) // PHI-safe: never log the raw error object

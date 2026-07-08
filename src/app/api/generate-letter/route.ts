@@ -188,8 +188,9 @@ export async function POST(request: Request) {
     // PHI boundary: patient-written notes routinely carry names, phone numbers,
     // and account numbers — scrub before the prompt (lib/ai/phiBoundary). The
     // letter's identity lines are the intentional bracketed placeholders, so
-    // nothing is lost by scrubbing here.
-    const userNotes = deidentifyFreeText(rawUserNotes).text
+    // nothing is lost by scrubbing here. The caseId is the account reference
+    // printed on every letter, so patients quote it back — scrub its literal.
+    const userNotes = deidentifyFreeText(rawUserNotes, { accountNumber: caseId }).text
 
     const userNotesSection = userNotes.trim()
       ? `

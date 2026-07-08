@@ -1,17 +1,25 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { LineItem, BillingError } from './errorDetection'
-import { boundedMessage, deidentifyFreeText, logAnthropicError } from './ai/phiBoundary'
+import {
+  boundedMessage,
+  deidentifyFreeText,
+  logAnthropicError,
+  type KnownIdentifiers,
+} from './ai/phiBoundary'
 
 export async function analyzeDisputedProcedures(
   lineItems: LineItem[],
   userNotes: string,
+  known?: KnownIdentifiers,
   anthropic?: Anthropic
 ): Promise<BillingError[]> {
   // PHI boundary: userNotes is patient-written free text and routinely contains
   // names ("my daughter…"), phone numbers, and account numbers. Scrub before it
   // crosses to the API — the dispute analysis needs the situation, not the
-  // identity. (EquiAI principle 2; see lib/ai/phiBoundary.)
-  const { text: scrubbedNotes } = deidentifyFreeText(userNotes.trim())
+  // identity. (EquiAI principle 2; see lib/ai/phiBoundary.) The caller passes
+  // the identifiers it knows (account/case reference) so their literal values
+  // are stripped even where the shape patterns wouldn't catch them.
+  const { text: scrubbedNotes } = deidentifyFreeText(userNotes.trim(), known)
   const trimmed = scrubbedNotes
   if (trimmed.length === 0 || lineItems.length === 0) return []
 
