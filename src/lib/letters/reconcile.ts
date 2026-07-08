@@ -56,7 +56,7 @@ export function reconcileLetterNumbers(n: LetterNumbers): ReconcileResult {
     demandedTotal > n.billPatientResponsibility + CENT
   ) {
     problems.push(
-      `Demanded corrections ($${demandedTotal.toFixed(2)}) exceed the bill's stated patient responsibility ($${n.billPatientResponsibility.toFixed(2)}) — a letter cannot dispute more than the patient owes.`
+      `Demanded corrections ($${demandedTotal.toFixed(2)}) exceed the bill's stated patient responsibility ($${n.billPatientResponsibility.toFixed(2)}), a letter cannot dispute more than the patient owes.`
     )
   }
 

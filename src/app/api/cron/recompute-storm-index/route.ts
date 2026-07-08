@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       const household = await loadHousehold(supabase, household_id);
       if (!household) {
         // Skip households with incomplete profiles (no plan or accumulators yet).
-        errors.push(`${household_id}: incomplete profile — skipped`);
+        errors.push(`${household_id}: incomplete profile, skipped`);
         continue;
       }
 
@@ -76,7 +76,7 @@ export async function GET(req: NextRequest) {
       });
 
       if (insErr) {
-        errors.push(`${household_id}: insert failed — ${insErr.message}`);
+        errors.push(`${household_id}: insert failed, ${insErr.message}`);
       } else {
         written++;
       }

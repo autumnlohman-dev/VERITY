@@ -155,7 +155,7 @@ export async function POST(request: Request) {
     // page recomputes/re-runs stale audits — send the user back through it.
     if (auditVersionOf(billDataObj) < AUDIT_LOGIC_VERSION) {
       console.warn(
-        `generate-letter[${caseId}]: REFUSED — audit is v${auditVersionOf(billDataObj)}, current is v${AUDIT_LOGIC_VERSION}.`
+        `generate-letter[${caseId}]: REFUSED, audit is v${auditVersionOf(billDataObj)}, current is v${AUDIT_LOGIC_VERSION}.`
       )
       return NextResponse.json(
         {
@@ -197,7 +197,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'This case has no disputable findings yet — the audit flagged items for manual review only. Upload a fully itemized bill (one that shows a billing code for every line) and your EOB, then re-run the audit.',
+            'This case has no disputable findings yet, the audit flagged items for manual review only. Upload a fully itemized bill (one that shows a billing code for every line) and your EOB, then re-run the audit.',
           code: 'nothing_disputable',
         },
         { status: 422 }
@@ -300,7 +300,7 @@ If the patient has described a service that was billed but not rendered, a proce
 ${renderEmReviewForPrompt(emReview)}
 
 E&M DISPUTE GUIDANCE:
-- Cite the CMS 2021 E&M guidelines revision (for office/outpatient CPT 99202–99215) and, where applicable, the 2023 revision for emergency department codes (99281–99285). Reference that levels must be supported by either medical decision-making complexity OR total time, not by a fixed per-visit amount.
+- Cite the CMS 2021 E&M guidelines revision (for office/outpatient CPT 99202-99215) and, where applicable, the 2023 revision for emergency department codes (99281-99285). Reference that levels must be supported by either medical decision-making complexity OR total time, not by a fixed per-visit amount.
 - Reference the patient's responses above as evidence the billed complexity level is not supported.
 - If the outcome is 'borderline', request that the provider produce documentation substantiating the billed level or downcode to the level supported by the encounter.
 - If the outcome is 'confirmed', request that the charge be adjusted to the E&M level supported by the visit's complexity and time.`
@@ -333,7 +333,10 @@ on behalf of a patient. Use precise regulatory language. Cite the specific feder
 rule violated for each error. Be firm but professional. Never threaten legal action.
 Never suggest involving an attorney unless the situation clearly warrants it.
 Format the letter professionally with proper sections and spacing.
-Always include specific CPT codes, dollar amounts, and regulatory citations.`,
+Always include specific CPT codes, dollar amounts, and regulatory citations.
+NEVER use em dashes or en dashes anywhere in the letter body. Use a comma,
+colon, period, or parentheses instead. Regular hyphens are fine and expected
+in codes, ranges, account numbers, and compound words.`,
       messages: [{
         role: 'user',
         // The bracketed tokens below ([PATIENT NAME] / [ACCOUNT NUMBER] /
@@ -346,7 +349,7 @@ Provider: ${safeCaseData.provider_name}
 Insurance Type: ${safeCaseData.insurance_type}
 Date of Service: ${safeCaseData.date_of_service || 'See attached bill'}
 
-AUTHORITATIVE NUMBERS — the letter must use EXACTLY these figures and no others. Total gross charges on the bill are LIST PRICES before insurance adjustments; the amount in dispute is never the gross charges:
+AUTHORITATIVE NUMBERS, the letter must use EXACTLY these figures and no others. Total gross charges on the bill are LIST PRICES before insurance adjustments; the amount in dispute is never the gross charges:
 - Total billed (gross charges, for context only): $${safeCaseData.amount_billed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 ${billPatientResp !== null ? `- Patient responsibility stated on the bill: $${billPatientResp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
 ${eobPatientResp !== null ? `- Patient responsibility per the EOB adjudication ("You Owe"): $${eobPatientResp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
@@ -354,38 +357,38 @@ ${eobPatientResp !== null ? `- Patient responsibility per the EOB adjudication (
 
 End the findings section with a summary table listing each finding and its correction amount; the table's rows MUST sum to exactly ${demandedTotalStr}, and the letter must contain the exact line "TOTAL CORRECTION REQUESTED: ${demandedTotalStr}". Never state any other total, never present a gross charge as an amount the patient was billed, and never claim a correction larger than the patient's responsibility.
 
-This dispute rests on exactly ${totalFindings} ${totalFindings === 1 ? 'finding' : 'findings'}: ${findingCount} cross-document ${findingCount === 1 ? 'finding' : 'findings'} established by comparing the bill against the patient's own Explanation of Benefits, and ${errorCount} coding/billing ${errorCount === 1 ? 'error' : 'errors'} from the audit. When you state the number of findings anywhere in the letter, use exactly ${totalFindings} — do not recount, round, or summarize to a different figure. Write a clearly formatted section for EVERY finding; do not omit, merge, or stop early.
+This dispute rests on exactly ${totalFindings} ${totalFindings === 1 ? 'finding' : 'findings'}: ${findingCount} cross-document ${findingCount === 1 ? 'finding' : 'findings'} established by comparing the bill against the patient's own Explanation of Benefits, and ${errorCount} coding/billing ${errorCount === 1 ? 'error' : 'errors'} from the audit. When you state the number of findings anywhere in the letter, use exactly ${totalFindings}, do not recount, round, or summarize to a different figure. Write a clearly formatted section for EVERY finding; do not omit, merge, or stop early.
 ${
   findingCount > 0
     ? `
-CROSS-DOCUMENT FINDINGS — LEAD WITH THESE. They are the primary grounds of the dispute: each is proven by the payer's own adjudication of this claim (the patient's EOB), not by an estimate. For each one: state the specific dollar amounts from the description, state the exact difference, and reference each entry of applicable_regulations introduced as "Applicable authority: …". These authority texts are paraphrased summaries of the law — NEVER present them as quotations, never wrap them in quotation marks, and never label anything "cited verbatim". Where a finding shows the EOB's patient responsibility, state plainly that the patient's obligation is that EOB amount and request the difference be written off:
+CROSS-DOCUMENT FINDINGS, LEAD WITH THESE. They are the primary grounds of the dispute: each is proven by the payer's own adjudication of this claim (the patient's EOB), not by an estimate. For each one: state the specific dollar amounts from the description, state the exact difference, and reference each entry of applicable_regulations introduced as "Applicable authority: …". These authority texts are paraphrased summaries of the law, NEVER present them as quotations, never wrap them in quotation marks, and never label anything "cited verbatim". Where a finding shows the EOB's patient responsibility, state plainly that the patient's obligation is that EOB amount and request the difference be written off:
 ${JSON.stringify(crossDocFindings, null, 2)}
 `
     : ''
 }${
   errorCount > 0
     ? `
-CODING/BILLING ERRORS FROM THE AUDIT (present these after the cross-document findings). Reference each error's "rule_violated" text introduced as "Applicable authority: …" without altering its substance — in particular, do NOT relabel a Clinical Laboratory Fee Schedule citation as the Physician Fee Schedule (or vice versa). CMS-benchmark (fee schedule) findings are requests for justification or repricing — phrase them as such, never as an amount the provider owes. Each error's "correction_amount" is the ONLY dollar figure it may contribute to the demanded correction. For errors marked "justification_only": true, their benchmark difference is NOT included in the summary correction and must never be phrased as if it were — phrase each one as "justification requested; any resulting reduction would lower the balance further", and list it in the summary table with a correction amount of $0.00:
+CODING/BILLING ERRORS FROM THE AUDIT (present these after the cross-document findings). Reference each error's "rule_violated" text introduced as "Applicable authority: …" without altering its substance, in particular, do NOT relabel a Clinical Laboratory Fee Schedule citation as the Physician Fee Schedule (or vice versa). CMS-benchmark (fee schedule) findings are requests for justification or repricing, phrase them as such, never as an amount the provider owes. Each error's "correction_amount" is the ONLY dollar figure it may contribute to the demanded correction. For errors marked "justification_only": true, their benchmark difference is NOT included in the summary correction and must never be phrased as if it were, phrase each one as "justification requested; any resulting reduction would lower the balance further", and list it in the summary table with a correction amount of $0.00:
 ${JSON.stringify(letterErrors, null, 2)}`
     : ''
 }${userNotesSection}${emReviewSection}
 
-SENDER BLOCK — begin the letter with exactly these placeholder tokens, each on its own line:
+SENDER BLOCK, begin the letter with exactly these placeholder tokens, each on its own line:
 [PATIENT NAME]
 [ADDRESS]
 [PHONE]
 [EMAIL]
 [DATE]
 
-Date the letter with the single token [DATE] — NEVER write an actual calendar date as the letter's date; the system fills it with the real date when the patient downloads the letter. (Dates of service and document dates from the findings data are fine to state.)
+Date the letter with the single token [DATE], NEVER write an actual calendar date as the letter's date; the system fills it with the real date when the patient downloads the letter. (Dates of service and document dates from the findings data are fine to state.)
 
-The ONLY bracketed placeholders allowed anywhere in the letter are: [PATIENT NAME], [ADDRESS], [PHONE], [EMAIL], [DATE], [ACCOUNT NUMBER]${isSelfPay ? '' : ', [MEMBER ID]'}. Represent the patient's full mailing address with the single token [ADDRESS] — never split it into separate street / city / state / ZIP lines, and never add a "[City, State, ZIP]" line. Reference the account number as [ACCOUNT NUMBER] where appropriate.${isSelfPay ? ' This is a SELF-PAY / uninsured patient: do NOT include a Member ID line or any insurer/member-portal references.' : ''}
+The ONLY bracketed placeholders allowed anywhere in the letter are: [PATIENT NAME], [ADDRESS], [PHONE], [EMAIL], [DATE], [ACCOUNT NUMBER]${isSelfPay ? '' : ', [MEMBER ID]'}. Represent the patient's full mailing address with the single token [ADDRESS], never split it into separate street / city / state / ZIP lines, and never add a "[City, State, ZIP]" line. Reference the account number as [ACCOUNT NUMBER] where appropriate.${isSelfPay ? ' This is a SELF-PAY / uninsured patient: do NOT include a Member ID line or any insurer/member-portal references.' : ''}
 
 The letter should:
-1. Be addressed to ${addressee}${recipient === 'provider' && !isSelfPay ? ' (this is a dispute of the PROVIDER\'s bill against the insurer\'s adjudication — do not frame it as an insurance appeal, and do not tell the reader to use an insurer portal)' : ''}${recipient === 'insurer' ? ' (this is an appeal of the insurer\'s adjudication — frame requests to the plan, not the provider)' : ''}
+1. Be addressed to ${addressee}${recipient === 'provider' && !isSelfPay ? ' (this is a dispute of the PROVIDER\'s bill against the insurer\'s adjudication, do not frame it as an insurance appeal, and do not tell the reader to use an insurer portal)' : ''}${recipient === 'insurer' ? ' (this is an appeal of the insurer\'s adjudication, frame requests to the plan, not the provider)' : ''}
 2. State each finding with its specific legal basis using the "Applicable authority: …" convention described above
-3. Request correction of each finding with its exact amount from the findings data — for patient-responsibility and balance-billing findings, request the difference above the EOB's stated patient responsibility be written off; for benchmark findings, request justification or repricing
-4. Reference ${isSelfPay ? 'the No Surprises Act good-faith-estimate protections and the Hospital Price Transparency Rule' : hasNsaBasis ? 'the No Surprises Act and applicable patient rights' : "the patient's plan-adjudication and appeal rights (do NOT cite the No Surprises Act — no finding in this case supports it)"}
+3. Request correction of each finding with its exact amount from the findings data, for patient-responsibility and balance-billing findings, request the difference above the EOB's stated patient responsibility be written off; for benchmark findings, request justification or repricing
+4. Reference ${isSelfPay ? 'the No Surprises Act good-faith-estimate protections and the Hospital Price Transparency Rule' : hasNsaBasis ? 'the No Surprises Act and applicable patient rights' : "the patient's plan-adjudication and appeal rights (do NOT cite the No Surprises Act, no finding in this case supports it)"}
 5. Include a professional closing requesting a corrected statement within 30 days`
       }]
     }, { timeoutMs: 290_000 })
@@ -413,6 +416,11 @@ The letter should:
     }
     if (/cited verbatim/i.test(letterContent)) {
       problems.push('labels a paraphrased authority as "cited verbatim"')
+    }
+    // Em/en dashes are a recognized AI-writing tell and undermine letter
+    // credibility (DESIGN-BIBLE copy ban). Regular hyphens are fine.
+    if (/[–—]/.test(letterContent)) {
+      problems.push('contains em or en dashes (banned in letter bodies)')
     }
     if (problems.length > 0) {
       console.error(`generate-letter[${caseId}]: generated letter failed consistency check:`, problems)

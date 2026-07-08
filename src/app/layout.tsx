@@ -1,24 +1,34 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, DM_Sans } from "next/font/google";
+import { Fraunces, Public_Sans, IBM_Plex_Mono } from "next/font/google";
+import { BRAND_NAME } from "@/lib/brand";
 import "./globals.css";
 
-const cormorant = Cormorant_Garamond({
+// Locked typography (DESIGN-BIBLE Part 3): Fraunces display with optical
+// sizing, Public Sans body, IBM Plex Mono 500 for every figure. Self-hosted
+// via next/font so there is no layout-shift flash.
+const fraunces = Fraunces({
   subsets: ["latin"],
-  weight: ["300", "400", "600"],
+  axes: ["opsz"],
   style: ["normal", "italic"],
-  variable: "--font-cormorant",
+  variable: "--font-fraunces",
 });
 
-const dmSans = DM_Sans({
+const publicSans = Public_Sans({
   subsets: ["latin"],
-  weight: ["300", "400", "500"],
-  variable: "--font-dm-sans",
+  style: ["normal", "italic"],
+  variable: "--font-public-sans",
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: "500",
+  variable: "--font-plex-mono",
 });
 
 export const metadata: Metadata = {
-  title: "Verity™ — Medical Bill Advocacy",
+  title: `${BRAND_NAME}: Medical Bill Advocacy`,
   description:
-    "Verity audits every line item on your medical bill against published billing rules, finds the errors, and gives you dispute letters ready to send.",
+    `${BRAND_NAME} audits every line item on your medical bill against published billing rules, finds the errors, and gives you dispute letters ready to send.`,
   // Private preview: keep the site out of search indexes while the password
   // gate is active. Remove alongside SITE_ACCESS_PASSWORD at launch.
   robots: {
@@ -38,9 +48,9 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${cormorant.variable} ${dmSans.variable}`}
+      className={`${fraunces.variable} ${publicSans.variable} ${plexMono.variable}`}
     >
-      <body className={`${cormorant.variable} ${dmSans.variable} min-h-full antialiased`}>
+      <body className={`${fraunces.variable} ${publicSans.variable} ${plexMono.variable} min-h-full antialiased`}>
         {children}
       </body>
     </html>

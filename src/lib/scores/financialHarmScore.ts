@@ -29,7 +29,7 @@ export interface FHSComponent {
 }
 
 export interface FinancialHarmScore {
-  score: number // 0–1000
+  score: number // 0-1000
   tier: 'low' | 'moderate' | 'high' | 'severe'
   tierLabel: string
   tierDescription: string
@@ -111,7 +111,7 @@ export function calculateFinancialHarmScore(
       rawValue: userInputs.hasActiveCollectionActivity ? 1 : 0,
       normalizedScore: userInputs.hasActiveCollectionActivity ? 100 : 0,
       description: userInputs.hasActiveCollectionActivity
-        ? 'Active collection notices detected — immediate action required'
+        ? 'Active collection notices detected, immediate action required'
         : 'No active collection activity reported',
     },
     {
@@ -120,7 +120,7 @@ export function calculateFinancialHarmScore(
       rawValue: deadlines.length,
       normalizedScore: normalizeDeadlineUrgency(deadlines),
       description: deadlines.length > 0
-        ? `${deadlines.length} deadline(s) detected — most urgent: ${deadlines[0]?.urgencyLevel}`
+        ? `${deadlines.length} deadline(s) detected, most urgent: ${deadlines[0]?.urgencyLevel}`
         : 'No time-sensitive deadlines detected',
     },
     {
@@ -129,7 +129,7 @@ export function calculateFinancialHarmScore(
       rawValue: userInputs.hasCreditReportingImpact ? 1 : 0,
       normalizedScore: userInputs.hasCreditReportingImpact ? 100 : 0,
       description: userInputs.hasCreditReportingImpact
-        ? 'Medical debt appearing on credit report — potential score impact'
+        ? 'Medical debt appearing on credit report, potential score impact'
         : 'No credit reporting impact reported',
     },
     {
@@ -138,7 +138,7 @@ export function calculateFinancialHarmScore(
       rawValue: userInputs.hasInsuranceDenial ? 1 : 0,
       normalizedScore: userInputs.hasInsuranceDenial ? 100 : 0,
       description: userInputs.hasInsuranceDenial
-        ? 'Insurance denial on file — appeal rights active'
+        ? 'Insurance denial on file, appeal rights active'
         : 'No coverage denial reported',
     },
     {
@@ -163,35 +163,35 @@ export function calculateFinancialHarmScore(
   if (score <= 250) {
     tier = 'low'
     tierLabel = 'LOW RISK'
-    tierDescription = 'Some errors found — dispute when convenient'
+    tierDescription = 'Some errors found, dispute when convenient'
   } else if (score <= 500) {
     tier = 'moderate'
     tierLabel = 'MODERATE RISK'
-    tierDescription = 'Significant overcharges — act within 30 days'
+    tierDescription = 'Significant overcharges, act within 30 days'
   } else if (score <= 750) {
     tier = 'high'
     tierLabel = 'HIGH RISK'
-    tierDescription = 'Serious violations — act within 7 days'
+    tierDescription = 'Serious violations, act within 7 days'
   } else {
     tier = 'severe'
     tierLabel = 'SEVERE RISK'
-    tierDescription = 'Critical situation — act immediately'
+    tierDescription = 'Critical situation, act immediately'
   }
 
   // Build top risks
   const topRisks: string[] = []
   if (totalDollarAtRisk > 0) topRisks.push(`$${totalDollarAtRisk.toFixed(2)} in potential overcharges identified across your documents`)
   if (userInputs.hasActiveCollectionActivity) topRisks.push('Active collection activity may affect your credit score and add fees if not addressed immediately')
-  if (deadlines.some(d => d.urgencyLevel === 'critical' || d.urgencyLevel === 'missed')) topRisks.push('Critical appeal deadlines detected — missing these windows permanently forfeits your right to dispute')
-  if (userInputs.hasCreditReportingImpact) topRisks.push('Medical debt on your credit report can reduce your credit score by 50–100 points and can be disputed')
-  if (cbsSet.crossDocumentDiscrepancies.some(d => d.type === 'balance_billing_violation')) topRisks.push('Balance billing violation detected — you may have been charged above your contracted insurance rate in violation of the No Surprises Act')
+  if (deadlines.some(d => d.urgencyLevel === 'critical' || d.urgencyLevel === 'missed')) topRisks.push('Critical appeal deadlines detected, missing these windows permanently forfeits your right to dispute')
+  if (userInputs.hasCreditReportingImpact) topRisks.push('Medical debt on your credit report can reduce your credit score by 50-100 points and can be disputed')
+  if (cbsSet.crossDocumentDiscrepancies.some(d => d.type === 'balance_billing_violation')) topRisks.push('Balance billing violation detected, you may have been charged above your contracted insurance rate in violation of the No Surprises Act')
 
   // Build recommended actions
   const recommendedActions: string[] = []
   const criticalDeadline = deadlines.find(d => d.urgencyLevel === 'critical' || d.urgencyLevel === 'missed')
   if (criticalDeadline) recommendedActions.push(`URGENT: ${criticalDeadline.actionRequired}`)
   if (userInputs.hasActiveCollectionActivity) recommendedActions.push('Send FDCPA debt validation letter to collection agency via certified mail to pause collection activity')
-  if (userInputs.hasCreditReportingImpact) recommendedActions.push('Dispute medical debt with all three credit bureaus under FCRA § 1681i — bureaus must investigate within 30 days')
+  if (userInputs.hasCreditReportingImpact) recommendedActions.push('Dispute medical debt with all three credit bureaus under FCRA § 1681i, bureaus must investigate within 30 days')
   if (cbsSet.crossDocumentDiscrepancies.length > 0) recommendedActions.push('Download your evidentiary package and submit dispute to your insurer or provider with the included regulatory citations')
   if (recommendedActions.length === 0) recommendedActions.push('Review the errors found and file a dispute with your provider using the generated dispute package')
 

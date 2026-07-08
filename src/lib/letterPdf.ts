@@ -4,6 +4,7 @@ import type { DeadlineResult, UrgencyLevel } from "./deadlines/calculator";
 import type { BillingError } from "./errorDetection";
 import { MANUAL_REVIEW_ERROR_TYPES } from "./audit/manualReview";
 import { formatCalendarDate } from "./dates";
+import { BRAND_NAME } from "./brand";
 
 type Block =
   | { kind: "h1" | "h2" | "h3"; text: string }
@@ -383,9 +384,9 @@ function errorTypeLabel(type: string): string {
     case "mue": return "MUE violation";
     case "coverage": return "Coverage issue";
     case "patient_disputed": return "Patient-disputed charge";
-    case "rate_unavailable": return "Manual review — no CMS rate";
+    case "rate_unavailable": return "Manual review: no CMS rate";
     case "reference_data_missing": return "Reference data unavailable";
-    case "coding_observation": return "Coding observation — informational";
+    case "coding_observation": return "Coding observation: informational";
     default: return type.replace(/_/g, " ");
   }
 }
@@ -567,7 +568,7 @@ function renderCover(env: Env, input: EvidentiaryPackageInput, sections: string[
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...ACCENT);
-  doc.text("VERITY · MED CLAIM ADVOCACY", env.marginX, env.y, { charSpace: 1.5 });
+  doc.text(`${BRAND_NAME.toUpperCase()} · MEDICAL BILL ADVOCACY`, env.marginX, env.y, { charSpace: 1.5 });
   env.y += 40;
 
   doc.setFont("helvetica", "bold");
@@ -743,7 +744,7 @@ function renderTimeline(env: Env, input: EvidentiaryPackageInput): void {
   if (events.length === 0) {
     para(
       env,
-      "No multi-document timeline could be reconstructed from the records on file. A chronological timeline is assembled automatically once additional documents — such as an Explanation of Benefits, denial letter, or collection notice — are added to this case.",
+      "No multi-document timeline could be reconstructed from the records on file. A chronological timeline is assembled automatically once additional documents, such as an Explanation of Benefits, denial letter, or collection notice, are added to this case.",
       { color: MUTE }
     );
     return;
@@ -763,7 +764,7 @@ function renderTimeline(env: Env, input: EvidentiaryPackageInput): void {
     fmtDateISO(e.date),
     (e.hasInconsistency ? "^ " : "") + e.title,
     e.description + (e.inconsistencyDescription ? `  (${e.inconsistencyDescription})` : ""),
-    typeof e.financialAmount === "number" ? fmtMoney(e.financialAmount) : "—",
+    typeof e.financialAmount === "number" ? fmtMoney(e.financialAmount) : "-",
   ]);
   renderTable(
     env,
@@ -835,14 +836,14 @@ function renderWorksheet(env: Env, input: EvidentiaryPackageInput): void {
       const impact = Math.max(0, Number(e.billed_amount ?? 0) - Number(e.expected_amount ?? 0));
       auditTotal += impact;
       return [
-        e.cpt_code || "—",
-        `${errorTypeLabel(e.error_type)}${e.description ? ` — ${e.description}` : ""}`,
+        e.cpt_code || "-",
+        `${errorTypeLabel(e.error_type)}${e.description ? `, ${e.description}` : ""}`,
         fmtMoney(e.billed_amount),
         fmtMoney(e.expected_amount),
         fmtMoney(impact),
       ];
     });
-    rows.push(["", "Subtotal — audit findings", "", "", fmtMoney(auditTotal)]);
+    rows.push(["", "Subtotal: audit findings", "", "", fmtMoney(auditTotal)]);
     renderTable(
       env,
       [
@@ -859,7 +860,7 @@ function renderWorksheet(env: Env, input: EvidentiaryPackageInput): void {
   // Unpriceable findings: listed for completeness, but NEVER with a dollar
   // figure — expected_amount 0 means "couldn't price", not "worth $billed".
   if (manualReview.length > 0) {
-    heading(env, "Flagged for manual review — no dollar amount asserted", 12, 6, 6);
+    heading(env, "Flagged for manual review (no dollar amount asserted)", 12, 6, 6);
     para(
       env,
       "These lines could not be priced against a published benchmark (proprietary facility or chargemaster codes, or missing reference data). They are flagged for human review and are NOT included in any dollar total in this package.",
@@ -873,8 +874,8 @@ function renderWorksheet(env: Env, input: EvidentiaryPackageInput): void {
         { header: "Billed", weight: 1.1, align: "right" },
       ],
       manualReview.map((e) => [
-        e.cpt_code || "—",
-        `${errorTypeLabel(e.error_type)}${e.description ? ` — ${e.description}` : ""}`,
+        e.cpt_code || "-",
+        `${errorTypeLabel(e.error_type)}${e.description ? `, ${e.description}` : ""}`,
         fmtMoney(e.billed_amount),
       ])
     );
@@ -892,7 +893,7 @@ function renderWorksheet(env: Env, input: EvidentiaryPackageInput): void {
         fmtMoney(d.estimatedDollarImpact),
       ];
     });
-    rows.push(["", "", "Subtotal — cross-document", fmtMoney(crossTotal)]);
+    rows.push(["", "", "Subtotal: cross-document", fmtMoney(crossTotal)]);
     renderTable(
       env,
       [
@@ -970,7 +971,7 @@ function renderCitations(env: Env, input: EvidentiaryPackageInput): void {
   };
 
   for (const e of input.errors) {
-    if (e.rule_violated) add(e.rule_violated, `${e.cpt_code || "Charge"} — ${errorTypeLabel(e.error_type)} (${fmtMoney(Math.max(0, Number(e.billed_amount ?? 0) - Number(e.expected_amount ?? 0)))})`);
+    if (e.rule_violated) add(e.rule_violated, `${e.cpt_code || "Charge"}, ${errorTypeLabel(e.error_type)} (${fmtMoney(Math.max(0, Number(e.billed_amount ?? 0) - Number(e.expected_amount ?? 0)))})`);
   }
   for (const d of input.cbsSet?.crossDocumentDiscrepancies ?? []) {
     for (const reg of d.applicableRegulations ?? []) {
@@ -978,7 +979,7 @@ function renderCitations(env: Env, input: EvidentiaryPackageInput): void {
     }
   }
   for (const dl of input.deadlines ?? []) {
-    if (dl.applicableRegulation) add(dl.applicableRegulation, `${dl.deadlineType} — deadline ${fmtDateISO(dl.deadlineDate)}`);
+    if (dl.applicableRegulation) add(dl.applicableRegulation, `${dl.deadlineType}, deadline ${fmtDateISO(dl.deadlineDate)}`);
   }
 
   if (groups.size === 0) {
@@ -1002,11 +1003,11 @@ function renderCitations(env: Env, input: EvidentiaryPackageInput): void {
 // ── Section 5: Deadline summary (urgency tiers) ───────────────────────────────
 const TIER_ORDER: UrgencyLevel[] = ["missed", "critical", "high", "moderate", "informational"];
 const TIER_LABEL: Record<UrgencyLevel, string> = {
-  missed: "Missed — act immediately to preserve your rights",
-  critical: "Critical — 7 days or less",
-  high: "High — within 30 days",
-  moderate: "Moderate — within 90 days",
-  informational: "Informational — long lead time",
+  missed: "Missed: act immediately to preserve your rights",
+  critical: "Critical: 7 days or less",
+  high: "High: within 30 days",
+  moderate: "Moderate: within 90 days",
+  informational: "Informational: long lead time",
 };
 
 function renderDeadlines(env: Env, input: EvidentiaryPackageInput): void {
@@ -1022,7 +1023,7 @@ function renderDeadlines(env: Env, input: EvidentiaryPackageInput): void {
 
   para(
     env,
-    "Deadlines are grouped by urgency. Act on the most urgent tier first — missing a deadline can forfeit your right to appeal or dispute.",
+    "Deadlines are grouped by urgency. Act on the most urgent tier first, missing a deadline can forfeit your right to appeal or dispute.",
     { color: MUTE }
   );
 
@@ -1071,7 +1072,7 @@ function addFooters(env: Env, caseShortId: string): void {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(...FAINT);
-    doc.text("VERITY — Med Claim Advocacy", env.marginX, fy);
+    doc.text(`${BRAND_NAME} · Medical Bill Advocacy`, env.marginX, fy);
     doc.text(`Evidentiary Package · Case #${caseShortId}`, pw / 2, fy, { align: "center" });
     doc.text(`Page ${i} of ${total}`, pw - env.marginX, fy, { align: "right" });
   }

@@ -28,23 +28,25 @@ import { MailItPanel, type MailState, type MailAddress } from "@/components/Mail
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
   fontSize: size,
-  color: "#F5F0E8",
+  color: "var(--surface)",
   lineHeight: 1,
   fontWeight: 400,
   ...extra,
 });
 
 const sans = (size: string, color = "#A89F96", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 
 const label = (color = "#C8A97E"): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
   textTransform: "uppercase" as const,
@@ -324,7 +326,7 @@ function MarkdownLetter({ content }: { content: string }) {
   return (
     <div
       style={{
-        fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+        fontFamily: "var(--font-public-sans), system-ui, sans-serif",
         fontSize: "14px",
         color: "#2A2520",
         lineHeight: 1.8,
@@ -337,7 +339,7 @@ function MarkdownLetter({ content }: { content: string }) {
               <h1
                 key={idx}
                 style={{
-                  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                   fontSize: "20px",
                   color: "#1A1A1A",
                   fontWeight: 600,
@@ -353,7 +355,7 @@ function MarkdownLetter({ content }: { content: string }) {
               <h2
                 key={idx}
                 style={{
-                  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                   fontSize: "17px",
                   color: "#1A1A1A",
                   fontWeight: 600,
@@ -369,7 +371,7 @@ function MarkdownLetter({ content }: { content: string }) {
               <h3
                 key={idx}
                 style={{
-                  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                   fontSize: "14px",
                   color: "#1A1A1A",
                   fontWeight: 600,
@@ -499,7 +501,7 @@ function formatLongDate(iso: string | null): string {
 const INSURED_SUBMISSION_OPTIONS = [
   {
     method: "Submit online",
-    color: "#4A90D9",
+    color: "var(--brand)",
     detail:
       "Log in to your insurer's member portal, navigate to Claims → Dispute a Charge, and upload this letter with all enclosures as a single PDF. Save the confirmation number.",
   },
@@ -526,11 +528,11 @@ const PROVIDER_DISPUTE_SUBMISSION_OPTIONS = [
     method: "Send to the provider's billing office",
     color: "#7A9E87",
     detail:
-      "Mail this letter to the patient billing / accounts-receivable department shown on your itemized statement. Use certified mail with return receipt for dated proof of delivery — or use “Mail it for me” below to have us print and send it.",
+      "Mail this letter to the patient billing / accounts-receivable department shown on your itemized statement. Use certified mail with return receipt for dated proof of delivery, or use “Mail it for me” below to have us print and send it.",
   },
   {
     method: "Send a copy to your insurer",
-    color: "#4A90D9",
+    color: "var(--brand)",
     detail:
       "Send a courtesy copy to your insurer's member services (address on the back of your insurance card) noting the provider is billing above the adjudicated patient responsibility on your EOB. The plan can pressure an in-network provider to honor its contract.",
   },
@@ -547,13 +549,13 @@ const SELF_PAY_SUBMISSION_OPTIONS = [
     method: "Send to the provider's billing office",
     color: "#7A9E87",
     detail:
-      "Mail this letter to the patient billing / accounts-receivable department shown on your itemized statement. Use certified mail with return receipt for dated proof of delivery — or use “Mail it for me” below to have us print and send it.",
+      "Mail this letter to the patient billing / accounts-receivable department shown on your itemized statement. Use certified mail with return receipt for dated proof of delivery, or use “Mail it for me” below to have us print and send it.",
   },
   {
     method: "Dispute under the No Surprises Act",
-    color: "#4A90D9",
+    color: "var(--brand)",
     detail:
-      "If your final charges exceed your Good Faith Estimate by $400 or more, you can use the federal Patient-Provider Dispute Resolution process at cms.gov/nosurprises or 1-800-985-3059 — generally within 120 days of the bill.",
+      "If your final charges exceed your Good Faith Estimate by $400 or more, you can use the federal Patient-Provider Dispute Resolution process at cms.gov/nosurprises or 1-800-985-3059, generally within 120 days of the bill.",
   },
   {
     method: "Request itemization and a self-pay discount",
@@ -597,8 +599,8 @@ function GenerationProgress() {
           width: "28px",
           height: "28px",
           borderRadius: "50%",
-          border: "2px solid rgba(200,169,126,0.25)",
-          borderTopColor: "#C8A97E",
+          border: "2px solid var(--line)",
+          borderTopColor: "var(--brand)",
           animation: "spin-ring 0.9s linear infinite",
           marginBottom: "24px",
         }}
@@ -608,7 +610,7 @@ function GenerationProgress() {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        style={{ ...sans("14px", "#C8A97E"), letterSpacing: "0.05em" }}
+        style={{ ...sans("14px", "var(--ink-soft)"), letterSpacing: "0.05em" }}
       >
         {GENERATION_STEPS[step]}
       </motion.span>
@@ -719,7 +721,7 @@ function PatientInfoPanel({
       style={{
         maxWidth: "720px",
         margin: "32px auto 0",
-        backgroundColor: "#111111",
+        backgroundColor: "var(--ink)",
         border: `1px solid ${defaultOpen ? "rgba(196,124,106,0.4)" : "#242424"}`,
         borderLeft: `4px solid ${defaultOpen ? "#C47C6A" : "#C8A97E"}`,
         padding: "24px 32px",
@@ -765,11 +767,11 @@ function PatientInfoPanel({
                   rows={3}
                   style={{
                     width: "100%",
-                    backgroundColor: "#0D0D0D",
+                    backgroundColor: "var(--ink)",
                     border: "1px solid #2A2A2A",
-                    color: "#F5F0E8",
+                    color: "var(--surface)",
                     padding: "10px 12px",
-                    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                    fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                     fontSize: "13px",
                     lineHeight: 1.5,
                     resize: "vertical",
@@ -785,11 +787,11 @@ function PatientInfoPanel({
                   placeholder={f.placeholder}
                   style={{
                     width: "100%",
-                    backgroundColor: "#0D0D0D",
+                    backgroundColor: "var(--ink)",
                     border: "1px solid #2A2A2A",
-                    color: "#F5F0E8",
+                    color: "var(--surface)",
                     padding: "10px 12px",
-                    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                    fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                     fontSize: "13px",
                     outline: "none",
                     boxSizing: "border-box",
@@ -808,7 +810,7 @@ function PatientInfoPanel({
               onClick={save}
               disabled={saving}
               style={{
-                ...sans("11px", "#0D0D0D"),
+                ...sans("11px", "var(--ink)"),
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
                 backgroundColor: "#C8A97E",
@@ -874,8 +876,7 @@ function MissingFieldsModal({
         position: "fixed",
         inset: 0,
         zIndex: 100,
-        backgroundColor: "rgba(0,0,0,0.7)",
-        backdropFilter: "blur(6px)",
+        backgroundColor: "rgba(0,0,0,0.55)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -893,7 +894,7 @@ function MissingFieldsModal({
         style={{
           width: "100%",
           maxWidth: "520px",
-          backgroundColor: "#111111",
+          backgroundColor: "var(--ink)",
           border: "1px solid #242424",
           borderLeft: "4px solid #C8A97E",
           padding: "32px",
@@ -930,11 +931,11 @@ function MissingFieldsModal({
                   rows={3}
                   style={{
                     width: "100%",
-                    backgroundColor: "#0D0D0D",
+                    backgroundColor: "var(--ink)",
                     border: "1px solid #2A2A2A",
-                    color: "#F5F0E8",
+                    color: "var(--surface)",
                     padding: "10px 12px",
-                    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                    fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                     fontSize: "13px",
                     lineHeight: 1.5,
                     resize: "vertical",
@@ -951,11 +952,11 @@ function MissingFieldsModal({
                   placeholder={f.placeholder}
                   style={{
                     width: "100%",
-                    backgroundColor: "#0D0D0D",
+                    backgroundColor: "var(--ink)",
                     border: "1px solid #2A2A2A",
-                    color: "#F5F0E8",
+                    color: "var(--surface)",
                     padding: "10px 12px",
-                    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                    fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                     fontSize: "13px",
                     outline: "none",
                     boxSizing: "border-box",
@@ -985,7 +986,7 @@ function MissingFieldsModal({
             onClick={onConfirm}
             disabled={!allFilled}
             style={{
-              ...sans("11px", "#0D0D0D"),
+              ...sans("11px", "var(--ink)"),
               letterSpacing: "0.2em",
               textTransform: "uppercase",
               backgroundColor: "#C8A97E",
@@ -1052,7 +1053,7 @@ function LetterPaywall({
   return (
     <div
       style={{
-        background: "#0D0D0D",
+        background: "var(--ink)",
         minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
@@ -1083,7 +1084,7 @@ function LetterPaywall({
           <button
             onClick={onRefresh}
             style={{
-              ...sans("11px", "#0D0D0D"),
+              ...sans("11px", "var(--ink)"),
               backgroundColor: "#C8A97E",
               padding: "12px 24px",
               letterSpacing: "0.2em",
@@ -1104,15 +1105,15 @@ function LetterPaywall({
             Your audit is free. The dispute package is the paid part.
           </div>
           <p style={{ ...sans("14px", "#A89F96"), marginTop: "20px", maxWidth: "480px", lineHeight: 1.7 }}>
-            The full evidentiary package — insurer-specific dispute letter, regulatory citations,
-            submission guide, and deadline tracking — unlocks with a Single Dispute purchase for this
+            The full evidentiary package, insurer-specific dispute letter, regulatory citations,
+            submission guide, and deadline tracking, unlocks with a Single Dispute purchase for this
             bill, or with a membership that covers every bill.
           </p>
           <div style={{ display: "flex", gap: "12px", marginTop: "36px", flexWrap: "wrap", justifyContent: "center" }}>
             <button
               onClick={() => startSingleDisputeCheckout(caseId)}
               style={{
-                ...sans("11px", "#0D0D0D"),
+                ...sans("11px", "var(--ink)"),
                 backgroundColor: "#C8A97E",
                 padding: "16px 32px",
                 letterSpacing: "0.2em",
@@ -1122,7 +1123,7 @@ function LetterPaywall({
                 cursor: "pointer",
               }}
             >
-              Unlock this dispute — $39
+              Unlock this dispute, $39
             </button>
             <button
               onClick={() => startMembershipCheckout("monthly")}
@@ -1136,7 +1137,7 @@ function LetterPaywall({
                 cursor: "pointer",
               }}
             >
-              Or join membership — $19/mo
+              Or join membership, $19/mo
             </button>
           </div>
 
@@ -1174,11 +1175,11 @@ function LetterPaywall({
                     aria-label="Promo code"
                     style={{
                       flex: 1,
-                      backgroundColor: "#0D0D0D",
+                      backgroundColor: "var(--ink)",
                       border: `1px solid ${promoError ? "#C47C6A" : "#2A2A2A"}`,
-                      color: "#F5F0E8",
+                      color: "var(--surface)",
                       padding: "12px 14px",
-                      fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                      fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                       fontSize: "13px",
                       letterSpacing: "0.05em",
                       outline: "none",
@@ -1189,7 +1190,7 @@ function LetterPaywall({
                     onClick={() => void applyPromo()}
                     disabled={promoSubmitting || !promoCode.trim()}
                     style={{
-                      ...sans("11px", "#0D0D0D"),
+                      ...sans("11px", "var(--ink)"),
                       backgroundColor: "#C8A97E",
                       border: "none",
                       padding: "12px 20px",
@@ -1450,7 +1451,7 @@ export default function LetterPage({
     return (
       <div
         style={{
-          background: "#0D0D0D",
+          background: "var(--ink)",
           minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
@@ -1484,7 +1485,7 @@ export default function LetterPage({
     return (
       <div
         style={{
-          background: "#0D0D0D",
+          background: "var(--ink)",
           minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
@@ -1529,7 +1530,7 @@ export default function LetterPage({
     return (
       <div
         style={{
-          background: "#0D0D0D",
+          background: "var(--ink)",
           minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
@@ -1572,8 +1573,8 @@ export default function LetterPage({
           style={{ ...sans("14px", "#A89F96"), marginTop: "16px", maxWidth: "440px", lineHeight: 1.65 }}
         >
           {failed
-            ? `${genError} Your purchase is safe — you can retry as many times as you need.`
-            : "This takes up to a minute — drafting your insurer-specific letter, regulatory citations, and evidence. This page updates automatically when it's ready."}
+            ? `${genError} Your purchase is safe, you can retry as many times as you need.`
+            : "This takes up to a minute, drafting your insurer-specific letter, regulatory citations, and evidence. This page updates automatically when it's ready."}
         </p>
         {generating && !failed && (
           <div style={{ marginTop: "32px" }}>
@@ -1585,7 +1586,7 @@ export default function LetterPage({
             onClick={() => void generate()}
             disabled={generating}
             style={{
-              ...sans("11px", "#0D0D0D"),
+              ...sans("11px", "var(--ink)"),
               backgroundColor: "#C8A97E",
               padding: "12px 24px",
               letterSpacing: "0.2em",
@@ -1680,11 +1681,11 @@ export default function LetterPage({
   // [BRACKET] placeholder — or whose audit snapshot is stale.
   const letterReady = !hasUnfilledPlaceholders(displayContent) && !letterStale;
   const blockedTitle = letterStale
-    ? "Your audit was updated after this letter was created — regenerate the letter first"
+    ? "Your audit was updated after this letter was created, regenerate the letter first"
     : "Fill in the highlighted details below before printing";
 
   return (
-    <div style={{ background: "#0D0D0D", minHeight: "100vh" }}>
+    <div style={{ background: "var(--ink)", minHeight: "100vh" }}>
       {/* Sticky top bar */}
       <div
         style={{
@@ -1693,9 +1694,8 @@ export default function LetterPage({
           left: 0,
           right: 0,
           zIndex: 50,
-          backgroundColor: "rgba(13,13,13,0.95)",
-          backdropFilter: "blur(12px)",
-          borderBottom: "1px solid #1C1C1C",
+          backgroundColor: "var(--surface)",
+          borderBottom: "1px solid var(--line)",
           padding: "16px 32px",
           display: "flex",
           justifyContent: "space-between",
@@ -1704,15 +1704,15 @@ export default function LetterPage({
       >
         <Link
           href={`/cases/${id}`}
-          style={{ ...sans("12px", "#6B635C"), textDecoration: "none", transition: "color 0.2s" }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#A89F96")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#6B635C")}
+          style={{ ...sans("12px", "var(--ink-soft)"), textDecoration: "none", transition: "color 0.2s" }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ink)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ink-soft)")}
         >
           ← Case #{caseShortId}
         </Link>
         <span
           className="hidden md:block"
-          style={{ ...sans("11px", "#A89F96"), letterSpacing: "0.1em", textTransform: "uppercase" }}
+          style={{ ...sans("11px", "var(--ink-soft)"), letterSpacing: "0.1em", textTransform: "uppercase" }}
         >
           Dispute Letter · {providerLabel}
         </span>
@@ -1722,10 +1722,10 @@ export default function LetterPage({
             disabled={!letterReady}
             title={letterReady ? "" : blockedTitle}
             style={{
-              ...sans("11px", "#A89F96"),
+              ...sans("11px", "var(--ink-soft)"),
               letterSpacing: "0.15em",
               textTransform: "uppercase",
-              border: "1px solid #242424",
+              border: "1px solid var(--line)",
               backgroundColor: "transparent",
               padding: "8px 16px",
               cursor: letterReady ? "pointer" : "not-allowed",
@@ -1765,7 +1765,7 @@ export default function LetterPage({
               setPendingMissing(missing);
             }}
             style={{
-              ...sans("11px", "#0D0D0D"),
+              ...sans("11px", "var(--ink)"),
               letterSpacing: "0.15em",
               textTransform: "uppercase",
               backgroundColor: "#C8A97E",
@@ -1781,7 +1781,7 @@ export default function LetterPage({
         </div>
       </div>
 
-      {/* Deadline banner — single source of truth (lib/deadlines/forCase) */}
+      {/* Deadline banner, single source of truth (lib/deadlines/forCase) */}
       {topDeadline && (
         <div
           style={{
@@ -1798,39 +1798,39 @@ export default function LetterPage({
             </span>
             {" · "}
             {topDeadline.daysRemaining < 0
-              ? "This deadline has passed — act immediately to preserve your dispute rights."
+              ? "This deadline has passed, act immediately to preserve your dispute rights."
               : "File before this date to preserve your dispute rights."}
           </span>
         </div>
       )}
 
-      {/* Stale letter: the audit changed after generation — view-only until
+      {/* Stale letter: the audit changed after generation, view-only until
           regenerated. Same check the mail endpoint enforces server-side. */}
       {letterStale && (
         <div
           style={{
             maxWidth: "720px",
             margin: "32px auto 0",
-            backgroundColor: "rgba(196,124,106,0.08)",
-            border: "1px solid rgba(196,124,106,0.4)",
-            borderLeft: "3px solid #C47C6A",
+            backgroundColor: "var(--surface-raised)",
+            border: "1px solid var(--line)",
+            borderLeft: "3px solid var(--urgent-amber)",
             padding: "20px 24px",
           }}
         >
-          <div style={{ ...label("#C47C6A"), marginBottom: "6px" }}>Letter out of date</div>
-          <p style={{ ...sans("13px", "#A89F96"), lineHeight: 1.65 }}>
+          <div style={{ ...label("var(--urgent-amber)"), marginBottom: "6px" }}>Letter out of date</div>
+          <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.65 }}>
             Your audit was updated after this letter was created. The numbers no longer
             match. Regenerate your letter.
           </p>
           {genError && (
-            <p style={{ ...sans("13px", "#C47C6A"), marginTop: "8px" }}>{genError}</p>
+            <p style={{ ...sans("13px", "var(--urgent-red)"), marginTop: "8px" }}>{genError}</p>
           )}
           <button
             onClick={() => void generate()}
             disabled={generating}
             style={{
-              ...sans("10px", "#0D0D0D"),
-              backgroundColor: "#C8A97E",
+              ...sans("10px", "var(--surface-raised)"),
+              backgroundColor: "var(--brand)",
               border: "none",
               padding: "10px 20px",
               letterSpacing: "0.2em",
@@ -1875,7 +1875,7 @@ export default function LetterPage({
       >
         <div
           style={{
-            fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+            fontFamily: "var(--font-public-sans), system-ui, sans-serif",
             fontSize: "11px",
             letterSpacing: "0.2em",
             textTransform: "uppercase",
@@ -1897,7 +1897,7 @@ export default function LetterPage({
         style={{
           maxWidth: "720px",
           margin: "32px auto 0",
-          backgroundColor: "#111111",
+          backgroundColor: "var(--ink)",
           border: "1px solid #242424",
           padding: "32px",
         }}
@@ -1924,9 +1924,9 @@ export default function LetterPage({
                 />
                 <span
                   style={{
-                    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                    fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                     fontSize: "14px",
-                    color: "#F5F0E8",
+                    color: "var(--surface)",
                     fontWeight: 500,
                   }}
                 >
@@ -1944,7 +1944,7 @@ export default function LetterPage({
         </p>
       </motion.div>
 
-      {/* Mail it for me (Lob) — blocked until the letter has no [placeholders] */}
+      {/* Mail it for me (Lob), blocked until the letter has no [placeholders] */}
       {caseRow.lob_letter_id || letterReady ? (
         <MailItPanel
           caseId={caseRow.id}
@@ -1978,7 +1978,7 @@ export default function LetterPage({
           style={{
             maxWidth: "720px",
             margin: "32px auto 0",
-            backgroundColor: "#111111",
+            backgroundColor: "var(--ink)",
             border: "1px solid #242424",
             borderLeft: "4px solid #C8A97E",
             padding: "32px",
@@ -1987,7 +1987,7 @@ export default function LetterPage({
           <div style={{ ...serif("22px") }}>Complete your letter to mail it.</div>
           <p style={{ ...sans("13px", "#A89F96"), marginTop: "10px", lineHeight: 1.65, maxWidth: "560px" }}>
             Your letter still has details to fill in. Add your information above (look for the
-            highlighted fields), and the “Mail it for me” option will unlock — so we never mail a
+            highlighted fields), and the “Mail it for me” option will unlock, so we never mail a
             letter with blank placeholders.
           </p>
         </div>
@@ -2001,7 +2001,7 @@ export default function LetterPage({
         style={{
           maxWidth: "720px",
           margin: "16px auto 96px",
-          backgroundColor: "#111111",
+          backgroundColor: "var(--ink)",
           border: "1px solid rgba(200,169,126,0.4)",
           padding: "32px",
         }}
@@ -2014,7 +2014,7 @@ export default function LetterPage({
         <Link href="/pricing" style={{ textDecoration: "none" }}>
           <span
             style={{
-              ...sans("11px", "#0D0D0D"),
+              ...sans("11px", "var(--ink)"),
               backgroundColor: "#C8A97E",
               padding: "16px 32px",
               letterSpacing: "0.2em",

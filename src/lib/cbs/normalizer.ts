@@ -173,11 +173,11 @@ function isDeniedLine(eobLine: CBSLineItem): boolean {
 }
 
 const NO_SURPRISES_REG =
-  'No Surprises Act (42 U.S.C. § 300gg-111) — protects against being billed above your plan-determined cost sharing for covered care.'
+  'No Surprises Act (42 U.S.C. § 300gg-111), protects against being billed above your plan-determined cost sharing for covered care.'
 const ALLOWED_AMOUNT_REG =
-  "Plan allowed-amount obligation — an in-network provider accepts the EOB's allowed amount as payment in full and may bill you only the patient-responsibility shown, not the difference."
+  "Plan allowed-amount obligation, an in-network provider accepts the EOB's allowed amount as payment in full and may bill you only the patient-responsibility shown, not the difference."
 const APPEAL_RIGHTS_REG =
-  'ERISA § 503 / ACA § 2719 (29 U.S.C. § 1133; 42 U.S.C. § 300gg-19) — right to appeal an adverse benefit determination.'
+  'ERISA § 503 / ACA § 2719 (29 U.S.C. § 1133; 42 U.S.C. § 300gg-19), right to appeal an adverse benefit determination.'
 
 // Emergency-department E&M codes: the only context where the No Surprises Act
 // citation is defensible without knowing network status. A routine in-network
@@ -237,7 +237,7 @@ function detectDiscrepancies(
       if (eobLineResp !== undefined) billLine.patientResponsibility = eobLineResp
 
       const codeLabel = normCode(billLine.cptCode)
-        ? `CPT ${normCode(billLine.cptCode)} — `
+        ? `CPT ${normCode(billLine.cptCode)}, `
         : ''
       const desc = eobLine.description || billLine.description || 'this service'
 
@@ -261,7 +261,7 @@ function detectDiscrepancies(
             valueB: '$0.00 patient responsibility (denied)',
             description:
               `${codeLabel}${desc}: your EOB adjudicated this line at $0.00 patient responsibility` +
-              (note ? ` — "${note}"` : '') +
+              (note ? `, "${note}"` : '') +
               `, yet the bill assigns you a $${billStatedShare.toFixed(2)} share for it. A line the plan did not hold you responsible for cannot be billed to you; dispute it or appeal the denial.`,
             applicableRegulations: [ALLOWED_AMOUNT_REG, APPEAL_RIGHTS_REG],
           })
@@ -317,7 +317,7 @@ function detectDiscrepancies(
       )
       const deniedNote =
         deniedContext.length > 0
-          ? ` Note: the EOB shows ${deniedContext.length} line${deniedContext.length === 1 ? '' : 's'} adjudicated at $0.00 patient responsibility (${deniedContext.slice(0, 3).join('; ')}) — verify none of them are folded into the amount you are asked to pay.`
+          ? ` Note: the EOB shows ${deniedContext.length} line${deniedContext.length === 1 ? '' : 's'} adjudicated at $0.00 patient responsibility (${deniedContext.slice(0, 3).join('; ')}), verify none of them are folded into the amount you are asked to pay.`
           : ''
       discrepancies.push({
         discrepancyId: crypto.randomUUID(),
@@ -331,7 +331,7 @@ function detectDiscrepancies(
         valueA: `$${billPatientResp.toFixed(2)} patient responsibility per bill`,
         valueB: `$${eobPatientResp.toFixed(2)} you owe per EOB`,
         description:
-          `The bill asks you to pay $${billPatientResp.toFixed(2)}, but your insurer's adjudication of this claim (your EOB) puts your total responsibility at $${eobPatientResp.toFixed(2)} — a difference of $${diff.toFixed(2)}. Your obligation is the EOB amount; request the provider reconcile the bill to the adjudication and write off the $${diff.toFixed(2)} difference.${deniedNote}`,
+          `The bill asks you to pay $${billPatientResp.toFixed(2)}, but your insurer's adjudication of this claim (your EOB) puts your total responsibility at $${eobPatientResp.toFixed(2)}, a difference of $${diff.toFixed(2)}. Your obligation is the EOB amount; request the provider reconcile the bill to the adjudication and write off the $${diff.toFixed(2)} difference.${deniedNote}`,
         applicableRegulations: hasEmergencyContext
           ? [ALLOWED_AMOUNT_REG, NO_SURPRISES_REG, APPEAL_RIGHTS_REG]
           : [ALLOWED_AMOUNT_REG, APPEAL_RIGHTS_REG],
@@ -359,7 +359,7 @@ function detectDiscrepancies(
             valueB: 'Not adjudicated on EOB',
             description: `CPT code ${code} appears on your itemized bill but was not adjudicated on your Explanation of Benefits, which does list other codes. This charge of $${(billLine.billedAmount || 0).toFixed(2)} may be a billing error or a code denied without explanation.`,
             applicableRegulations: [
-              'CMS Claims Processing Manual (Pub. 100-04), Ch. 23 — all billed codes must be reflected in adjudication.',
+              'CMS Claims Processing Manual (Pub. 100-04), Ch. 23, all billed codes must be reflected in adjudication.',
             ],
           })
         }
@@ -379,7 +379,7 @@ function detectDiscrepancies(
         fieldName: 'lineItem',
         valueA: `$${(billLine.billedAmount ?? 0).toFixed(2)} ${billLine.description || normCode(billLine.cptCode) || 'charge'}`,
         valueB: 'No clear matching EOB line',
-        description: `We could not confidently match this charge of $${(billLine.billedAmount ?? 0).toFixed(2)} to a line on your EOB. This may simply reflect different formatting between the documents rather than a problem — worth a manual look before relying on it.`,
+        description: `We could not confidently match this charge of $${(billLine.billedAmount ?? 0).toFixed(2)} to a line on your EOB. This may simply reflect different formatting between the documents rather than a problem, worth a manual look before relying on it.`,
         applicableRegulations: [],
       })
     }
@@ -395,11 +395,11 @@ function detectDiscrepancies(
       estimatedDollarImpact: bill.totalBilled || 0,
       documentA: denial.sourceDocumentId,
       fieldName: 'authorizationStatus',
-      valueA: 'Denied — no authorization record found',
+      valueA: 'Denied, no authorization record found',
       description: `A claim denial was found, but no prior authorization document was uploaded. If services required prior authorization, you have the right to appeal and request documentation of the authorization requirements.`,
       applicableRegulations: [
-        'ACA § 2719 (42 U.S.C. § 300gg-19) — right to internal and external appeal of denied claims',
-        'ERISA § 502(a) (29 U.S.C. § 1132) — right to appeal denied benefits claims',
+        'ACA § 2719 (42 U.S.C. § 300gg-19), right to internal and external appeal of denied claims',
+        'ERISA § 502(a) (29 U.S.C. § 1132), right to appeal denied benefits claims',
       ],
     })
   }
@@ -426,7 +426,7 @@ function detectTemporalInconsistencies(
       flags.push({
         flagId: crypto.randomUUID(),
         type: 'eob_before_service',
-        description: `EOB issued on ${eob.eobDate} but service date is ${eob.dateOfService} — the explanation of benefits predates the service by ${Math.abs(days)} days.`,
+        description: `EOB issued on ${eob.eobDate} but service date is ${eob.dateOfService}, the explanation of benefits predates the service by ${Math.abs(days)} days.`,
         estimatedImpact: 'Possible data entry error or fraudulent billing',
         daysViolated: Math.abs(days),
       })
@@ -441,7 +441,7 @@ function detectTemporalInconsistencies(
         flagId: crypto.randomUUID(),
         type: 'service_before_authorization',
         description: `Service date (${bill.dateOfService}) precedes authorization date (${auth.authorizationDate}) by ${Math.abs(days)} days.`,
-        estimatedImpact: 'Service may have been rendered without valid authorization — insurer may be obligated to cover if emergency',
+        estimatedImpact: 'Service may have been rendered without valid authorization, insurer may be obligated to cover if emergency',
         daysViolated: Math.abs(days),
       })
     }
@@ -455,7 +455,7 @@ function detectTemporalInconsistencies(
         flagId: crypto.randomUUID(),
         type: 'collection_before_notice_period',
         description: `Collection activity started only ${days} days after billing. FDCPA § 1692g requires a 30-day debt validation period before collection can continue.`,
-        estimatedImpact: `Potential FDCPA violation — collector must cease collection and provide debt validation`,
+        estimatedImpact: `Potential FDCPA violation, collector must cease collection and provide debt validation`,
         daysViolated: COLLECTION_NOTICE_PERIOD_DAYS - days,
       })
     }
@@ -512,7 +512,7 @@ function buildTimelineFromDocs(
     if (doc.authorizationDate) addEvent(doc.authorizationDate, 'authorization', 'Prior Authorization', `Authorization ${doc.authorizationStatus || 'status unknown'}${doc.authorizationNumber ? ` (#${doc.authorizationNumber})` : ''}`)
     if (doc.dateOfService) addEvent(doc.dateOfService, 'service', doc.providerName ? `Service at ${doc.providerName}` : 'Medical service', `Medical service rendered`, doc.totalBilled)
     if (doc.billDate) addEvent(doc.billDate, 'billing', doc.providerName ? `Bill from ${doc.providerName}` : 'Bill issued', money(doc.totalBilled) ? `Bill issued for ${money(doc.totalBilled)}` : 'Bill issued', doc.totalBilled)
-    if (doc.eobDate) addEvent(doc.eobDate, 'adjudication', `${doc.payerName || 'Insurer'} processed claim`, `Adjudication: ${doc.adjudicationStatus || 'unknown'}${money(doc.totalAllowed) ? ` — allowed ${money(doc.totalAllowed)}` : ''}`, doc.totalAllowed)
+    if (doc.eobDate) addEvent(doc.eobDate, 'adjudication', `${doc.payerName || 'Insurer'} processed claim`, `Adjudication: ${doc.adjudicationStatus || 'unknown'}${money(doc.totalAllowed) ? `, allowed ${money(doc.totalAllowed)}` : ''}`, doc.totalAllowed)
     if (doc.denialDate) addEvent(doc.denialDate, 'denial', 'Claim Denied', doc.denialReason || `Denial code: ${doc.denialCode || 'unknown'}`)
     if (doc.collectionDate) addEvent(doc.collectionDate, 'collection', 'Collection Notice', money(doc.totalBalance || doc.totalBilled) ? `Collection activity for ${money(doc.totalBalance || doc.totalBilled)}` : 'Collection activity', doc.totalBalance)
 
@@ -524,7 +524,7 @@ function buildTimelineFromDocs(
         eventId: crypto.randomUUID(),
         date: doc.appealDeadline,
         eventType: 'deadline',
-        title: days < 0 ? '⚠️ Appeal Deadline PASSED' : `Appeal Deadline${days <= 7 ? ' — URGENT' : ''}`,
+        title: days < 0 ? '⚠️ Appeal Deadline PASSED' : `Appeal Deadline${days <= 7 ? ': URGENT' : ''}`,
         description: days < 0
           ? `Appeal deadline was ${Math.abs(days)} days ago. Contact an attorney or patient advocate immediately.`
           : `${days} days remaining to file your appeal.`,

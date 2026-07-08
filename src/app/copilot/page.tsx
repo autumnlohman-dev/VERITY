@@ -8,12 +8,15 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import { BRAND_NAME } from '@/lib/brand'
 
 const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: 'var(--font-dm-sans), system-ui, sans-serif', fontSize: size, color, ...extra,
+  fontFamily: 'var(--font-public-sans), system-ui, sans-serif', fontSize: size, color, ...extra,
 })
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: 'var(--font-cormorant), Georgia, serif', fontSize: size, color: '#F5F0E8', lineHeight: 1.15, fontWeight: 400, ...extra,
+  fontFamily: 'var(--font-fraunces), Georgia, serif',
+  fontOpticalSizing: 'auto',
+  letterSpacing: '-0.015em', fontSize: size, color: 'var(--surface)', lineHeight: 1.15, fontWeight: 400, ...extra,
 })
 
 interface GuidanceCard {
@@ -69,7 +72,7 @@ const RULES: Rule[] = [
     cards: [
       { kind: 'response', title: 'Say this', body: '"I\'m disputing that balance in writing. Please note the account is in active dispute, and send me a fully itemized statement with CPT codes for every charge."' },
       { kind: 'citation', title: 'Your right', body: 'You are entitled to a fully itemized bill. Do not agree to pay a disputed balance on the phone.', citation: 'No Surprises Act, 42 U.S.C. § 300gg-111; state itemization requirements' },
-      { kind: 'warning', title: 'Do not say', body: 'Do not say "I\'ll pay" or agree to a payment plan on a disputed amount — it can be treated as acknowledging the debt.' },
+      { kind: 'warning', title: 'Do not say', body: 'Do not say "I\'ll pay" or agree to a payment plan on a disputed amount, it can be treated as acknowledging the debt.' },
     ],
   },
   {
@@ -105,7 +108,7 @@ const RULES: Rule[] = [
   {
     match: /supervisor|manager|escalate|transfer/i,
     cards: [
-      { kind: 'documentation', title: 'Before the transfer', body: 'Get the current rep\'s name and a reference number for this call. Ask the supervisor to confirm what the first rep told you — inconsistencies are evidence.' },
+      { kind: 'documentation', title: 'Before the transfer', body: 'Get the current rep\'s name and a reference number for this call. Ask the supervisor to confirm what the first rep told you, inconsistencies are evidence.' },
     ],
   },
 ]
@@ -135,7 +138,7 @@ const KIND_STYLE: Record<GuidanceCard['kind'], { border: string; label: string; 
   response: { border: '#7A9E87', label: 'SAY THIS', color: '#7A9E87' },
   citation: { border: '#C8A97E', label: 'YOUR RIGHT', color: '#C8A97E' },
   escalation: { border: '#C47C6A', label: 'ESCALATE', color: '#C47C6A' },
-  documentation: { border: '#4A90D9', label: 'DOCUMENT', color: '#4A90D9' },
+  documentation: { border: 'var(--brand)', label: 'DOCUMENT', color: 'var(--brand)' },
   warning: { border: '#C83C3C', label: 'CAUTION', color: '#C83C3C' },
 }
 
@@ -231,16 +234,13 @@ export default function CopilotPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0D0D0D', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--ink)', display: 'flex', flexDirection: 'column' }}>
       {/* Nav */}
-      <nav style={{ padding: '20px 32px', borderBottom: '1px solid #1C1C1C', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <nav style={{ padding: '20px 32px', backgroundColor: 'var(--surface)', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Link href="/" style={{ textDecoration: 'none' }}>
-          <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={{ ...sans('12px', '#F5F0E8'), letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 500, lineHeight: 1 }}>Verity™</span>
-            <span style={{ ...sans('8px', '#A89F96'), letterSpacing: '0.18em', textTransform: 'uppercase', lineHeight: 1 }}>Med Claim</span>
-          </span>
+          <span style={{ ...sans('12px', 'var(--ink)'), letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 500, lineHeight: 1 }}>{BRAND_NAME}</span>
         </Link>
-        <span style={{ ...sans('10px', '#C8A97E'), letterSpacing: '0.2em', textTransform: 'uppercase' }}>Call Copilot · Beta</span>
+        <span style={{ ...sans('10px', 'var(--ink-soft)'), letterSpacing: '0.2em', textTransform: 'uppercase' }}>Call Copilot · Beta</span>
       </nav>
 
       {/* Header */}
@@ -250,12 +250,12 @@ export default function CopilotPage() {
           Type what the representative just said. Verity instantly tells you what to say back, which law protects you, and what to document. Voice mode is coming soon.
         </div>
 
-        {/* Case-aware banner — guidance is grounded in this case's audit findings */}
+        {/* Case-aware banner, guidance is grounded in this case's audit findings */}
         {caseContext && (
           <div
             style={{
               marginTop: '16px',
-              backgroundColor: '#111111',
+              backgroundColor: 'var(--ink)',
               border: '1px solid #242424',
               borderLeft: '3px solid #C8A97E',
               padding: '14px 18px',
@@ -265,7 +265,7 @@ export default function CopilotPage() {
             <div style={{ ...sans('10px', '#C8A97E'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '6px' }}>
               Advising on your case
             </div>
-            <div style={{ ...sans('14px', '#F5F0E8') }}>{caseContext.providerName}</div>
+            <div style={{ ...sans('14px', 'var(--surface)') }}>{caseContext.providerName}</div>
             <div style={{ ...sans('12px', '#6B635C'), marginTop: '4px' }}>
               {caseContext.insurer}
               {caseContext.errorCount > 0 && ` · ${caseContext.errorCount} documented ${caseContext.errorCount === 1 ? 'error' : 'errors'}`}
@@ -275,13 +275,13 @@ export default function CopilotPage() {
           </div>
         )}
 
-        {/* ?caseId was passed but we couldn't load it for this viewer — say so
+        {/* ?caseId was passed but we couldn't load it for this viewer, say so
             explicitly instead of silently dropping to generic guidance. */}
         {caseId && !caseContext && caseLoadFailed && (
           <div
             style={{
               marginTop: '16px',
-              backgroundColor: '#111111',
+              backgroundColor: 'var(--ink)',
               border: '1px solid #242424',
               borderLeft: '3px solid #6B635C',
               padding: '14px 18px',
@@ -310,22 +310,22 @@ export default function CopilotPage() {
             <div key={e.id} style={{ marginBottom: '14px', display: 'flex', justifyContent: 'flex-end' }}>
               <div style={{ maxWidth: '70%', backgroundColor: '#1C1C1C', padding: '12px 16px', borderRadius: '2px' }}>
                 <div style={{ ...sans('10px', '#5F5648'), letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '4px' }}>They said</div>
-                <div style={{ ...sans('14px', '#F5F0E8') }}>{e.text}</div>
+                <div style={{ ...sans('14px', 'var(--surface)') }}>{e.text}</div>
               </div>
             </div>
           ) : (
             <div key={e.id} style={{ marginBottom: '22px', display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '85%' }}>
               {e.escalation && (
                 <div style={{ ...sans('10px', '#C47C6A'), letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 700 }}>
-                  ⚠ Contradicts your case findings — escalate
+                  ⚠ Contradicts your case findings, escalate
                 </div>
               )}
               {e.cards?.map(c => {
                 const ks = KIND_STYLE[c.kind]
                 return (
-                  <div key={c.id} style={{ borderLeft: `3px solid ${ks.border}`, backgroundColor: '#111111', padding: '12px 16px' }}>
+                  <div key={c.id} style={{ borderLeft: `3px solid ${ks.border}`, backgroundColor: 'var(--ink)', padding: '12px 16px' }}>
                     <div style={{ ...sans('10px', ks.color), letterSpacing: '0.2em', fontWeight: 700, marginBottom: '4px' }}>{ks.label}</div>
-                    <div style={{ ...sans('13px', '#F5F0E8'), marginBottom: c.citation ? '6px' : 0 }}>{c.body}</div>
+                    <div style={{ ...sans('13px', 'var(--surface)'), marginBottom: c.citation ? '6px' : 0 }}>{c.body}</div>
                     {c.citation && <div style={{ ...sans('11px', '#5F5648'), fontStyle: 'italic' }}>{c.citation}</div>}
                   </div>
                 )
@@ -348,11 +348,11 @@ export default function CopilotPage() {
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && submit()}
           placeholder="Type what they just said…"
-          style={{ ...sans('14px', '#F5F0E8'), flex: 1, backgroundColor: '#111111', border: '1px solid #2A2A2A', padding: '14px 16px', outline: 'none' }}
+          style={{ ...sans('14px', 'var(--surface)'), flex: 1, backgroundColor: 'var(--ink)', border: '1px solid #2A2A2A', padding: '14px 16px', outline: 'none' }}
         />
         <button
           onClick={submit}
-          style={{ ...sans('12px', '#0D0D0D'), backgroundColor: '#C8A97E', border: 'none', padding: '14px 28px', cursor: 'pointer', letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600 }}
+          style={{ ...sans('12px', 'var(--ink)'), backgroundColor: '#C8A97E', border: 'none', padding: '14px 28px', cursor: 'pointer', letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600 }}
         >
           Guide me
         </button>

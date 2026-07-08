@@ -36,7 +36,7 @@ const DEADLINE_RULES: DeadlineRule[] = [
     description: 'File internal appeal with your insurance company',
     actionRequired: 'Submit a written appeal to your insurer via certified mail or the insurer portal. Include your EOB, itemized bill, and a copy of the denial letter.',
     escalationPath: 'If denied: file for External Independent Review within 4 months',
-    federalBasis: 'ACA § 2719 (42 U.S.C. § 300gg-19) — right to internal appeal of denied claims',
+    federalBasis: 'ACA § 2719 (42 U.S.C. § 300gg-19), right to internal appeal of denied claims',
   },
   {
     ruleId: 'external_review',
@@ -46,7 +46,7 @@ const DEADLINE_RULES: DeadlineRule[] = [
     description: 'Request external independent review of denied claim',
     actionRequired: 'File for External Independent Review (IRO) through your state insurance commissioner or the federal process at HealthCare.gov.',
     escalationPath: 'If denied: file regulatory complaint with state DOI or CFPB',
-    federalBasis: 'ACA § 2719 — right to external independent review after internal appeal exhausted',
+    federalBasis: 'ACA § 2719, right to external independent review after internal appeal exhausted',
   },
   {
     ruleId: 'nsa_balance_billing',
@@ -56,7 +56,7 @@ const DEADLINE_RULES: DeadlineRule[] = [
     description: 'Dispute balance billing violation under the No Surprises Act',
     actionRequired: 'Submit a written dispute to your insurer and the provider citing the No Surprises Act. Request the claim be processed at in-network cost-sharing.',
     escalationPath: 'File complaint with CMS at cms.gov/nosurprises or call 1-800-985-3059',
-    federalBasis: 'No Surprises Act (42 U.S.C. § 300gg-111) — effective January 1, 2022',
+    federalBasis: 'No Surprises Act (42 U.S.C. § 300gg-111), effective January 1, 2022',
   },
   {
     ruleId: 'fdcpa_validation',
@@ -70,13 +70,13 @@ const DEADLINE_RULES: DeadlineRule[] = [
   },
   {
     ruleId: 'medicare_redetermination',
-    deadlineType: 'Medicare Appeal — Redetermination',
+    deadlineType: 'Medicare Appeal: Redetermination',
     triggerEvent: 'eob_date',
     daysFromTrigger: 120,
     description: 'File Medicare Redetermination (first level of Medicare appeal)',
     actionRequired: 'Complete CMS Form 20027 or submit a written request to the Medicare Administrative Contractor (MAC) that processed the claim.',
     escalationPath: 'If denied: file Reconsideration with Qualified Independent Contractor within 180 days',
-    federalBasis: 'Medicare Claims Processing Manual (Pub. 100-04), Ch. 29 — Medicare appeals process',
+    federalBasis: 'Medicare Claims Processing Manual (Pub. 100-04), Ch. 29, Medicare appeals process',
   },
   {
     ruleId: 'prior_auth_appeal',
@@ -86,7 +86,7 @@ const DEADLINE_RULES: DeadlineRule[] = [
     description: 'Appeal denial of prior authorization',
     actionRequired: 'File a written appeal with clinical documentation supporting medical necessity. Request a peer-to-peer review between your physician and the insurer\'s medical reviewer.',
     escalationPath: 'If denied: request external independent medical review; file state DOI complaint',
-    federalBasis: 'ACA § 2719 — right to appeal coverage denials including prior authorization denials',
+    federalBasis: 'ACA § 2719, right to appeal coverage denials including prior authorization denials',
   },
   {
     ruleId: 'fcra_dispute',
@@ -96,7 +96,7 @@ const DEADLINE_RULES: DeadlineRule[] = [
     description: 'Dispute medical debt on credit report under FCRA',
     actionRequired: 'Send written dispute letters to all three credit bureaus (Equifax, Experian, TransUnion) by certified mail. Bureaus must investigate within 30 days.',
     escalationPath: 'If not resolved: file CFPB complaint; consider disputing with CFPB medical debt rules (debts under $500 may be removed)',
-    federalBasis: 'Fair Credit Reporting Act § 1681i (15 U.S.C. § 1681i) — right to dispute inaccurate credit information',
+    federalBasis: 'Fair Credit Reporting Act § 1681i (15 U.S.C. § 1681i), right to dispute inaccurate credit information',
   },
 ]
 
@@ -106,13 +106,13 @@ const DEADLINE_RULES: DeadlineRule[] = [
 // Estimate + the federal Patient-Provider Dispute Resolution (PPDR) process.
 // Same branch the letter-page submission guide uses (SELF_PAY_SUBMISSION_OPTIONS).
 const NSA_SELF_PAY = {
-  deadlineType: 'No Surprises Act — Good Faith Estimate Dispute',
+  deadlineType: 'No Surprises Act: Good Faith Estimate Dispute',
   description: 'Dispute a self-pay bill that exceeds your Good Faith Estimate',
   actionRequired:
     'If your final bill is at least $400 more than your Good Faith Estimate, file a dispute through the federal Patient-Provider Dispute Resolution (PPDR) process at cms.gov/nosurprises (or call 1-800-985-3059), generally within 120 days of the bill. First request a fully itemized statement and the provider\'s self-pay / financial-assistance policy in writing.',
   escalationPath: 'Submit the PPDR dispute at cms.gov/nosurprises or call 1-800-985-3059',
   federalBasis:
-    'No Surprises Act — Good Faith Estimate & Patient-Provider Dispute Resolution (45 C.F.R. §§ 149.610, 149.620)',
+    'No Surprises Act, Good Faith Estimate & Patient-Provider Dispute Resolution (45 C.F.R. §§ 149.610, 149.620)',
 }
 
 // Resolve a rule's patient-facing content, branching the NSA rule for self-pay.
@@ -296,7 +296,7 @@ export function calculateDeadlines(
       const daysRemaining = daysUntilDate(deadlineDate)
       results.push({
         deadlineId: crypto.randomUUID(),
-        deadlineType: 'Billing Dispute — Provider Reconciliation Deadline',
+        deadlineType: 'Billing Dispute: Provider Reconciliation Deadline',
         description:
           "Dispute the bill with the provider's billing office and request it be reconciled to your insurer's adjudication",
         triggerDate: billDoc.billDate,

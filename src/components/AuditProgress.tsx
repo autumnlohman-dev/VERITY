@@ -19,14 +19,16 @@ const STAGES = [
 ];
 
 const sans = (size: string, color: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
   fontSize: size,
   color: "#221C14",
   lineHeight: 1.1,
@@ -128,7 +130,7 @@ export function AuditProgress({
       </div>
       <h1 style={{ ...serif("40px"), marginBottom: 10 }}>Scanning every charge.</h1>
       <p style={{ ...sans("14px", "#5F5648"), marginBottom: 36, lineHeight: 1.6 }}>
-        This usually takes under a minute. Keep this tab open — we&apos;ll show your
+        This usually takes under a minute. Keep this tab open, we&apos;ll show your
         results the moment they&apos;re ready.
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>

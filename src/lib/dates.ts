@@ -28,7 +28,7 @@ export function formatCalendarDate(
   s: string | null | undefined,
   options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }
 ): string {
-  if (!s) return '—'
+  if (!s) return '-'
   const d = parseCalendarDate(s)
   return d ? d.toLocaleDateString('en-US', options) : String(s)
 }

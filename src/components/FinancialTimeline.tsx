@@ -5,7 +5,7 @@ import type { TimelineEvent } from '@/lib/cbs/schema'
 import { formatCalendarDate } from '@/lib/dates'
 
 const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: 'var(--font-dm-sans), system-ui, sans-serif',
+  fontFamily: 'var(--font-public-sans), system-ui, sans-serif',
   fontSize: size,
   color,
   ...extra,
@@ -55,7 +55,7 @@ export function FinancialTimeline({ events, totalDocuments, totalInconsistencies
           {events.length} events across {totalDocuments} document{totalDocuments !== 1 ? 's' : ''}
           {totalInconsistencies > 0 && (
             <span style={{ color: '#C47C6A', marginLeft: '8px' }}>
-              — {totalInconsistencies} inconsistenc{totalInconsistencies !== 1 ? 'ies' : 'y'} detected
+             , {totalInconsistencies} inconsistenc{totalInconsistencies !== 1 ? 'ies' : 'y'} detected
             </span>
           )}
         </div>
@@ -104,14 +104,14 @@ export function FinancialTimeline({ events, totalDocuments, totalInconsistencies
               {/* Event card */}
               <div style={{
                 border: `1px solid ${hasFlag ? 'rgba(196,124,106,0.4)' : isFuture ? 'rgba(200,169,126,0.3)' : '#1C1C1C'}`,
-                backgroundColor: hasFlag ? 'rgba(196,124,106,0.06)' : isFuture ? 'rgba(200,169,126,0.06)' : '#0D0D0D',
+                backgroundColor: hasFlag ? 'rgba(196,124,106,0.06)' : isFuture ? 'rgba(200,169,126,0.06)' : 'var(--ink)',
                 padding: '14px 16px',
                 borderLeft: hasFlag ? '3px solid #C47C6A' : isFuture ? `3px solid ${event.urgencyLevel === 'critical' ? '#C47C6A' : '#C8A97E'}` : '3px solid #1C1C1C',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px', flexWrap: 'wrap', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '14px' }}>{icon}</span>
-                    <span style={{ ...sans('14px', hasFlag ? '#C47C6A' : isFuture ? '#C8A97E' : '#F5F0E8'), fontWeight: 500 }}>
+                    <span style={{ ...sans('14px', hasFlag ? '#C47C6A' : isFuture ? '#C8A97E' : 'var(--surface)'), fontWeight: 500 }}>
                       {event.title}
                     </span>
                   </div>
@@ -129,7 +129,7 @@ export function FinancialTimeline({ events, totalDocuments, totalInconsistencies
 
                 <div style={{ ...sans('12px', '#A89F96'), marginBottom: event.hasInconsistency ? '8px' : 0 }}>
                   {event.description}
-                  {event.financialAmount ? ` — $${event.financialAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : ''}
+                  {event.financialAmount ? `, $${event.financialAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : ''}
                 </div>
 
                 {event.hasInconsistency && event.inconsistencyDescription && (

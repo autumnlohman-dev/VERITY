@@ -18,9 +18,9 @@ export interface FinancialOutcomePrediction {
   expectedRecoveryLow: number
   expectedRecoveryHigh: number
   estimatedResolutionDays: number
-  escalationProbability: number // 0–1
-  collectionProbability: number // 0–1 if unresolved
-  creditReportingProbability: number // 0–1 if unresolved
+  escalationProbability: number // 0-1
+  collectionProbability: number // 0-1 if unresolved
+  creditReportingProbability: number // 0-1 if unresolved
   settlementFloor: number
   settlementCeiling: number
   recommendedOpeningPosition: number

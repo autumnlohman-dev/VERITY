@@ -133,8 +133,8 @@ function checkOvercharge(
       ? 'Medicare Clinical Laboratory Fee Schedule'
       : 'Medicare Physician Fee Schedule'
     const ruleViolated = isClfs
-      ? 'Medicare Clinical Laboratory Fee Schedule (Social Security Act § 1833(h), 42 U.S.C. § 1395l(h); 42 CFR Part 414, Subpart G) — charges materially above the CLFS allowed amount for the same lab HCPCS/CPT code.'
-      : 'Medicare Physician Fee Schedule (42 CFR § 414) — charges materially above the PFS allowed amount for the same CPT code and locality.'
+      ? 'Medicare Clinical Laboratory Fee Schedule (Social Security Act § 1833(h), 42 U.S.C. § 1395l(h); 42 CFR Part 414, Subpart G), charges materially above the CLFS allowed amount for the same lab HCPCS/CPT code.'
+      : 'Medicare Physician Fee Schedule (42 CFR § 414), charges materially above the PFS allowed amount for the same CPT code and locality.'
 
     // Benchmark findings are a request for justification, never an owed
     // amount: a CMS rate is a reference point, not this patient's contract.
@@ -211,14 +211,14 @@ function checkUnbundling(
           confidence: 'LOW',
           explanation: `Coding observation: NCCI edits bundle CPT ${col2} with CPT ${col1}, but your insurer adjudicated both lines separately on this claim, so this does not affect what you owe. Noted for reference only.`,
           rule_violated:
-            'NCCI Procedure-to-Procedure (PTP) edits — informational; superseded by the payer\'s adjudication of this claim.'
+            'NCCI Procedure-to-Procedure (PTP) edits, informational; superseded by the payer\'s adjudication of this claim.'
         })
         continue
       }
 
       const overrideNote = modifierOverridable
         ? 'A modifier (59, XE, XS, XP, or XU) can justify separate reporting, but none was applied.'
-        : 'This edit has modifier indicator 0 — no modifier may override it; the codes cannot be billed separately.'
+        : 'This edit has modifier indicator 0, no modifier may override it; the codes cannot be billed separately.'
 
       errors.push({
         cpt_code: col2,
@@ -229,7 +229,7 @@ function checkUnbundling(
         confidence: 'HIGH',
         explanation: `CPT ${col2} was billed separately on ${date} alongside CPT ${col1}. NCCI PTP edits bundle these codes: the column 2 code is a component of the column 1 code and is not separately reportable. ${overrideNote} Combined charges of $${billedPair.toFixed(2)} warrant justification for separate reporting or collapse to the single primary procedure.`,
         rule_violated:
-          'NCCI Procedure-to-Procedure (PTP) edits — CMS National Correct Coding Initiative Policy Manual, Chapter I.'
+          'NCCI Procedure-to-Procedure (PTP) edits, CMS National Correct Coding Initiative Policy Manual, Chapter I.'
       })
     }
   }
@@ -282,7 +282,7 @@ function checkDuplicates(items: LineItem[]): BillingError[] {
       confidence: 'HIGH',
       explanation: `CPT ${code} was billed ${group.length} times on ${date} without a distinct-procedural-service modifier (59, 76, 77, 91, or X{E,S,P,U}). Duplicate charges of $${duplicateBilled.toFixed(2)} appear to be double billing.`,
       rule_violated:
-        'CMS Claims Processing Manual (Pub. 100-04), Ch. 23 — duplicate line items on the same date of service without an appropriate modifier are not separately reimbursable.'
+        'CMS Claims Processing Manual (Pub. 100-04), Ch. 23, duplicate line items on the same date of service without an appropriate modifier are not separately reimbursable.'
     })
   }
   return errors
@@ -316,7 +316,7 @@ function checkMue(
         confidence: 'LOW',
         explanation: `Coding observation: ${item.units} units of CPT ${code} exceed the CMS Medically Unlikely Edit reference limit of ${mue.max_units}, but your insurer adjudicated this line as billed, so this does not affect what you owe. Noted for reference only.`,
         rule_violated:
-          'CMS Medically Unlikely Edits (MUE) — informational; superseded by the payer\'s adjudication of this claim.'
+          'CMS Medically Unlikely Edits (MUE), informational; superseded by the payer\'s adjudication of this claim.'
       })
       continue
     }
@@ -330,7 +330,7 @@ function checkMue(
       confidence: 'HIGH',
       explanation: `Provider billed ${item.units} units of CPT ${code}, but the CMS Medically Unlikely Edit caps this code at ${mue.max_units} unit(s) per day per beneficiary. ${excessUnits} unit(s) exceed the MUE limit.`,
       rule_violated:
-        'CMS Medically Unlikely Edits (MUE) — NCCI Policy Manual, MUE adjudication indicator; units billed exceed the maximum reasonable per-day limit.'
+        'CMS Medically Unlikely Edits (MUE), NCCI Policy Manual, MUE adjudication indicator; units billed exceed the maximum reasonable per-day limit.'
     })
   }
   return errors
@@ -361,11 +361,11 @@ function checkRateUnavailable(
       expected_amount: 0,
       confidence: 'LOW',
       explanation: uncoded
-        ? `The line "${item.description || 'service'}" billed at $${billed.toFixed(2)} shows no CPT/HCPCS procedure code on the uploaded document, so it cannot be priced against CMS fee schedules. Request a fully itemized bill from the provider — they are required to supply one — and re-run the audit with it.`
-        : `No published Medicare Physician Fee Schedule or Clinical Lab Fee Schedule rate was found for "${code}" billed at $${billed.toFixed(2)}. This is often a facility/revenue code, a proprietary internal charge code, or an OCR misread — it cannot be priced automatically and should be reviewed manually against the provider's chargemaster or explanation of benefits.`,
+        ? `The line "${item.description || 'service'}" billed at $${billed.toFixed(2)} shows no CPT/HCPCS procedure code on the uploaded document, so it cannot be priced against CMS fee schedules. Request a fully itemized bill from the provider, they are required to supply one, and re-run the audit with it.`
+        : `No published Medicare Physician Fee Schedule or Clinical Lab Fee Schedule rate was found for "${code}" billed at $${billed.toFixed(2)}. This is often a facility/revenue code, a proprietary internal charge code, or an OCR misread, it cannot be priced automatically and should be reviewed manually against the provider's chargemaster or explanation of benefits.`,
       rule_violated: uncoded
-        ? 'No procedure code on document — line-level pricing requires the CPT/HCPCS code from an itemized bill. Not an overcharge finding; request an itemized statement.'
-        : 'Fee schedule match unavailable — code could not be priced against CMS PFS or CLFS. Not presumptively an overcharge, but requires manual review to verify the billed amount is reasonable.'
+        ? 'No procedure code on document, line-level pricing requires the CPT/HCPCS code from an itemized bill. Not an overcharge finding; request an itemized statement.'
+        : 'Fee schedule match unavailable, code could not be priced against CMS PFS or CLFS. Not presumptively an overcharge, but requires manual review to verify the billed amount is reasonable.'
     })
   }
   return errors
@@ -394,7 +394,7 @@ function checkCoverage(
         confidence: 'HIGH',
         explanation: `Preventive service CPT ${code} was billed $${billed.toFixed(2)} to the patient. Under the ACA and Medicare Part B preventive benefits, this service must be covered without cost sharing when delivered in-network.`,
         rule_violated:
-          'Affordable Care Act § 2713 (42 U.S.C. § 300gg-13) and 42 CFR § 410.152 — no cost sharing for preventive services.'
+          'Affordable Care Act § 2713 (42 U.S.C. § 300gg-13) and 42 CFR § 410.152, no cost sharing for preventive services.'
       })
       continue
     }
@@ -409,7 +409,7 @@ function checkCoverage(
         confidence: 'MEDIUM',
         explanation: `Emergency department CPT ${code} must be adjudicated at in-network cost sharing regardless of provider network status. Verify the patient was not balance-billed above the in-network rate.`,
         rule_violated:
-          'No Surprises Act (42 U.S.C. § 300gg-111) — emergency services must be covered at in-network cost sharing without balance billing.'
+          'No Surprises Act (42 U.S.C. § 300gg-111), emergency services must be covered at in-network cost sharing without balance billing.'
       })
       continue
     }
@@ -424,7 +424,7 @@ function checkCoverage(
         confidence: 'MEDIUM',
         explanation: `HCPCS Level II S-code ${code} is a temporary national code used by private payers. Medicare does not recognize S-codes and the provider should have billed an appropriate CPT/HCPCS code recognized by Medicare.`,
         rule_violated:
-          'Medicare Claims Processing Manual (Pub. 100-04), Ch. 23, § 20.7 — S-codes are not payable under Medicare.'
+          'Medicare Claims Processing Manual (Pub. 100-04), Ch. 23, § 20.7, S-codes are not payable under Medicare.'
       })
     }
   }
@@ -501,7 +501,7 @@ export async function runAudit(
 
   const preamble: BillingError[] = []
   if (referenceDataEmpty) {
-    const message = `runAudit: all reference tables returned empty for ${uniqueCodes.length} codes — likely missing reference data`
+    const message = `runAudit: all reference tables returned empty for ${uniqueCodes.length} codes, likely missing reference data`
     console.error(message, { uniqueCodes })
     Sentry.captureMessage(message, {
       level: 'error',
@@ -509,7 +509,7 @@ export async function runAudit(
       extra: { uniqueCodes },
     })
     preamble.push({
-      cpt_code: '—',
+      cpt_code: '-',
       description: 'Audit reference data unavailable',
       error_type: 'reference_data_missing',
       billed_amount: 0,
@@ -518,7 +518,7 @@ export async function runAudit(
       explanation:
         'The CMS fee schedule, NCCI edits, and MUE limits used to price your bill were all unavailable at the time of this audit. Line-level pricing could not be verified, and this case requires manual review before any dispute is filed.',
       rule_violated:
-        'Internal reference data integrity check — runAudit detected empty PFS/CLFS, NCCI PTP, and NCCI MUE tables.',
+        'Internal reference data integrity check, runAudit detected empty PFS/CLFS, NCCI PTP, and NCCI MUE tables.',
     })
   }
 

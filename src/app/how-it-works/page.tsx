@@ -2,12 +2,15 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { BRAND_NAME } from "@/lib/brand";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
   fontSize: size,
   color: "#221C14",
   lineHeight: 1,
@@ -16,14 +19,14 @@ const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties =
 });
 
 const sans = (size: string, color = "#5F5648", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 
 const label = (color = "#C8A97E"): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
   textTransform: "uppercase" as const,
@@ -32,13 +35,6 @@ const label = (color = "#C8A97E"): React.CSSProperties => ({
 
 // ─── Nav (copied from landing page) ──────────────────────────────────────────
 function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
     <nav
       style={{
@@ -47,9 +43,8 @@ function Nav() {
         left: 0,
         right: 0,
         zIndex: 50,
-        backgroundColor: scrolled ? "rgba(235,229,217,0.85)" : "transparent",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
-        transition: "background-color 0.4s, backdrop-filter 0.4s",
+        backgroundColor: "var(--surface)",
+        borderBottom: "1px solid var(--line)",
         padding: "20px 64px",
         display: "flex",
         justifyContent: "space-between",
@@ -57,13 +52,8 @@ function Nav() {
       }}
     >
       <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "8px" }}>
-        <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-          <span style={{ ...sans("15px", "#221C14"), letterSpacing: "0.42em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.42em", lineHeight: 1 }}>
-            Verity™
-          </span>
-          <span style={{ ...sans("8px", "#8A7F6E"), letterSpacing: "0.18em", textTransform: "uppercase", paddingLeft: "0.42em", lineHeight: 1 }}>
-            Med Claim
-          </span>
+        <span style={{ ...sans("15px", "#221C14"), letterSpacing: "0.42em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.42em", lineHeight: 1 }}>
+          {BRAND_NAME}
         </span>
       </Link>
       <div className="hidden md:flex" style={{ gap: "40px" }}>
@@ -106,8 +96,7 @@ function Footer() {
       }}
     >
       <div>
-        <div style={{ ...sans("12px", "#221C14"), letterSpacing: "0.34em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.34em", lineHeight: 1 }}>Verity™</div>
-        <div style={{ ...sans("8px", "#8A7F6E"), letterSpacing: "0.2em", textTransform: "uppercase", paddingLeft: "0.34em", marginTop: "5px", marginBottom: "16px" }}>Med Claim</div>
+        <div style={{ ...sans("12px", "#221C14"), letterSpacing: "0.34em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.34em", lineHeight: 1, marginBottom: "16px" }}>{BRAND_NAME}</div>
         <div style={{ ...sans("11px", "#8A7F6E"), maxWidth: "260px", lineHeight: 1.6 }}>
           Verity is an administrative advocacy service. We are not a law firm and do not provide legal advice.
         </div>
@@ -137,7 +126,7 @@ function Footer() {
           <Link href="/privacy" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Privacy</Link>
           <Link href="/terms" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Terms</Link>
         </div>
-        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity™ audit method, scoring models, and datasets are proprietary and confidential. Patent Pending — 41 claims, 13 independent claim categories.</div>
+        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity™ audit method, scoring models, and datasets are proprietary and confidential. Patent Pending, 41 claims, 13 independent claim categories.</div>
       </div>
     </footer>
   );
@@ -155,7 +144,7 @@ const FAQS = [
   },
   {
     q: "What do I need to upload?",
-    a: "Your itemized medical bill (not the summary — request the itemized version from your provider if you don't have it), your Explanation of Benefits from your insurer, and your insurance card. The EOB is optional but makes the audit more precise.",
+    a: "Your itemized medical bill (not the summary, request the itemized version from your provider if you don't have it), your Explanation of Benefits from your insurer, and your insurance card. The EOB is optional but makes the audit more precise.",
   },
   {
     q: "What happens if my insurer denies the dispute?",
@@ -167,7 +156,7 @@ const FAQS = [
   },
   {
     q: "Do you work with all insurance types?",
-    a: "We handle PPO, HMO, EPO, and Medicare Advantage plans. We also review self-pay bills over $500. Medicare and Medicaid disputes follow different pathways — we'll flag this during your audit.",
+    a: "We handle PPO, HMO, EPO, and Medicare Advantage plans. We also review self-pay bills over $500. Medicare and Medicaid disputes follow different pathways, we'll flag this during your audit.",
   },
 ];
 
@@ -193,7 +182,9 @@ function FaqItem({ q, a }: { q: string; a: string }) {
       >
         <span
           style={{
-            fontFamily: "var(--font-cormorant), Georgia, serif",
+            fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
             fontSize: "20px",
             color: "#221C14",
             fontWeight: 400,
@@ -240,25 +231,25 @@ const STEPS = [
   {
     n: 2,
     title: "We audit every charge.",
-    body: "We normalize every document you upload — your itemized bill, your EOB, your denial letter, your authorization — into a single unified schema, then compare them against each other and against federal billing rules in one pass. Discrepancies across documents are found automatically, no manual review required.",
+    body: "We normalize every document you upload, your itemized bill, your EOB, your denial letter, your authorization, into a single unified schema, then compare them against each other and against federal billing rules in one pass. Discrepancies across documents are found automatically, no manual review required.",
     time: "24 hours",
   },
   {
     n: 3,
     title: "You receive your error report.",
-    body: "Every error, the evidence behind it, and a dollar value attached to each. The report is yours free — no commitment, no obligation to proceed.",
+    body: "Every error, the evidence behind it, and a dollar value attached to each. The report is yours free, no commitment, no obligation to proceed.",
     time: "Same day",
   },
   {
     n: 4,
     title: "See your outcome prediction.",
-    body: "Before you file anything, membership users see an estimated recovery amount, likely resolution timeframe, escalation probability, and a specific settlement floor and ceiling — so you know exactly what you're walking into.",
+    body: "Before you file anything, membership users see an estimated recovery amount, likely resolution timeframe, escalation probability, and a specific settlement floor and ceiling, so you know exactly what you're walking into.",
     time: "Instant",
   },
   {
     n: 5,
     title: "You choose what happens next.",
-    body: "Stay on the free audit, pay $39 for a single dispute package on one bill, or join the membership and authorize Verity to file and close the dispute entirely — generating every letter, appeal, and follow-up automatically until the case is resolved.",
+    body: "Stay on the free audit, pay $39 for a single dispute package on one bill, or join the membership and authorize Verity to file and close the dispute entirely, generating every letter, appeal, and follow-up automatically until the case is resolved.",
     time: "Your call",
   },
   {
@@ -272,7 +263,7 @@ const STEPS = [
 // ─── Timeline milestones ──────────────────────────────────────────────────────
 const MILESTONES = [
   { date: "Mar 12", label: "Documents uploaded", day: 0, done: true, active: false },
-  { date: "Mar 13", label: "Audit complete — 4 errors found", day: 1, done: true, active: false },
+  { date: "Mar 13", label: "Audit complete, 4 errors found", day: 1, done: true, active: false },
   { date: "Mar 15", label: "Dispute filed with provider", day: 3, done: true, active: false },
   { date: "Mar 22", label: "Internal review opened", day: 10, done: true, active: false },
   { date: "Apr 1", label: "$2,840 recovered", day: 20, done: false, active: true },
@@ -288,7 +279,7 @@ export default function HowItWorksPage() {
   };
 
   return (
-    <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
+    <div className="page-root" style={{ background: "var(--surface)", minHeight: "100vh" }}>
       <Nav />
 
       {/* ── Hero ── */}
@@ -301,7 +292,9 @@ export default function HowItWorksPage() {
           <div style={{ ...label(), marginBottom: "32px" }}>How it works</div>
           <h1
             style={{
-              fontFamily: "var(--font-cormorant), Georgia, serif",
+              fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
               fontSize: "clamp(72px, 8vw, 96px)",
               color: "#221C14",
               lineHeight: 0.92,
@@ -314,13 +307,13 @@ export default function HowItWorksPage() {
             <em style={{ fontStyle: "italic" }}>You keep the money.</em>
           </h1>
           <p style={{ ...sans("15px", "#5F5648"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
-            Verity is a medical bill advocacy tool. We review your bill, find the errors, predict your recovery odds, and — if you choose —
+            Verity is a medical bill advocacy tool. We review your bill, find the errors, predict your recovery odds, and, if you choose,
             run the dispute entirely on your behalf.
           </p>
         </motion.div>
       </section>
 
-      {/* ── The process — 6 steps ── */}
+      {/* ── The process, 6 steps ── */}
       <section style={{ paddingTop: "96px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
         <motion.div {...fadeUp}>
           <div style={{ ...label(), marginBottom: "24px" }}>The process</div>
@@ -346,10 +339,12 @@ export default function HowItWorksPage() {
               alignItems: "flex-start",
             }}
           >
-            {/* Step number — decorative */}
+            {/* Step number, decorative */}
             <div
               style={{
-                fontFamily: "var(--font-cormorant), Georgia, serif",
+                fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
                 fontSize: "72px",
                 color: "#E2DACB",
                 fontStyle: "italic",
@@ -477,7 +472,7 @@ export default function HowItWorksPage() {
         </motion.div>
       </section>
 
-      {/* ── What we are — two columns ── */}
+      {/* ── What we are, two columns ── */}
       <section style={{ paddingTop: "96px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
         <motion.div {...fadeUp}>
           <div style={{ ...label(), marginBottom: "32px" }}>Our authorization</div>
@@ -496,7 +491,7 @@ export default function HowItWorksPage() {
               {[
                 "A medical bill advocacy platform for patients",
                 "Software that finds billing errors and writes your dispute and appeal letters",
-                "Grounded in federal rules — NCCI, MUE, PFS, No Surprises Act, Transparency in Coverage Rule, FDCPA, FCRA, and ERISA, with state-specific overlays",
+                "Grounded in federal rules, NCCI, MUE, PFS, No Surprises Act, Transparency in Coverage Rule, FDCPA, FCRA, and ERISA, with state-specific overlays",
                 "Built on CPT codes, insurance contracts, and dispute procedures",
                 "Covered under your patient rights to dispute charges",
               ].map((item) => (
@@ -530,7 +525,7 @@ export default function HowItWorksPage() {
               ))}
             </div>
             <p style={{ ...sans("12px", "#8A7F6E"), fontStyle: "italic", marginTop: "32px", lineHeight: 1.65 }}>
-              If your case involves fraud, malpractice, or requires legal action, we&apos;ll tell you — and refer you
+              If your case involves fraud, malpractice, or requires legal action, we&apos;ll tell you, and refer you
               to appropriate legal counsel. We don&apos;t handle cases beyond our scope.
             </p>
           </motion.div>
@@ -555,10 +550,10 @@ export default function HowItWorksPage() {
             is your legal right.
           </h2>
           <p style={{ ...sans("14px", "#5F5648"), maxWidth: "640px", lineHeight: 1.75 }}>
-            Under the No Surprises Act, Transparency in Coverage Rule, FDCPA, FCRA, ERISA, and applicable state balance billing and insurance protection laws — with state-specific overlays based on your state of residence and state of treatment — patients have federally and state-protected rights to dispute medical bills. You have the right to request an itemized bill from any provider, the right to dispute charges above the contracted rate, and the right to an independent external review if your insurer denies your claim.
+            Under the No Surprises Act, Transparency in Coverage Rule, FDCPA, FCRA, ERISA, and applicable state balance billing and insurance protection laws, with state-specific overlays based on your state of residence and state of treatment, patients have federally and state-protected rights to dispute medical bills. You have the right to request an itemized bill from any provider, the right to dispute charges above the contracted rate, and the right to an independent external review if your insurer denies your claim.
           </p>
           <p style={{ ...sans("14px", "#5F5648"), maxWidth: "640px", lineHeight: 1.75, marginTop: "16px" }}>
-            Verity makes this process simple: we find the errors, cite the exact rules, and generate the letters —
+            Verity makes this process simple: we find the errors, cite the exact rules, and generate the letters,
             with the deadlines and escalation pathways built in. You don&apos;t have to navigate it alone.
           </p>
           <Link href="/upload" style={{ textDecoration: "none" }}>
@@ -574,7 +569,7 @@ export default function HowItWorksPage() {
                 marginTop: "40px",
               }}
             >
-              Check my bill — free
+              Check my bill, free
             </span>
           </Link>
         </motion.div>

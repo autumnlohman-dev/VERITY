@@ -11,16 +11,18 @@ const TIER_COLORS = {
 }
 
 const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: 'var(--font-dm-sans), system-ui, sans-serif',
+  fontFamily: 'var(--font-public-sans), system-ui, sans-serif',
   fontSize: size,
   color,
   ...extra,
 })
 
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: 'var(--font-cormorant), Georgia, serif',
+  fontFamily: 'var(--font-fraunces), Georgia, serif',
+  fontOpticalSizing: 'auto',
+  letterSpacing: '-0.015em',
   fontSize: size,
-  color: '#F5F0E8',
+  color: 'var(--surface)',
   lineHeight: 1,
   fontWeight: 400,
   ...extra,
@@ -74,8 +76,8 @@ export function FinancialHarmScoreDisplay({ fhs }: FHSDisplayProps) {
           }} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-          <span style={{ ...sans('10px', '#5F5648') }}>0 — Low</span>
-          <span style={{ ...sans('10px', '#5F5648') }}>1000 — Severe</span>
+          <span style={{ ...sans('10px', '#5F5648') }}>0 (Low)</span>
+          <span style={{ ...sans('10px', '#5F5648') }}>1000 (Severe)</span>
         </div>
       </div>
 
@@ -86,7 +88,7 @@ export function FinancialHarmScoreDisplay({ fhs }: FHSDisplayProps) {
           {fhs.topRisks.map((risk, i) => (
             <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '8px', alignItems: 'flex-start' }}>
               <span style={{ color: colors.text, flexShrink: 0, marginTop: '2px' }}>•</span>
-              <span style={{ ...sans('14px', '#F5F0E8') }}>{risk}</span>
+              <span style={{ ...sans('14px', 'var(--surface)') }}>{risk}</span>
             </div>
           ))}
         </div>
@@ -99,7 +101,7 @@ export function FinancialHarmScoreDisplay({ fhs }: FHSDisplayProps) {
           {fhs.recommendedActions.map((action, i) => (
             <div key={i} style={{ display: 'flex', gap: '12px', marginBottom: '8px', alignItems: 'flex-start' }}>
               <span style={{ ...sans('12px', colors.text), fontWeight: 600, flexShrink: 0, minWidth: '20px' }}>{i + 1}.</span>
-              <span style={{ ...sans('14px', '#F5F0E8') }}>{action}</span>
+              <span style={{ ...sans('14px', 'var(--surface)') }}>{action}</span>
             </div>
           ))}
         </div>
@@ -129,7 +131,7 @@ export function FinancialHarmScoreDisplay({ fhs }: FHSDisplayProps) {
           {fhs.components.map((comp, i) => (
             <div key={i} style={{ marginBottom: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ ...sans('12px', '#F5F0E8') }}>{comp.name}</span>
+                <span style={{ ...sans('12px', 'var(--surface)') }}>{comp.name}</span>
                 <span style={{ ...sans('12px', '#A89F96') }}>{comp.weight}% weight → {comp.normalizedScore}/100</span>
               </div>
               <div style={{ height: '3px', backgroundColor: '#1C1C1C', borderRadius: '2px', marginBottom: '4px' }}>
@@ -164,14 +166,14 @@ interface IntakeFormProps {
 function BtnPair({ label, value, onChange }: { label: string; value: boolean | null; onChange: (v: boolean) => void }) {
   return (
     <div style={{ marginBottom: '20px' }}>
-      <div style={{ ...sans('14px', '#F5F0E8'), marginBottom: '10px' }}>{label}</div>
+      <div style={{ ...sans('14px', 'var(--surface)'), marginBottom: '10px' }}>{label}</div>
       <div style={{ display: 'flex', gap: '12px' }}>
         {[{ label: 'Yes', val: true }, { label: 'No', val: false }].map(opt => (
           <button
             key={String(opt.val)}
             onClick={() => onChange(opt.val)}
             style={{
-              ...sans('13px', value === opt.val ? '#0D0D0D' : '#A89F96'),
+              ...sans('13px', value === opt.val ? 'var(--ink)' : '#A89F96'),
               backgroundColor: value === opt.val ? '#C8A97E' : 'transparent',
               border: `1px solid ${value === opt.val ? '#C8A97E' : '#2A2A2A'}`,
               padding: '10px 28px',
@@ -198,11 +200,11 @@ export function FHSIntakeForm({ onSubmit, initial }: IntakeFormProps) {
   const allAnswered = collection !== null && credit !== null && denial !== null
 
   return (
-    <div style={{ border: '1px solid #2A2A2A', padding: '28px', marginBottom: '32px', backgroundColor: '#111111' }}>
+    <div style={{ border: '1px solid #2A2A2A', padding: '28px', marginBottom: '32px', backgroundColor: 'var(--ink)' }}>
       <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '6px' }}>
         3 quick questions
       </div>
-      <div style={{ ...sans('16px', '#F5F0E8'), marginBottom: '24px' }}>
+      <div style={{ ...sans('16px', 'var(--surface)'), marginBottom: '24px' }}>
         Help us calculate your full financial risk score
       </div>
 
@@ -230,7 +232,7 @@ export function FHSIntakeForm({ onSubmit, initial }: IntakeFormProps) {
             hasInsuranceDenial: denial!,
           })}
           style={{
-            ...sans('12px', '#0D0D0D'),
+            ...sans('12px', 'var(--ink)'),
             backgroundColor: '#C8A97E',
             border: 'none',
             padding: '14px 32px',

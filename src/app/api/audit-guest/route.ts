@@ -123,7 +123,7 @@ export async function POST(request: Request) {
       // Distinguish a readable document with no charge lines from a file we
       // couldn't read at all.
       const error = sawContent
-        ? "We could read this document, but couldn't find any itemized charge lines on it. Make sure you upload the itemized bill — the one that lists each service with its charge — not the billing summary, statement balance, or payment receipt."
+        ? "We could read this document, but couldn't find any itemized charge lines on it. Make sure you upload the itemized bill, the one that lists each service with its charge, not the billing summary, statement balance, or payment receipt."
         : "We couldn't read any billing details from this file. Try a clearer, well-lit photo (or a PDF) of your itemized bill."
       return NextResponse.json({ error }, { status: 422 })
     }
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
     // 'pdf' for a merged multi-file document).
     const eobExt = eobSlot.doc?.ext ?? ''
     console.info(
-      `audit-guest: EOB inputs — pages:${eobSlot.pageRefs.length} merged:${eobSlot.merged} resolved:${!!resolvedEobBase64} ext:"${eobExt}"`
+      `audit-guest: EOB inputs, pages:${eobSlot.pageRefs.length} merged:${eobSlot.merged} resolved:${!!resolvedEobBase64} ext:"${eobExt}"`
     )
     const result = await runFullAudit({
       lineItems,

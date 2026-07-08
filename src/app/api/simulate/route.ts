@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
             toSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options),
             );
-          } catch { /* read path — ignore */ }
+          } catch { /* read path, ignore */ }
         },
       },
     },

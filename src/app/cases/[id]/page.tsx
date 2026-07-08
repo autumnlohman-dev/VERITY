@@ -29,26 +29,29 @@ import { MANUAL_REVIEW_ERROR_TYPES } from "@/lib/audit/manualReview";
 import { formatCalendarDate } from "@/lib/dates";
 import { classifyAuditFreshness, staleBannerFor, type StaleBanner } from "@/lib/audit/version";
 import { auditSnapshotFingerprint, isLetterStale } from "@/lib/letters/staleness";
+import { BRAND_NAME } from "@/lib/brand";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
   fontSize: size,
-  color: "#F5F0E8",
+  color: "var(--surface)",
   lineHeight: 1,
   fontWeight: 400,
   ...extra,
 });
 
 const sans = (size: string, color = "#A89F96", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 
 const label = (color = "#C8A97E"): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
   textTransform: "uppercase" as const,
@@ -57,13 +60,6 @@ const label = (color = "#C8A97E"): React.CSSProperties => ({
 
 // ─── Nav ─────────────────────────────────────────────────────────────────────
 function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
     <nav
       style={{
@@ -72,24 +68,17 @@ function Nav() {
         left: 0,
         right: 0,
         zIndex: 50,
-        backgroundColor: scrolled ? "rgba(13,13,13,0.92)" : "rgba(13,13,13,0.95)",
-        backdropFilter: "blur(12px)",
-        transition: "background-color 0.4s",
+        backgroundColor: "var(--surface)",
+        borderBottom: "1px solid var(--line)",
         padding: "20px 64px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        borderBottom: "1px solid #1C1C1C",
       }}
     >
       <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center" }}>
-        <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-          <span style={{ ...sans("12px", "#F5F0E8"), letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, lineHeight: 1 }}>
-            Verity™
-          </span>
-          <span style={{ ...sans("8px", "#A89F96"), letterSpacing: "0.18em", textTransform: "uppercase", lineHeight: 1 }}>
-            Med Claim
-          </span>
+        <span style={{ ...sans("12px", "var(--ink)"), letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, lineHeight: 1 }}>
+          {BRAND_NAME}
         </span>
       </Link>
       <div className="hidden md:flex" style={{ gap: "40px" }}>
@@ -100,16 +89,16 @@ function Nav() {
           <Link
             key={link.href}
             href={link.href}
-            style={{ ...sans("11px", "#A89F96"), letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none", transition: "color 0.2s" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#A89F96")}
+            style={{ ...sans("11px", "var(--ink-soft)"), letterSpacing: "0.15em", textTransform: "uppercase", textDecoration: "none", transition: "color 0.2s" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ink)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ink-soft)")}
           >
             {link.label}
           </Link>
         ))}
       </div>
       <Link href="/upload" style={{ textDecoration: "none" }}>
-        <span style={{ ...sans("11px", "#0D0D0D"), backgroundColor: "#C8A97E", padding: "12px 24px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
+        <span style={{ ...sans("11px", "var(--ink)"), backgroundColor: "#C8A97E", padding: "12px 24px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
           Upload my bill free →
         </span>
       </Link>
@@ -191,7 +180,7 @@ interface LetterRow {
 
 // ─── Status display ───────────────────────────────────────────────────────────
 const STATUS_DISPLAY: Record<string, { label: string; dot: string; text: string; pulse?: boolean }> = {
-  auditing: { label: "Auditing", dot: "#4A90D9", text: "#A89F96", pulse: true },
+  auditing: { label: "Auditing", dot: "var(--brand)", text: "#A89F96", pulse: true },
   error_found: { label: "Error Found", dot: "#C47C6A", text: "#C47C6A" },
   no_errors: { label: "No Errors Found", dot: "#7A9E87", text: "#7A9E87" },
   letter_ready: { label: "Letter Ready", dot: "#C8A97E", text: "#C8A97E" },
@@ -231,7 +220,7 @@ const CONFIDENCE_STYLE: Record<string, React.CSSProperties> = {
   LOW: {
     color: "#A89F96",
     borderColor: "#2A2A2A",
-    backgroundColor: "#111111",
+    backgroundColor: "var(--ink)",
   },
 };
 
@@ -240,7 +229,7 @@ function ConfidenceBadge({ confidence }: { confidence: string }) {
   return (
     <span
       style={{
-        fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+        fontFamily: "var(--font-public-sans), system-ui, sans-serif",
         fontSize: "10px",
         letterSpacing: "0.15em",
         textTransform: "uppercase",
@@ -284,9 +273,9 @@ function errorTypeLabel(type: string): string {
     case "mue": return "MUE Violation";
     case "coverage": return "Coverage";
     case "patient_disputed": return "Patient Dispute";
-    case "rate_unavailable": return "Manual Review — No CMS Rate";
+    case "rate_unavailable": return "Manual Review: No CMS Rate";
     case "reference_data_missing": return "Audit Reference Data Unavailable";
-    case "coding_observation": return "Coding Observation — Informational";
+    case "coding_observation": return "Coding Observation: Informational";
     default: return type;
   }
 }
@@ -294,7 +283,7 @@ function errorTypeLabel(type: string): string {
 // ─── Loading / Empty states ───────────────────────────────────────────────────
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: "#0D0D0D", minHeight: "100vh" }}>
+    <div style={{ background: "var(--ink)", minHeight: "100vh" }}>
       <style>{`
         @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
         .dot-pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
@@ -369,10 +358,10 @@ function NotFoundState({ message }: { message: string }) {
 function EmOutcomeCallout({ review }: { review: EmReview }) {
   const outcomeLabel =
     review.outcome === "cleared"
-      ? "E&M flag cleared — no dispute recommended on this code"
+      ? "E&M flag cleared, no dispute recommended on this code"
       : review.outcome === "borderline"
-      ? "Borderline — consider requesting an itemized statement"
-      : "E&M flag confirmed — included in your dispute letter";
+      ? "Borderline, consider requesting an itemized statement"
+      : "E&M flag confirmed, included in your dispute letter";
 
   const borderColor =
     review.outcome === "cleared"
@@ -385,13 +374,13 @@ function EmOutcomeCallout({ review }: { review: EmReview }) {
     review.outcome === "cleared"
       ? "Based on your answers, the complexity of this visit is consistent with a lower-level code. We won't dispute this charge. Your answers remain on file."
       : review.outcome === "borderline"
-      ? "Your answers place this visit between complexity levels. Before disputing, request a fully itemized statement with CPT justification from the provider — the exact wording is below. If the provider can't substantiate the higher level, the bill is disputable."
+      ? "Your answers place this visit between complexity levels. Before disputing, request a fully itemized statement with CPT justification from the provider, the exact wording is below. If the provider can't substantiate the higher level, the bill is disputable."
       : "Your answers indicate the visit complexity does not match the higher-level E&M code billed. Your dispute letter now cites CMS 2021 E&M guidelines and references your responses.";
 
   return (
     <div
       style={{
-        backgroundColor: "#111111",
+        backgroundColor: "var(--ink)",
         border: "1px solid #242424",
         borderLeft: `3px solid ${borderColor}`,
         padding: "24px 28px",
@@ -434,7 +423,7 @@ function EmOutcomeCallout({ review }: { review: EmReview }) {
       {review.outcome === "borderline" && (
         <div
           style={{
-            backgroundColor: "#0D0D0D",
+            backgroundColor: "var(--ink)",
             border: "1px solid #242424",
             padding: "16px 20px",
             marginTop: "20px",
@@ -582,7 +571,7 @@ export default function CaseDetailPage({
           }
         } catch (err) {
           console.error(
-            `Case ${id}: audit recompute FAILED — rendering stored (stale) results.`,
+            `Case ${id}: audit recompute FAILED, rendering stored (stale) results.`,
             err
           );
           recomputeOutcome = false;
@@ -949,7 +938,7 @@ export default function CaseDetailPage({
 
   return (
     <Shell>
-      {/* Hidden re-run file input — mounted for every status so both the
+      {/* Hidden re-run file input, mounted for every status so both the
           stranded-audit retry and the stale-audit fallback can open it. */}
       <input
         ref={rerunInputRef}
@@ -995,7 +984,7 @@ export default function CaseDetailPage({
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = "rgba(200,169,126,0.08)";
-            e.currentTarget.style.color = "#F5F0E8";
+            e.currentTarget.style.color = "var(--surface)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = "transparent";
@@ -1017,7 +1006,7 @@ export default function CaseDetailPage({
               ...sans("13px", "#C8A97E"),
             }}
           >
-            This bill is already in your dashboard — showing your existing audit
+            This bill is already in your dashboard, showing your existing audit
             rather than creating a duplicate.
           </div>
         </div>
@@ -1030,23 +1019,23 @@ export default function CaseDetailPage({
         <div style={{ paddingLeft: "64px", paddingRight: "64px", marginTop: "16px" }}>
           <div
             style={{
-              backgroundColor: "rgba(200,169,126,0.08)",
-              border: "1px solid rgba(200,169,126,0.4)",
-              borderLeft: "3px solid #C8A97E",
+              backgroundColor: "var(--surface-raised)",
+              border: "1px solid var(--line)",
+              borderLeft: "3px solid var(--urgent-amber)",
               padding: "16px 20px",
             }}
           >
-            <div style={{ ...label("#C8A97E"), marginBottom: "6px" }}>Audit update available</div>
-            <p style={{ ...sans("13px", "#A89F96"), lineHeight: 1.6 }}>{staleAudit.message}</p>
+            <div style={{ ...label("var(--urgent-amber)"), marginBottom: "6px" }}>Audit update available</div>
+            <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.6 }}>{staleAudit.message}</p>
             {rerunError && (
-              <p style={{ ...sans("13px", "#C47C6A"), marginTop: "8px" }}>{rerunError}</p>
+              <p style={{ ...sans("13px", "var(--urgent-red)"), marginTop: "8px" }}>{rerunError}</p>
             )}
             <button
               onClick={() => void handleStaleRerun()}
               disabled={rerunning}
               style={{
-                ...sans("10px", "#0D0D0D"),
-                backgroundColor: "#C8A97E",
+                ...sans("10px", "var(--surface-raised)"),
+                backgroundColor: "var(--brand)",
                 border: "none",
                 padding: "10px 20px",
                 letterSpacing: "0.2em",
@@ -1108,9 +1097,9 @@ export default function CaseDetailPage({
           }}
         >
           {[
-            { value: formatCurrency(billed), sublabel: "amount billed", color: "#F5F0E8" },
+            { value: formatCurrency(billed), sublabel: "amount billed", color: "var(--surface)" },
             null,
-            { value: formatCurrency(expected), sublabel: "amount expected", color: "#F5F0E8" },
+            { value: formatCurrency(expected), sublabel: "amount expected", color: "var(--surface)" },
             null,
             {
               value: formatCurrency(savings),
@@ -1127,7 +1116,9 @@ export default function CaseDetailPage({
               <div key={i}>
                 <div
                   style={{
-                    fontFamily: "var(--font-cormorant), Georgia, serif",
+                    fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
                     fontSize: "36px",
                     color: item.color,
                     lineHeight: 1,
@@ -1160,7 +1151,7 @@ export default function CaseDetailPage({
             </div>
             <p style={{ ...sans("13px", "#A89F96") }}>
               {letterStale
-                ? "Your audit was updated after this letter was created — the numbers no longer match. Regenerate the letter to re-enable download and mailing."
+                ? "Your audit was updated after this letter was created, the numbers no longer match. Regenerate the letter to re-enable download and mailing."
                 : "A complete, ready-to-send PDF: cover sheet, dispute letter, chronological timeline, financial calculation worksheet, regulatory citation appendix, and a deadline summary."}
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
@@ -1168,7 +1159,7 @@ export default function CaseDetailPage({
                 <button
                   onClick={handleDownloadPackage}
                   style={{
-                    ...sans("10px", "#0D0D0D"),
+                    ...sans("10px", "var(--ink)"),
                     backgroundColor: "#C8A97E",
                     padding: "10px 20px",
                     letterSpacing: "0.2em",
@@ -1184,7 +1175,7 @@ export default function CaseDetailPage({
               <Link href={`/cases/${caseRow.id}/letter`} style={{ textDecoration: "none" }}>
                 <span
                   style={{
-                    ...sans("10px", letterStale ? "#0D0D0D" : "#C8A97E"),
+                    ...sans("10px", letterStale ? "var(--ink)" : "#C8A97E"),
                     backgroundColor: letterStale ? "#C8A97E" : "transparent",
                     border: letterStale ? "none" : "1px solid rgba(200,169,126,0.4)",
                     padding: "10px 20px",
@@ -1219,7 +1210,7 @@ export default function CaseDetailPage({
                 />
                 <span style={{ ...sans("12px", caseRow.mail_test_mode ? "#C8A97E" : "#7A9E87") }}>
                   {caseRow.mail_test_mode
-                    ? "Mailed in TEST MODE — no physical letter sent"
+                    ? "Mailed in TEST MODE, no physical letter sent"
                     : caseRow.mail_certified
                     ? "Letter mailed (certified)"
                     : "Letter mailed"}
@@ -1244,13 +1235,13 @@ export default function CaseDetailPage({
             </div>
             <p style={{ ...sans("13px", "#A89F96") }}>
               {unlocked
-                ? "Your dispute package is unlocked. Generate your insurer-ready letter — regulatory citations, chronological timeline, and evidence included."
+                ? "Your dispute package is unlocked. Generate your insurer-ready letter, regulatory citations, chronological timeline, and evidence included."
                 : "Turn these findings into a ready-to-send dispute package: an insurer-specific letter, regulatory citations, and a step-by-step submission guide."}
             </p>
             <Link href={`/cases/${caseRow.id}/letter`} style={{ textDecoration: "none" }}>
               <span
                 style={{
-                  ...sans("10px", "#0D0D0D"),
+                  ...sans("10px", "var(--ink)"),
                   backgroundColor: "#C8A97E",
                   padding: "12px 24px",
                   letterSpacing: "0.2em",
@@ -1284,7 +1275,7 @@ export default function CaseDetailPage({
           <div
             style={{
               backgroundColor: "#1A1A1A",
-              borderLeft: "4px solid #4A90D9",
+              borderLeft: "4px solid var(--brand)",
               padding: "20px 24px",
               marginTop: "32px",
             }}
@@ -1321,7 +1312,7 @@ export default function CaseDetailPage({
           {/* ── VERITY v2: FHS intake → score, deadlines, timeline ── */}
           {(errors.length > 0 || (cbsSet && (cbsSet.totalDiscrepancies ?? 0) > 0)) && (
             <>
-              {/* Financial Harm Score — saved score (with edit) or the form */}
+              {/* Financial Harm Score, saved score (with edit) or the form */}
               {fhs && !editingFhs ? (
                 <>
                   <FinancialHarmScoreDisplay fhs={fhs} />
@@ -1366,7 +1357,7 @@ export default function CaseDetailPage({
               )}
 
               {/* Suspected partial read: extracted lines sum materially below the
-                  bill's own printed total — findings may be incomplete. Loud, never
+                  bill's own printed total, findings may be incomplete. Loud, never
                   silent success. */}
               {caseRow.bill_data?.suspectedPartialRead && (
                 <div
@@ -1383,14 +1374,14 @@ export default function CaseDetailPage({
                   </div>
                   <p style={{ ...sans("13px", "#A89F96"), lineHeight: 1.6 }}>
                     The charge lines we extracted add up to noticeably less than the total
-                    printed on your bill — some pages or rows may not have been read. These
+                    printed on your bill, some pages or rows may not have been read. These
                     findings may be incomplete: re-upload all pages of the itemized bill
                     (clear photos or a PDF) and re-run the audit before relying on the numbers.
                   </p>
                 </div>
               )}
 
-              {/* EOB couldn't be read — say so instead of silently degrading to
+              {/* EOB couldn't be read, say so instead of silently degrading to
                   a bill-only audit (the cross-document section just won't render). */}
               {caseRow.bill_data?.eobError && (
                 <div
@@ -1423,7 +1414,7 @@ export default function CaseDetailPage({
                       <div
                         key={d.discrepancyId}
                         style={{
-                          backgroundColor: "#111111",
+                          backgroundColor: "var(--ink)",
                           border: "1px solid #242424",
                           borderLeft: `3px solid ${sev}`,
                           padding: "20px 24px",
@@ -1527,7 +1518,7 @@ export default function CaseDetailPage({
                 onClick={() => rerunInputRef.current?.click()}
                 disabled={rerunning}
                 style={{
-                  ...sans("11px", "#0D0D0D"),
+                  ...sans("11px", "var(--ink)"),
                   backgroundColor: "#C8A97E",
                   border: "none",
                   padding: "14px 28px",
@@ -1546,7 +1537,7 @@ export default function CaseDetailPage({
             expected === 0 && !caseRow.bill_data?.hasEob ? (
               <div
                 style={{
-                  backgroundColor: "#111111",
+                  backgroundColor: "var(--ink)",
                   border: "1px solid rgba(200,169,126,0.4)",
                   borderLeft: "4px solid #C8A97E",
                   padding: "32px",
@@ -1556,7 +1547,7 @@ export default function CaseDetailPage({
                   Reference data gap.
                 </div>
                 <p style={{ ...sans("13px", "#A89F96"), marginTop: "12px", lineHeight: 1.65 }}>
-                  Fee schedule lookup returned no matches — the CPT codes on this
+                  Fee schedule lookup returned no matches, the CPT codes on this
                   bill may not be in our reference data. This audit should not be
                   treated as exhaustive until the relevant codes are loaded.
                 </p>
@@ -1564,7 +1555,7 @@ export default function CaseDetailPage({
             ) : (
               <div
                 style={{
-                  backgroundColor: "#111111",
+                  backgroundColor: "var(--ink)",
                   border: "1px solid #242424",
                   padding: "32px",
                   textAlign: "center",
@@ -1614,9 +1605,9 @@ export default function CaseDetailPage({
                       {err.cpt_code}
                     </span>
                     <div>
-                      <div style={{ ...sans("13px", "#F5F0E8") }}>
+                      <div style={{ ...sans("13px", "var(--surface)") }}>
                         {errorTypeLabel(err.error_type)}
-                        {err.description ? ` — ${err.description}` : ""}
+                        {err.description ? `, ${err.description}` : ""}
                       </div>
                     </div>
                     <span style={{ ...sans("13px", "#A89F96") }}>
@@ -1629,7 +1620,7 @@ export default function CaseDetailPage({
                   </div>
                   <div
                     style={{
-                      backgroundColor: "#111111",
+                      backgroundColor: "var(--ink)",
                       padding: "16px 20px",
                       marginBottom: "0",
                     }}
@@ -1658,7 +1649,9 @@ export default function CaseDetailPage({
                 <span style={{ ...sans("13px", "#6B635C") }}>Potential savings:</span>
                 <span
                   style={{
-                    fontFamily: "var(--font-cormorant), Georgia, serif",
+                    fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
                     fontSize: "28px",
                     color: "#7A9E87",
                     fontWeight: 400,
@@ -1683,7 +1676,7 @@ export default function CaseDetailPage({
           {/* Case meta */}
           <div
             style={{
-              backgroundColor: "#111111",
+              backgroundColor: "var(--ink)",
               border: "1px solid #242424",
               padding: "24px",
             }}
@@ -1693,7 +1686,7 @@ export default function CaseDetailPage({
               { k: "Status", v: statusCfg.label },
               { k: "Filed", v: formatDate(caseRow.created_at) },
               { k: "Insurance", v: insurer },
-              { k: "Tier", v: tierLabel ?? "—" },
+              { k: "Tier", v: tierLabel ?? "-" },
               { k: "Errors", v: String(findingsCount) },
             ].map((row, i, arr) => (
               <div
@@ -1717,7 +1710,7 @@ export default function CaseDetailPage({
               <div style={{ ...label("#6B635C"), marginBottom: "12px" }}>Your notes</div>
               <div
                 style={{
-                  backgroundColor: "#111111",
+                  backgroundColor: "var(--ink)",
                   border: "1px solid #242424",
                   padding: "16px 20px",
                 }}
@@ -1733,7 +1726,7 @@ export default function CaseDetailPage({
           {savings > 0 && (
             <div
               style={{
-                backgroundColor: "#111111",
+                backgroundColor: "var(--ink)",
                 border: "1px solid #242424",
                 padding: "24px",
               }}
@@ -1741,7 +1734,9 @@ export default function CaseDetailPage({
               <div style={{ ...label("#6B635C"), marginBottom: "12px" }}>Potential savings</div>
               <div
                 style={{
-                  fontFamily: "var(--font-cormorant), Georgia, serif",
+                  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
                   fontSize: "44px",
                   color: "#7A9E87",
                   fontStyle: "italic",

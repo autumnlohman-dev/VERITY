@@ -35,8 +35,8 @@ export const EM_QUESTIONS: EmQuestion[] = [
     prompt: 'Was this your first time seeing this provider for this problem?',
     help: 'A new patient or new problem generally means higher complexity.',
     options: [
-      { label: 'Yes — new patient or new problem', weight: 1 },
-      { label: 'No — established patient and known problem', weight: 0 },
+      { label: 'Yes, new patient or new problem', weight: 1 },
+      { label: 'No, established patient and known problem', weight: 0 },
     ],
   },
   {
@@ -55,7 +55,7 @@ export const EM_QUESTIONS: EmQuestion[] = [
     prompt: 'How long were you actually with the provider, not counting wait time?',
     options: [
       { label: 'Under 10 minutes', weight: 0 },
-      { label: '10–20 minutes', weight: 0.5 },
+      { label: '10-20 minutes', weight: 0.5 },
       { label: 'Over 20 minutes', weight: 1 },
     ],
   },
@@ -180,7 +180,7 @@ export function filterOutEmErrors<T extends { cpt_code?: string }>(errors: T[]):
 export function renderEmReviewForPrompt(review: EmReview): string {
   const lines: string[] = []
   lines.push(
-    `PATIENT E&M VISIT COMPLEXITY REVIEW (score: ${review.score.toFixed(1)}/8 — outcome: ${review.outcome})`
+    `PATIENT E&M VISIT COMPLEXITY REVIEW (score: ${review.score.toFixed(1)}/8, outcome: ${review.outcome})`
   )
   lines.push(
     `Flagged visit code(s): ${review.flagged_codes.join(', ') || 'none'}`

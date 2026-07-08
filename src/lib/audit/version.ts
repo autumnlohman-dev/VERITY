@@ -80,7 +80,7 @@ export function staleBannerFor(
       return {
         kind: 'rerun_for_full_analysis',
         message:
-          "We've updated this audit with our latest logic. One newer check — comparing your bill's total against your EOB — requires re-reading your documents. Re-run audit to include it.",
+          "We've updated this audit with our latest logic. One newer check, comparing your bill's total against your EOB, requires re-reading your documents. Re-run audit to include it.",
       }
     }
     return null

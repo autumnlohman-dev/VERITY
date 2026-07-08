@@ -297,10 +297,10 @@ describe('golden case #7A428426 — deadline card titles derive from finding typ
   it('a patient_responsibility_mismatch yields the provider-reconciliation card, never the NSA title', () => {
     const deadlines = calculateDeadlines(result, { insuranceType: 'commercial' });
     const titles = deadlines.map((d) => d.deadlineType);
-    expect(titles).toContain('Billing Dispute — Provider Reconciliation Deadline');
+    expect(titles).toContain('Billing Dispute: Provider Reconciliation Deadline');
     expect(titles).not.toContain('No Surprises Act Balance Billing Dispute');
     const card = deadlines.find(
-      (d) => d.deadlineType === 'Billing Dispute — Provider Reconciliation Deadline'
+      (d) => d.deadlineType === 'Billing Dispute: Provider Reconciliation Deadline'
     )!;
     expect(card.estimatedRecovery).toBe(300.0);
   });

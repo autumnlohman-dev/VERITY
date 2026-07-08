@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { sanitizeNext } from "@/lib/gate";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "ClearClaim",
+  title: BRAND_NAME,
   robots: { index: false, follow: false },
 };
 
@@ -18,32 +19,34 @@ export default async function GatePage({
     <div
       style={{
         minHeight: "100vh",
-        background: "#0D0D0D",
+        background: "var(--ink)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: "24px",
-        fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+        fontFamily: "var(--font-public-sans), system-ui, sans-serif",
       }}
     >
       <div style={{ width: "100%", maxWidth: "380px", textAlign: "center" }}>
         {/* Wordmark */}
         <div
           style={{
-            fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+            fontFamily: "var(--font-public-sans), system-ui, sans-serif",
             fontSize: "14px",
             letterSpacing: "0.3em",
             textTransform: "uppercase",
-            color: "#F5F0E8",
+            color: "var(--surface)",
             fontWeight: 500,
             marginBottom: "12px",
           }}
         >
-          ClearClaim
+          {BRAND_NAME}
         </div>
         <div
           style={{
-            fontFamily: "var(--font-cormorant), Georgia, serif",
+            fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
             fontSize: "30px",
             fontStyle: "italic",
             color: "#A89F96",
@@ -73,7 +76,7 @@ export default async function GatePage({
               padding: "14px 16px",
               background: "#1A1A1A",
               border: `1px solid ${error ? "#C47C6A" : "#2A2A2A"}`,
-              color: "#F5F0E8",
+              color: "var(--surface)",
               fontSize: "14px",
               letterSpacing: "0.05em",
               outline: "none",
@@ -96,7 +99,7 @@ export default async function GatePage({
               width: "100%",
               padding: "14px",
               background: "#C8A97E",
-              color: "#0D0D0D",
+              color: "var(--ink)",
               border: "none",
               fontSize: "11px",
               fontWeight: 500,

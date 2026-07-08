@@ -6,7 +6,7 @@ import type { DisputeOutcomeLabel } from '@/lib/outcomes/store'
 import { useClientMemo } from '@/lib/useClientMemo'
 
 const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: 'var(--font-dm-sans), system-ui, sans-serif',
+  fontFamily: 'var(--font-public-sans), system-ui, sans-serif',
   fontSize: size,
   color,
   ...extra,
@@ -27,7 +27,7 @@ function StatusButton({ label, active, onSelect }: { label: string; active: bool
     <button
       onClick={onSelect}
       style={{
-        ...sans('12px', active ? '#0D0D0D' : '#A89F96'),
+        ...sans('12px', active ? 'var(--ink)' : '#A89F96'),
         backgroundColor: active ? '#C8A97E' : 'transparent',
         border: `1px solid ${active ? '#C8A97E' : '#2A2A2A'}`,
         padding: '8px 16px',
@@ -59,11 +59,11 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
 
   if (submitted && outcome) {
     const statusLabels: Record<string, { label: string; color: string }> = {
-      won: { label: 'Won — Full Amount', color: '#7A9E87' },
+      won: { label: 'Won, Full Amount', color: '#7A9E87' },
       partial: { label: 'Partial Win', color: '#C8A97E' },
       lost: { label: 'Dispute Lost', color: '#C47C6A' },
       abandoned: { label: 'Abandoned', color: '#5F5648' },
-      in_progress: { label: 'In Progress', color: '#4A90D9' },
+      in_progress: { label: 'In Progress', color: 'var(--brand)' },
     }
     const cfg = statusLabels[outcome.status] || statusLabels.in_progress
     return (
@@ -91,7 +91,7 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
   }
 
   return (
-    <div style={{ border: '1px solid #1C1C1C', padding: '20px', marginTop: '24px', backgroundColor: '#0D0D0D' }}>
+    <div style={{ border: '1px solid #1C1C1C', padding: '20px', marginTop: '24px', backgroundColor: 'var(--ink)' }}>
       <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '8px' }}>
         How did your dispute go?
       </div>
@@ -100,15 +100,15 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
         <StatusButton label="Still waiting" active={status === 'in_progress'} onSelect={() => setStatus('in_progress')} />
-        <StatusButton label="Won — full amount" active={status === 'won'} onSelect={() => setStatus('won')} />
-        <StatusButton label="Won — partial" active={status === 'partial'} onSelect={() => setStatus('partial')} />
+        <StatusButton label="Won, full amount" active={status === 'won'} onSelect={() => setStatus('won')} />
+        <StatusButton label="Won, partial" active={status === 'partial'} onSelect={() => setStatus('partial')} />
         <StatusButton label="Lost" active={status === 'lost'} onSelect={() => setStatus('lost')} />
         <StatusButton label="Gave up" active={status === 'abandoned'} onSelect={() => setStatus('abandoned')} />
       </div>
 
       {(status === 'won' || status === 'partial') && (
         <div style={{ marginBottom: '16px' }}>
-          <div style={{ ...sans('13px', '#F5F0E8'), marginBottom: '8px' }}>
+          <div style={{ ...sans('13px', 'var(--surface)'), marginBottom: '8px' }}>
             How much did you recover? (originally disputed: ${dollarAmountDisputed.toFixed(2)})
           </div>
           <input
@@ -117,8 +117,8 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
             onChange={e => setAmountRecovered(e.target.value)}
             placeholder="0.00"
             style={{
-              ...sans('14px', '#F5F0E8'),
-              backgroundColor: '#111111',
+              ...sans('14px', 'var(--surface)'),
+              backgroundColor: 'var(--ink)',
               border: '1px solid #2A2A2A',
               padding: '10px 14px',
               width: '160px',
@@ -132,7 +132,7 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
         <button
           onClick={handleSubmit}
           style={{
-            ...sans('12px', '#0D0D0D'),
+            ...sans('12px', 'var(--ink)'),
             backgroundColor: '#C8A97E',
             border: 'none',
             padding: '12px 28px',

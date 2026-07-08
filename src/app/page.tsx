@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { BRAND_NAME } from "@/lib/brand";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { startMembershipCheckout } from "@/lib/checkout";
@@ -9,7 +10,9 @@ import { ChevronDown } from "lucide-react";
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
   fontSize: size,
   color: "#221C14",
   lineHeight: 1,
@@ -18,14 +21,14 @@ const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties =
 });
 
 const sans = (size: string, color = "#5F5648", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 
 const label = (color = "#C8A97E"): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
   textTransform: "uppercase" as const,
@@ -40,11 +43,11 @@ const FAQS = [
   },
   {
     q: "How long does it take?",
-    a: "Audit reports are ready within 24 hours of upload, and your dispute package is generated instantly. Before you file, you'll see an estimated recovery amount, likely timeframe, and settlement range. Once you send it — or authorize Verity to file on your behalf — most insurers and providers respond within 30 days. Complex cases and appeals can take longer, and Verity generates every follow-up letter you need at each step.",
+    a: "Audit reports are ready within 24 hours of upload, and your dispute package is generated instantly. Before you file, you'll see an estimated recovery amount, likely timeframe, and settlement range. Once you send it, or authorize Verity to file on your behalf, most insurers and providers respond within 30 days. Complex cases and appeals can take longer, and Verity generates every follow-up letter you need at each step.",
   },
   {
     q: "What do I need to upload?",
-    a: "Your itemized medical bill (not the summary — request the itemized version from your provider if you don't have it), your Explanation of Benefits from your insurer, and your insurance card. The EOB is optional but makes the audit more precise.",
+    a: "Your itemized medical bill (not the summary, request the itemized version from your provider if you don't have it), your Explanation of Benefits from your insurer, and your insurance card. The EOB is optional but makes the audit more precise.",
   },
   {
     q: "What happens if my insurer denies the dispute?",
@@ -56,19 +59,12 @@ const FAQS = [
   },
   {
     q: "Do you work with all insurance types?",
-    a: "We handle PPO, HMO, EPO, and Medicare Advantage plans. We also review self-pay bills over $500. Medicare and Medicaid disputes follow different pathways — we'll flag this during your audit.",
+    a: "We handle PPO, HMO, EPO, and Medicare Advantage plans. We also review self-pay bills over $500. Medicare and Medicaid disputes follow different pathways, we'll flag this during your audit.",
   },
 ];
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
     <nav
       style={{
@@ -77,9 +73,8 @@ function Nav() {
         left: 0,
         right: 0,
         zIndex: 50,
-        backgroundColor: scrolled ? "rgba(235,229,217,0.85)" : "transparent",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
-        transition: "background-color 0.4s, backdrop-filter 0.4s",
+        backgroundColor: "var(--surface)",
+        borderBottom: "1px solid var(--line)",
         padding: "20px 64px",
         display: "flex",
         justifyContent: "space-between",
@@ -89,7 +84,7 @@ function Nav() {
       <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "12px" }}>
         <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block" }}>
           <circle cx="32" cy="32" r="20" fill="none" stroke="#B8945C" strokeWidth="1.8" />
-          <text x="32" y="45" textAnchor="middle" fontFamily="var(--font-cormorant), Georgia, serif" fontSize="36" fontWeight={500} fill="#B8945C">V</text>
+          <text x="32" y="45" textAnchor="middle" fontFamily="var(--font-fraunces), Georgia, serif" fontSize="36" fontWeight={500} fill="#B8945C">V</text>
         </svg>
         <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
           <span
@@ -102,18 +97,7 @@ function Nav() {
               lineHeight: 1,
             }}
           >
-            Verity™
-          </span>
-          <span
-            style={{
-              ...sans("8px", "#8A7F6E"),
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              paddingLeft: "0.42em",
-              lineHeight: 1,
-            }}
-          >
-            Med Claim
+            {BRAND_NAME}
           </span>
         </span>
       </Link>
@@ -184,21 +168,10 @@ function Footer() {
             fontWeight: 300,
             paddingLeft: "0.34em",
             lineHeight: 1,
-          }}
-        >
-          Verity™
-        </div>
-        <div
-          style={{
-            ...sans("9px", "#8A7F6E"),
-            letterSpacing: "0.28em",
-            textTransform: "uppercase",
-            paddingLeft: "0.34em",
-            marginTop: "6px",
             marginBottom: "20px",
           }}
         >
-          Med Claim
+          {BRAND_NAME}
         </div>
         <div style={{ ...sans("12px", "#5F5648"), marginBottom: "16px", lineHeight: 1.6 }}>
           Financial clarity. Human advocacy.
@@ -250,7 +223,7 @@ function Footer() {
         </div>
         <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>
           The Verity™ audit method, scoring models, and datasets are proprietary
-          and confidential. Patent Pending — 41 claims, 13 independent claim categories.
+          and confidential. Patent Pending, 41 claims, 13 independent claim categories.
         </div>
       </div>
     </footer>
@@ -336,7 +309,9 @@ function FaqItem({ q, a }: { q: string; a: string }) {
       >
         <span
           style={{
-            fontFamily: "var(--font-cormorant), Georgia, serif",
+            fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
             fontSize: "20px",
             color: "#221C14",
             fontWeight: 400,
@@ -455,7 +430,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
+    <div className="page-root" style={{ background: "var(--surface)", minHeight: "100vh" }}>
       <Nav />
 
       {/* ── Hero ── */}
@@ -475,7 +450,7 @@ export default function LandingPage() {
         </h1>
         <Image
           src="/hero-campaign.png"
-          alt="Verity — Clarity over confusion. We investigate, analyze, and advocate so you keep more of what's yours."
+          alt="Verity, Clarity over confusion. We investigate, analyze, and advocate so you keep more of what's yours."
           width={2048}
           height={1152}
           priority
@@ -504,7 +479,7 @@ export default function LandingPage() {
                 display: "inline-block",
               }}
             >
-              Check my bill — free
+              Check my bill, free
             </span>
           </Link>
           <Link href="/how-it-works" style={{ textDecoration: "none" }}>
@@ -591,7 +566,7 @@ export default function LandingPage() {
             }}
           >
             Providers upcode procedures. Insurers underpay. Duplicate charges
-            slip through. Most patients never know — because the bills are
+            slip through. Most patients never know, because the bills are
             designed to be unreadable.
           </p>
           <div
@@ -633,7 +608,7 @@ export default function LandingPage() {
       <SectionAccordion
         eyebrow="What we look for"
         bg="#F1EBDF"
-        teaser="Most overcharges hide in the EOB, the contract, and the network — not just the codes. The eight errors we catch."
+        teaser="Most overcharges hide in the EOB, the contract, and the network, not just the codes. The eight errors we catch."
         title={
           <>
             Most tools check coding.{" "}
@@ -643,7 +618,7 @@ export default function LandingPage() {
       >
         <div style={{ maxWidth: "1100px" }}>
           <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, maxWidth: "520px", marginBottom: "56px" }}>
-            Most overcharges aren’t coding mistakes — they hide in the EOB, the
+            Most overcharges aren’t coding mistakes, they hide in the EOB, the
             contract, and the network. Verity reads every layer. Eight of the
             errors we catch:
           </p>
@@ -664,7 +639,7 @@ export default function LandingPage() {
                 <div style={{ ...serif("23px", { marginBottom: "16px", lineHeight: 1.1 }) }}>{item.name}</div>
                 <div
                   style={{
-                    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                    fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                     fontSize: "12px",
                     color: "#2A2520",
                     borderLeft: "2px solid #C8A97E",
@@ -685,12 +660,12 @@ export default function LandingPage() {
             <div style={{ backgroundColor: "#F1EBDF", padding: "32px 28px 36px" }}>
               <div style={{ ...sans("11px", "#B3A28A"), letterSpacing: "0.2em", marginBottom: "20px" }}>09</div>
               <div style={{ ...serif("23px", { marginBottom: "16px", lineHeight: 1.1 }) }}>Recovery Probability Score</div>
-              <div style={{ ...sans("12.5px", "#5F5648"), lineHeight: 1.65 }}>For every error we find, our AI estimates your likelihood of winning that dispute. Estimates start from published industry baselines and sharpen as real VERITY dispute outcomes accumulate — and each prediction shows how many real outcomes it&apos;s based on.</div>
+              <div style={{ ...sans("12.5px", "#5F5648"), lineHeight: 1.65 }}>For every error we find, our AI estimates your likelihood of winning that dispute. Estimates start from published industry baselines and sharpen as real VERITY dispute outcomes accumulate, and each prediction shows how many real outcomes it&apos;s based on.</div>
             </div>
             <div style={{ backgroundColor: "#F1EBDF", padding: "32px 28px 36px" }}>
               <div style={{ ...sans("11px", "#B3A28A"), letterSpacing: "0.2em", marginBottom: "20px" }}>10</div>
               <div style={{ ...serif("23px", { marginBottom: "16px", lineHeight: 1.1 }) }}>Financial Harm Score</div>
-              <div style={{ ...sans("12.5px", "#5F5648"), lineHeight: 1.65 }}>One composite number showing your total financial risk: dollar amount in dispute, collection activity, credit reporting exposure, deadline urgency, and recovery odds — all in one score.</div>
+              <div style={{ ...sans("12.5px", "#5F5648"), lineHeight: 1.65 }}>One composite number showing your total financial risk: dollar amount in dispute, collection activity, credit reporting exposure, deadline urgency, and recovery odds, all in one score.</div>
             </div>
           </div>
 
@@ -720,14 +695,14 @@ export default function LandingPage() {
 
           <div className="r-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1px", backgroundColor: "#D8CFBE" }}>
             {[
-              { r: "I", name: "Multimodal extraction", body: "We turn a phone photo of a bill or EOB into every CPT code, charge, date, and modifier — flagging anything the image left uncertain." },
-              { r: "II", name: "Simultaneous audit", body: "NCCI, MUE, and Medicare fee-schedule rules are checked in a single pass — fewer false positives, and nothing slips between datasets." },
-              { r: "III", name: "E&M integrity scoring", body: "A weighted model judges whether the visit level billed is actually supported — catching the upcoding that coding-only checkers miss." },
+              { r: "I", name: "Multimodal extraction", body: "We turn a phone photo of a bill or EOB into every CPT code, charge, date, and modifier, flagging anything the image left uncertain." },
+              { r: "II", name: "Simultaneous audit", body: "NCCI, MUE, and Medicare fee-schedule rules are checked in a single pass, fewer false positives, and nothing slips between datasets." },
+              { r: "III", name: "E&M integrity scoring", body: "A weighted model judges whether the visit level billed is actually supported, catching the upcoding that coding-only checkers miss." },
               { r: "IV", name: "Citation-linked disputes", body: "Every violation is mapped to the exact regulation it breaks and written into a dispute package, citation embedded, ready to send." },
-              { r: "V", name: "Outcome prediction", body: "Before you file, see your estimated recovery amount, likely resolution timeframe, escalation probability, and a specific settlement range — so you know what you're walking into." },
-              { r: "VI", name: "Relentless advocacy", body: "Verity prepares every letter, appeal, and escalation in your case — you approve each send, and Verity adapts to every response until the case is closed." },
+              { r: "V", name: "Outcome prediction", body: "Before you file, see your estimated recovery amount, likely resolution timeframe, escalation probability, and a specific settlement range, so you know what you're walking into." },
+              { r: "VI", name: "Relentless advocacy", body: "Verity prepares every letter, appeal, and escalation in your case, you approve each send, and Verity adapts to every response until the case is closed." },
             ].map((c) => (
-              <div key={c.r} style={{ backgroundColor: "#EBE5D9", padding: "36px 28px 40px" }}>
+              <div key={c.r} style={{ backgroundColor: "var(--surface)", padding: "36px 28px 40px" }}>
                 <div style={{ ...serif("34px", { color: "#C8A97E", lineHeight: 1, marginBottom: "20px" }) }}>{c.r}</div>
                 <div style={{ ...serif("23px", { marginBottom: "14px", lineHeight: 1.15 }) }}>{c.name}</div>
                 <div style={{ ...sans("12.5px", "#5F5648"), lineHeight: 1.65 }}>{c.body}</div>
@@ -737,7 +712,7 @@ export default function LandingPage() {
 
           <p style={{ ...sans("11px", "#8A7F6E"), letterSpacing: "0.06em", lineHeight: 1.7, marginTop: "40px", maxWidth: "640px" }}>
             The Verity™ audit method, scoring models, and datasets are
-            proprietary and confidential. Patent Pending — 41 claims, 13 independent claim categories.
+            proprietary and confidential. Patent Pending, 41 claims, 13 independent claim categories.
           </p>
         </div>
       </SectionAccordion>
@@ -764,13 +739,13 @@ export default function LandingPage() {
           {
             num: "02",
             title: "We find every error.",
-            body: "We normalize every document you upload — your itemized bill, your EOB, your denial letter, your authorization — into a single unified schema, then compare them against each other and against federal billing rules in one pass. Discrepancies across documents are found automatically, no manual review required.",
+            body: "We normalize every document you upload, your itemized bill, your EOB, your denial letter, your authorization, into a single unified schema, then compare them against each other and against federal billing rules in one pass. Discrepancies across documents are found automatically, no manual review required.",
             time: "24 hours",
           },
           {
             num: "03",
             title: "You choose what happens next.",
-            body: "See your audit free. Get your estimated recovery amount and settlement range before you file. Download a ready-to-send dispute package — or authorize Verity to run the dispute entirely, filing correspondence and appeals on your behalf until it's resolved.",
+            body: "See your audit free. Get your estimated recovery amount and settlement range before you file. Download a ready-to-send dispute package, or authorize Verity to run the dispute entirely, filing correspondence and appeals on your behalf until it's resolved.",
             time: "Your call",
           },
         ].map((step, i) => (
@@ -836,7 +811,7 @@ export default function LandingPage() {
       {/* ── Anatomy of a Recovery ── */}
       <SectionAccordion
         eyebrow="Anatomy of a recovery"
-        teaser="A single ER bill, read line by line — every dollar tied to the rule behind it."
+        teaser="A single ER bill, read line by line, every dollar tied to the rule behind it."
         title={
           <>
             One ER visit. Four errors.{" "}
@@ -847,7 +822,7 @@ export default function LandingPage() {
         <div style={{ maxWidth: "1100px" }}>
           <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, maxWidth: "560px", marginBottom: "48px" }}>
             A single emergency-room bill, read line by line. Here is exactly what
-            Verity found — and the rule behind every dollar.
+            Verity found, and the rule behind every dollar.
           </p>
 
           {/* ledger */}
@@ -876,7 +851,7 @@ export default function LandingPage() {
 
           {/* findings */}
           {[
-            { code: "99285", desc: "ED Visit — Level 5", err: "Upcoded · documentation supports Level 3", rule: "CMS E/M documentation guidelines", amt: "$820" },
+            { code: "99285", desc: "ED Visit, Level 5", err: "Upcoded · documentation supports Level 3", rule: "CMS E/M documentation guidelines", amt: "$820" },
             { code: "36415", desc: "Routine venipuncture", err: "Unbundled · included in the E&M code", rule: "NCCI procedure-to-procedure edit", amt: "$180" },
             { code: "93005", desc: "Electrocardiogram", err: "Billed above your plan’s contracted rate", rule: "Plan fee schedule · 42 CFR §414", amt: "$175" },
             { code: "85025", desc: "Complete blood count", err: "Billed above your plan’s contracted rate", rule: "Plan fee schedule", amt: "$165" },
@@ -892,7 +867,7 @@ export default function LandingPage() {
                 padding: "24px 0",
               }}
             >
-              <div style={{ fontFamily: "var(--font-dm-sans), system-ui, sans-serif", fontSize: "13px", color: "#8A7F6E", letterSpacing: "0.05em" }}>{f.code}</div>
+              <div style={{ fontFamily: "var(--font-public-sans), system-ui, sans-serif", fontSize: "13px", color: "#8A7F6E", letterSpacing: "0.05em" }}>{f.code}</div>
               <div style={{ ...serif("22px", { color: "#221C14", lineHeight: 1.2 }) }}>{f.desc}</div>
               <div>
                 <div style={{ ...sans("13px", "#2A2520"), lineHeight: 1.5 }}>{f.err}</div>
@@ -952,7 +927,7 @@ export default function LandingPage() {
                   <div style={{ padding: "18px 16px" }}><span style={{ ...sans("13px", "#2A2520") }}>{row.f}</span></div>
                   {[row.a, row.b, row.v].map((cell, ci) => {
                     const isVerity = ci === 2;
-                    const mark = cell === "yes" ? "✓" : cell === "some" ? "partial" : cell === "you" ? "manual" : "—";
+                    const mark = cell === "yes" ? "✓" : cell === "some" ? "partial" : cell === "you" ? "manual" : "-";
                     const color = cell === "yes" ? (isVerity ? "#C8A97E" : "#5E7E66") : cell === "no" ? "#C2B7A3" : "#8A7F6E";
                     return (
                       <div key={ci} style={{ padding: "18px 16px", backgroundColor: isVerity ? "rgba(200,169,126,0.08)" : "transparent" }}>
@@ -980,7 +955,7 @@ export default function LandingPage() {
             <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.8, maxWidth: "440px", marginBottom: "32px" }}>
               Most overcharges arrive after you&apos;ve stopped looking. With a
               Verity membership, every new bill and EOB you receive is audited the
-              moment it lands — and you&apos;re alerted the instant something looks
+              moment it lands, and you&apos;re alerted the instant something looks
               wrong. Every encounter, every insurer, every dispute outcome is tracked
               in one place across your complete billing history. You never have to catch it yourself again.
             </p>
@@ -996,7 +971,7 @@ export default function LandingPage() {
                   display: "inline-block",
                 }}
               >
-                Start membership — $19/mo
+                Start membership, $19/mo
               </span>
             </Link>
           </div>
@@ -1007,7 +982,7 @@ export default function LandingPage() {
               { d: "Apr 14", t: "New bill detected", s: "City Medical Center · $3,600", flag: true },
               { d: "Apr 10", t: "Audit complete", s: "1 error · $165 recoverable · 84% win probability", flag: true },
               { d: "Apr 10", t: "Dispute filed automatically", s: "Appeal letter sent to Aetna on your behalf", flag: true },
-              { d: "Mar 28", t: "EOB reconciled", s: "Matches your plan — no action", flag: false },
+              { d: "Mar 28", t: "EOB reconciled", s: "Matches your plan, no action", flag: false },
               { d: "Mar 12", t: "Recovered", s: "$2,840 credited to your account", flag: false },
             ].map((row, i) => (
               <div key={i} style={{ display: "flex", gap: "16px", alignItems: "flex-start", paddingBottom: i < 3 ? "28px" : 0 }}>
@@ -1038,7 +1013,7 @@ export default function LandingPage() {
           alt="Verity"
           fill
           sizes="100vw"
-          style={{ objectFit: "contain", objectPosition: "center center", background: "#EBE5D9" }}
+          style={{ objectFit: "contain", objectPosition: "center center", background: "var(--surface)" }}
         />
       </section>
 
@@ -1151,7 +1126,7 @@ export default function LandingPage() {
                   el.style.color = "#C8A97E";
                 }}
               >
-                See what&apos;s wrong — free
+                See what&apos;s wrong, free
               </div>
             </Link>
           </motion.div>
@@ -1212,7 +1187,7 @@ export default function LandingPage() {
                 "Insurer-specific dispute package including the dispute letter, regulatory citations, financial calculations, and timeline summary.",
                 "Appeal letter if denied",
                 "Step-by-step submission guide",
-                "Appeal deadline tracker with urgency alerts — Critical (under 7 days), High (under 30 days), Moderate (under 90 days).",
+                "Appeal deadline tracker with urgency alerts, Critical (under 7 days), High (under 30 days), Moderate (under 90 days).",
               ].map((f) => (
                 <div
                   key={f}
@@ -1282,7 +1257,7 @@ export default function LandingPage() {
               $19<span style={{ fontSize: "22px" }}>/mo</span>
             </div>
             <div style={{ ...sans("12px", "#8A7F6E") }}>
-              or $149/yr — two months free
+              or $149/yr, two months free
             </div>
             <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
             <div
@@ -1309,12 +1284,12 @@ export default function LandingPage() {
                 "Unlimited audits and dispute packages",
                 "Every new bill audited automatically",
                 "Alerts on new and suspicious charges",
-                "Outcome prediction before you file — recovery amount, timeframe, and settlement range",
-                "Full dispute preparation — Verity drafts every letter and escalation; you approve each send",
+                "Outcome prediction before you file, recovery amount, timeframe, and settlement range",
+                "Full dispute preparation, Verity drafts every letter and escalation; you approve each send",
                 "Complete billing history tracked across all providers and insurers",
                 "Escalation & regulator letters (appeal, DOI, CMS, CFPB) plus FCRA credit bureau and FDCPA collection dispute letters",
                 "Priority support",
-                "Real-time call guidance — coming soon",
+                "Real-time call guidance, coming soon",
               ].map((f) => (
                 <div
                   key={f}
@@ -1368,7 +1343,7 @@ export default function LandingPage() {
                 lineHeight: 1.75,
               }}
             >
-              Verity is an administrative advocacy service — not a law firm.
+              Verity is an administrative advocacy service, not a law firm.
               Medical billing advocates are a recognized professional category
               authorized to review bills, identify errors, and file disputes on
               patients&apos; behalf with signed authorization.
@@ -1383,7 +1358,7 @@ export default function LandingPage() {
               Disputing a medical bill is your federally protected right under
               the No Surprises Act and applicable state patient protection laws.
               Verity arms you with the evidence, citations, and ready-to-send
-              letters to exercise that right — so you&apos;re not navigating it alone.
+              letters to exercise that right, so you&apos;re not navigating it alone.
             </p>
             <p style={{ ...sans("12px", "#8A7F6E"), marginTop: "32px" }}>
               Verity is not a law firm and does not provide legal advice. If

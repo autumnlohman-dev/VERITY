@@ -5,15 +5,17 @@ import type { FinancialOutcomePrediction } from '@/lib/predictions/outcomePredic
 import type { AdvocacyWorkflow, AdvocacyAction } from '@/lib/agent/advocacyAgent'
 
 const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: 'var(--font-dm-sans), system-ui, sans-serif',
+  fontFamily: 'var(--font-public-sans), system-ui, sans-serif',
   fontSize: size,
   color,
   ...extra,
 })
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: 'var(--font-cormorant), Georgia, serif',
+  fontFamily: 'var(--font-fraunces), Georgia, serif',
+  fontOpticalSizing: 'auto',
+  letterSpacing: '-0.015em',
   fontSize: size,
-  color: '#F5F0E8',
+  color: 'var(--surface)',
   lineHeight: 1.1,
   fontWeight: 400,
   ...extra,
@@ -32,7 +34,7 @@ export function OutcomePredictionPanel({ predictions }: { predictions: Financial
   const realN = predictions.reduce((s, p) => s + p.basedOnRealOutcomes, 0)
 
   return (
-    <div style={{ border: '1px solid #2A2A2A', backgroundColor: '#111111', padding: '28px', marginBottom: '32px' }}>
+    <div style={{ border: '1px solid #2A2A2A', backgroundColor: 'var(--ink)', padding: '28px', marginBottom: '32px' }}>
       <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '16px' }}>
         Outcome Prediction
       </div>
@@ -40,7 +42,7 @@ export function OutcomePredictionPanel({ predictions }: { predictions: Financial
         <div>
           <div style={{ ...sans('11px', '#5F5648'), marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Expected recovery</div>
           <div style={{ ...serif('34px'), color: '#7A9E87' }}>${totalExpected.toLocaleString()}</div>
-          <div style={{ ...sans('11px', '#5F5648'), marginTop: '4px' }}>range ${totalLow.toLocaleString()} – ${totalHigh.toLocaleString()}</div>
+          <div style={{ ...sans('11px', '#5F5648'), marginTop: '4px' }}>range ${totalLow.toLocaleString()}, ${totalHigh.toLocaleString()}</div>
         </div>
         <div>
           <div style={{ ...sans('11px', '#5F5648'), marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Likely timeframe</div>
@@ -49,7 +51,7 @@ export function OutcomePredictionPanel({ predictions }: { predictions: Financial
         </div>
         <div>
           <div style={{ ...sans('11px', '#5F5648'), marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Settlement range</div>
-          <div style={{ ...serif('34px'), color: '#C8A97E' }}>${floor.toLocaleString()}–${ceiling.toLocaleString()}</div>
+          <div style={{ ...serif('34px'), color: '#C8A97E' }}>${floor.toLocaleString()}-${ceiling.toLocaleString()}</div>
           <div style={{ ...sans('11px', '#5F5648'), marginTop: '4px' }}>statistically likely band</div>
         </div>
       </div>
@@ -58,7 +60,7 @@ export function OutcomePredictionPanel({ predictions }: { predictions: Financial
       {predictions.map(p => (
         <div key={p.discrepancyId} style={{ borderTop: '1px solid #1C1C1C', paddingTop: '14px', marginTop: '14px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '6px' }}>
-            <span style={{ ...sans('13px', '#F5F0E8'), textTransform: 'capitalize' }}>{p.discrepancyType.replace(/_/g, ' ')}</span>
+            <span style={{ ...sans('13px', 'var(--surface)'), textTransform: 'capitalize' }}>{p.discrepancyType.replace(/_/g, ' ')}</span>
             <span style={{ ...sans('13px', '#7A9E87'), fontWeight: 600 }}>${p.expectedRecoveryAmount.toLocaleString()} expected</span>
           </div>
           <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
@@ -84,7 +86,7 @@ export function OutcomePredictionPanel({ predictions }: { predictions: Financial
 const STATUS_COLORS: Record<string, string> = {
   planned: '#5F5648',
   ready: '#C8A97E',
-  sent: '#4A90D9',
+  sent: 'var(--brand)',
   response_received: '#C8A97E',
   completed: '#7A9E87',
   skipped: '#3A3A3A',
@@ -107,7 +109,7 @@ export function AdvocacyWorkflowPanel({
     return (
       <div style={{ border: '1px solid #C8A97E', backgroundColor: 'rgba(200,169,126,0.06)', padding: '28px', marginBottom: '32px' }}>
         <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '10px' }}>
-          Autonomous Advocacy — Ready
+          Autonomous Advocacy, Ready
         </div>
         <div style={{ ...serif('22px'), marginBottom: '10px' }}>
           Verity has planned your complete dispute strategy.
@@ -120,7 +122,7 @@ export function AdvocacyWorkflowPanel({
         </div>
         <button
           onClick={onAuthorize}
-          style={{ ...sans('12px', '#0D0D0D'), backgroundColor: '#C8A97E', border: 'none', padding: '14px 32px', cursor: 'pointer', letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600 }}
+          style={{ ...sans('12px', 'var(--ink)'), backgroundColor: '#C8A97E', border: 'none', padding: '14px 32px', cursor: 'pointer', letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600 }}
         >
           Authorize &amp; start my advocacy plan →
         </button>
@@ -131,7 +133,7 @@ export function AdvocacyWorkflowPanel({
   const done = workflow.actions.filter(a => ['completed', 'skipped'].includes(a.status)).length
 
   return (
-    <div style={{ border: '1px solid #2A2A2A', backgroundColor: '#0D0D0D', padding: '28px', marginBottom: '32px' }}>
+    <div style={{ border: '1px solid #2A2A2A', backgroundColor: 'var(--ink)', padding: '28px', marginBottom: '32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '8px' }}>
         <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.25em', textTransform: 'uppercase' }}>
           Active Advocacy Workflow
@@ -157,7 +159,7 @@ export function AdvocacyWorkflowPanel({
               marginBottom: '10px',
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '4px' }}>
-                <span style={{ ...sans('13px', '#F5F0E8'), fontWeight: 500 }}>
+                <span style={{ ...sans('13px', 'var(--surface)'), fontWeight: 500 }}>
                   {a.sequenceOrder}. {a.title} {a.parallel ? '(parallel)' : ''}
                 </span>
                 <span style={{ ...sans('10px', STATUS_COLORS[a.status] || '#5F5648'), letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600 }}>
@@ -171,7 +173,7 @@ export function AdvocacyWorkflowPanel({
               </div>
               {isCurrent && a.status === 'planned' && (
                 <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
-                  <button onClick={() => onActionUpdate(a.actionId, 'sent')} style={{ ...sans('11px', '#0D0D0D'), backgroundColor: '#C8A97E', border: 'none', padding: '8px 16px', cursor: 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>
+                  <button onClick={() => onActionUpdate(a.actionId, 'sent')} style={{ ...sans('11px', 'var(--ink)'), backgroundColor: '#C8A97E', border: 'none', padding: '8px 16px', cursor: 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>
                     Mark sent
                   </button>
                   <button onClick={() => onActionUpdate(a.actionId, 'skipped')} style={{ ...sans('11px', '#5F5648'), backgroundColor: 'transparent', border: '1px solid #2A2A2A', padding: '8px 16px', cursor: 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
@@ -181,7 +183,7 @@ export function AdvocacyWorkflowPanel({
               )}
               {a.status === 'sent' && (
                 <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
-                  <button onClick={() => onActionUpdate(a.actionId, 'response_received')} style={{ ...sans('11px', '#0D0D0D'), backgroundColor: '#7A9E87', border: 'none', padding: '8px 16px', cursor: 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>
+                  <button onClick={() => onActionUpdate(a.actionId, 'response_received')} style={{ ...sans('11px', 'var(--ink)'), backgroundColor: '#7A9E87', border: 'none', padding: '8px 16px', cursor: 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>
                     Response received
                   </button>
                   <button onClick={() => onActionUpdate(a.actionId, 'completed')} style={{ ...sans('11px', '#5F5648'), backgroundColor: 'transparent', border: '1px solid #2A2A2A', padding: '8px 16px', cursor: 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase' }}>

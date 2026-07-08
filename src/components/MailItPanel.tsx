@@ -10,21 +10,23 @@ import { useState } from "react";
 // no one believes real mail went out.
 
 const sans = (size: string, color: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
   fontSize: size,
-  color: "#F5F0E8",
+  color: "var(--surface)",
   lineHeight: 1.2,
   fontWeight: 400,
   ...extra,
 });
 const labelStyle = (color = "#6B635C"): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
   textTransform: "uppercase" as const,
@@ -129,11 +131,11 @@ function AddressFields({
     onChange({ ...value, [k]: e.target.value });
   const inputStyle: React.CSSProperties = {
     width: "100%",
-    backgroundColor: "#0D0D0D",
+    backgroundColor: "var(--ink)",
     border: "1px solid #2A2A2A",
-    color: "#F5F0E8",
+    color: "var(--surface)",
     padding: "10px 12px",
-    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+    fontFamily: "var(--font-public-sans), system-ui, sans-serif",
     fontSize: "13px",
     outline: "none",
     boxSizing: "border-box",
@@ -185,7 +187,7 @@ export function MailItPanel({
           {initial.testMode && (
             <span
               style={{
-                ...sans("10px", "#0D0D0D", { letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 600 }),
+                ...sans("10px", "var(--ink)", { letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 600 }),
                 backgroundColor: "#C8A97E",
                 padding: "3px 10px",
               }}
@@ -196,12 +198,12 @@ export function MailItPanel({
         </div>
         <p style={{ ...sans("13px", "#A89F96"), marginTop: "10px", lineHeight: 1.65 }}>
           {initial.testMode
-            ? "This was created in test mode — no physical letter was actually printed or mailed. Connect a live mail key to send for real."
+            ? "This was created in test mode, no physical letter was actually printed or mailed. Connect a live mail key to send for real."
             : `Your dispute letter has been handed off for printing and first-class${initial.certified ? ", certified" : ""} mail.`}
         </p>
         <div style={{ ...sans("12px", "#6B635C"), marginTop: "12px", lineHeight: 1.8 }}>
           {delivery && !initial.testMode && <div>Estimated delivery: {delivery}</div>}
-          {initial.certified && <div>Certified mail — tracking and proof of delivery included.</div>}
+          {initial.certified && <div>Certified mail, tracking and proof of delivery included.</div>}
           <div>Reference: {initial.lobLetterId}</div>
         </div>
       </Wrapper>
@@ -224,7 +226,7 @@ export function MailItPanel({
         // raw "set primary_line to 'deliverable'" developer guidance to the user.
         if (json.testMode) {
           setError(
-            "Test mode: address verification is simulated — the address wasn't actually checked. Connect a live Lob key to verify and mail for real."
+            "Test mode: address verification is simulated, the address wasn't actually checked. Connect a live Lob key to verify and mail for real."
           );
           return;
         }
@@ -272,20 +274,20 @@ export function MailItPanel({
       <div style={{ ...labelStyle("#6B635C"), marginBottom: "8px" }}>Mail it for me</div>
       <div style={{ ...serif("26px") }}>Let us print and mail it for you.</div>
       <p style={{ ...sans("13px", "#A89F96"), marginTop: "10px", lineHeight: 1.7, maxWidth: "560px" }}>
-        We&apos;ll print your dispute letter and send a <strong style={{ color: "#F5F0E8" }}>physical letter</strong> to
-        the provider&apos;s billing office by first-class mail. Confirm both addresses below — we verify the
+        We&apos;ll print your dispute letter and send a <strong style={{ color: "var(--surface)" }}>physical letter</strong> to
+        the provider&apos;s billing office by first-class mail. Confirm both addresses below, we verify the
         recipient address before anything is mailed.
       </p>
 
       <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", marginTop: "24px" }}>
-        <AddressFields title="To — provider billing" value={to} onChange={setTo} />
-        <AddressFields title="From — your return address" value={from} onChange={setFrom} />
+        <AddressFields title="To, provider billing" value={to} onChange={setTo} />
+        <AddressFields title="From, your return address" value={from} onChange={setFrom} />
       </div>
 
       <label style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "20px", cursor: "pointer" }}>
         <input type="checkbox" checked={certified} onChange={(e) => setCertified(e.target.checked)} />
         <span style={{ ...sans("13px", "#A89F96") }}>
-          Send as <strong style={{ color: "#F5F0E8" }}>certified mail</strong> (tracking + proof of delivery)
+          Send as <strong style={{ color: "var(--surface)" }}>certified mail</strong> (tracking + proof of delivery)
         </span>
       </label>
 
@@ -318,9 +320,9 @@ export function MailItPanel({
         onClick={send}
         disabled={!canSend || submitting}
         style={{
-          ...sans("11px", "#0D0D0D", { letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500 }),
+          ...sans("11px", "var(--ink)", { letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500 }),
           backgroundColor: canSend && !submitting ? "#C8A97E" : "#2A2A2A",
-          color: canSend && !submitting ? "#0D0D0D" : "#6B635C",
+          color: canSend && !submitting ? "var(--ink)" : "#6B635C",
           border: "none",
           padding: "14px 28px",
           marginTop: "24px",
@@ -342,7 +344,7 @@ function Wrapper({ children }: { children: React.ReactNode }) {
       style={{
         maxWidth: "720px",
         margin: "32px auto 0",
-        backgroundColor: "#111111",
+        backgroundColor: "var(--ink)",
         border: "1px solid #242424",
         borderLeft: "4px solid #C8A97E",
         padding: "32px",

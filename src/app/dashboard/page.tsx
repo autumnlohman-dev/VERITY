@@ -8,27 +8,30 @@ import { createClient } from "@/lib/supabase/client";
 import { claimPendingGuestAudit } from "@/lib/guestClaim";
 import { classifyAuditFreshness } from "@/lib/audit/version";
 import { formatCalendarDate } from "@/lib/dates";
+import { BRAND_NAME } from "@/lib/brand";
 import { getEntitlements } from "@/lib/entitlements";
 import { DigitalTwinView } from "@/components/DigitalTwinView";
 
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
   fontSize: size,
-  color: "#F5F0E8",
+  color: "var(--surface)",
   lineHeight: 1,
   fontWeight: 400,
   ...extra,
 });
 
 const sans = (size: string, color = "#A89F96", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 
 const label = (color = "#C8A97E"): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
   textTransform: "uppercase" as const,
@@ -36,13 +39,6 @@ const label = (color = "#C8A97E"): React.CSSProperties => ({
 });
 
 function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
     <nav
       style={{
@@ -51,26 +47,24 @@ function Nav() {
         left: 0,
         right: 0,
         zIndex: 50,
-        backgroundColor: scrolled ? "rgba(13,13,13,0.92)" : "rgba(13,13,13,0.95)",
-        backdropFilter: "blur(12px)",
-        transition: "background-color 0.4s",
+        backgroundColor: "var(--surface)",
+        borderBottom: "1px solid var(--line)",
         padding: "20px 64px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        borderBottom: "1px solid #1C1C1C",
       }}
     >
       <Link href="/" style={{ textDecoration: "none" }}>
         <span
           style={{
-            ...sans("12px", "#F5F0E8"),
+            ...sans("12px", "var(--ink)"),
             letterSpacing: "0.2em",
             textTransform: "uppercase",
             fontWeight: 500,
           }}
         >
-          ClearClaim
+          {BRAND_NAME}
         </span>
       </Link>
       <div className="hidden md:flex" style={{ gap: "40px" }}>
@@ -83,14 +77,14 @@ function Nav() {
             key={link.href}
             href={link.href}
             style={{
-              ...sans("11px", "#A89F96"),
+              ...sans("11px", "var(--ink-soft)"),
               letterSpacing: "0.15em",
               textTransform: "uppercase",
               textDecoration: "none",
               transition: "color 0.2s",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#A89F96")}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ink)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ink-soft)")}
           >
             {link.label}
           </Link>
@@ -99,7 +93,7 @@ function Nav() {
       <Link href="/upload" style={{ textDecoration: "none" }}>
         <span
           style={{
-            ...sans("11px", "#0D0D0D"),
+            ...sans("11px", "var(--ink)"),
             backgroundColor: "#C8A97E",
             padding: "12px 24px",
             letterSpacing: "0.2em",
@@ -142,7 +136,7 @@ interface CaseRow {
 }
 
 const STATUS_DISPLAY: Record<string, { label: string; dot: string; text: string; pulse?: boolean }> = {
-  auditing: { label: "Auditing", dot: "#4A90D9", text: "#A89F96", pulse: true },
+  auditing: { label: "Auditing", dot: "var(--brand)", text: "#A89F96", pulse: true },
   error_found: { label: "Error Found", dot: "#C47C6A", text: "#C47C6A" },
   no_errors: { label: "No Errors Found", dot: "#7A9E87", text: "#7A9E87" },
   letter_ready: { label: "Letter Ready", dot: "#C8A97E", text: "#C8A97E" },
@@ -189,7 +183,7 @@ function StatusPill({ c }: { c: CaseRow }) {
       <span style={{ ...sans("12px", cfg.text) }}>{cfg.label}</span>
       {stale && c.status !== "auditing" && (
         <span
-          title="Computed under an older analysis version — open the case to update it"
+          title="Computed under an older analysis version, open the case to update it"
           style={{
             ...sans("9px", "#8A7F6E"),
             letterSpacing: "0.12em",
@@ -244,7 +238,7 @@ function formatServiceDate(c: CaseRow): { value: string; labelText: string } {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: "#0D0D0D", minHeight: "100vh" }}>
+    <div style={{ background: "var(--ink)", minHeight: "100vh" }}>
       <style>{`
         @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
         .dot-pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
@@ -347,7 +341,7 @@ function EmptyState() {
           <Link href="/upload" style={{ textDecoration: "none", marginTop: "40px", display: "inline-block" }}>
             <span
               style={{
-                ...sans("11px", "#0D0D0D"),
+                ...sans("11px", "var(--ink)"),
                 backgroundColor: "#C8A97E",
                 padding: "16px 32px",
                 letterSpacing: "0.2em",
@@ -388,8 +382,7 @@ function DeleteConfirmModal({
         position: "fixed",
         inset: 0,
         zIndex: 100,
-        backgroundColor: "rgba(0,0,0,0.7)",
-        backdropFilter: "blur(6px)",
+        backgroundColor: "rgba(0,0,0,0.55)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -406,7 +399,7 @@ function DeleteConfirmModal({
         style={{
           width: "100%",
           maxWidth: "440px",
-          backgroundColor: "#111111",
+          backgroundColor: "var(--ink)",
           border: "1px solid #242424",
           borderLeft: "4px solid #C47C6A",
           padding: "32px",
@@ -417,7 +410,7 @@ function DeleteConfirmModal({
         </h2>
         <p style={{ ...sans("13px", "#A89F96"), marginTop: "12px", lineHeight: 1.6 }}>
           This can&rsquo;t be undone. The case for{" "}
-          <span style={{ color: "#F5F0E8" }}>{providerName}</span>, its audit findings, any
+          <span style={{ color: "var(--surface)" }}>{providerName}</span>, its audit findings, any
           dispute letters, and the uploaded documents will be permanently removed.
         </p>
         {error && (
@@ -445,7 +438,7 @@ function DeleteConfirmModal({
             onClick={onConfirm}
             disabled={deleting}
             style={{
-              ...sans("11px", "#0D0D0D"),
+              ...sans("11px", "var(--ink)"),
               letterSpacing: "0.2em",
               textTransform: "uppercase",
               backgroundColor: "#C47C6A",
@@ -644,7 +637,9 @@ export default function DashboardPage() {
             <div style={{ ...label("#6B635C"), marginBottom: "4px" }}>total recovered</div>
             <div
               style={{
-                fontFamily: "var(--font-cormorant), Georgia, serif",
+                fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
                 fontSize: "48px",
                 color: totals.totalSaved > 0 ? "#7A9E87" : "#6B635C",
                 lineHeight: 1,
@@ -663,7 +658,7 @@ export default function DashboardPage() {
                 marginTop: "8px",
                 transition: "color 0.2s",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--surface)")}
               onMouseLeave={(e) => (e.currentTarget.style.color = "#C8A97E")}
             >
               Upload new bill →
@@ -680,14 +675,14 @@ export default function DashboardPage() {
             display: "grid",
             gridTemplateColumns: "1fr 1px 1fr 1px 1fr",
             alignItems: "stretch",
-            backgroundColor: "#111111",
+            backgroundColor: "var(--ink)",
             border: "1px solid #242424",
             padding: "28px 32px",
             marginBottom: "24px",
           }}
         >
           {[
-            { labelText: "total billed", value: formatCurrency(totals.totalBilled), color: "#F5F0E8" },
+            { labelText: "total billed", value: formatCurrency(totals.totalBilled), color: "var(--surface)" },
             null,
             {
               labelText: "total potential savings",
@@ -711,7 +706,9 @@ export default function DashboardPage() {
                 <div style={{ ...label("#6B635C"), marginBottom: "8px" }}>{item.labelText}</div>
                 <div
                   style={{
-                    fontFamily: "var(--font-cormorant), Georgia, serif",
+                    fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
                     fontSize: "36px",
                     color: item.color,
                     lineHeight: 1,
@@ -738,14 +735,14 @@ export default function DashboardPage() {
           }}
         >
           {([
-            { key: "open", labelText: "Open", count: totals.counts.open, dot: "#4A90D9" },
+            { key: "open", labelText: "Open", count: totals.counts.open, dot: "var(--brand)" },
             { key: "in_progress", labelText: "In progress", count: totals.counts.in_progress, dot: "#C8A97E" },
             { key: "resolved", labelText: "Resolved", count: totals.counts.resolved, dot: "#7A9E87" },
           ] as const).map((item) => (
             <div
               key={item.key}
               style={{
-                backgroundColor: "#111111",
+                backgroundColor: "var(--ink)",
                 border: "1px solid #242424",
                 padding: "20px 24px",
                 display: "flex",
@@ -775,9 +772,11 @@ export default function DashboardPage() {
               </div>
               <div
                 style={{
-                  fontFamily: "var(--font-cormorant), Georgia, serif",
+                  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
                   fontSize: "32px",
-                  color: "#F5F0E8",
+                  color: "var(--surface)",
                   lineHeight: 1,
                   fontWeight: 400,
                 }}
@@ -859,13 +858,13 @@ export default function DashboardPage() {
                   <div style={{ ...sans("13px", "#A89F96") }}>{dateInfo.value}</div>
                   <div style={{ ...sans("11px", "#6B635C"), marginTop: "2px" }}>{dateInfo.labelText}</div>
                 </div>
-                <div style={{ ...sans("14px", "#F5F0E8") }}>{formatCurrency(billed)}</div>
+                <div style={{ ...sans("14px", "var(--surface)") }}>{formatCurrency(billed)}</div>
                 <div
                   style={{
                     ...sans("14px", potential > 0 ? "#7A9E87" : "#6B635C"),
                   }}
                 >
-                  {potential > 0 ? formatCurrency(potential) : "—"}
+                  {potential > 0 ? formatCurrency(potential) : "-"}
                 </div>
                 <StatusPill c={c} />
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
@@ -878,7 +877,7 @@ export default function DashboardPage() {
                       transition: "color 0.2s",
                       textAlign: "right",
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#F5F0E8")}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--surface)")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "#C8A97E")}
                   >
                     View →

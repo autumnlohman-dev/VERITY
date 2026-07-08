@@ -12,23 +12,25 @@ import {
 import type { BillingError } from "@/lib/errorDetection";
 
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
   fontSize: size,
-  color: "#F5F0E8",
+  color: "var(--surface)",
   lineHeight: 1,
   fontWeight: 400,
   ...extra,
 });
 
 const sans = (size: string, color = "#A89F96", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 
 const label = (color = "#C8A97E"): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
   textTransform: "uppercase" as const,
@@ -183,7 +185,7 @@ export default function EmReviewPanel({
   return (
     <div
       style={{
-        backgroundColor: "#111111",
+        backgroundColor: "var(--ink)",
         border: "1px solid #242424",
         borderLeft: "3px solid #C8A97E",
         padding: "32px",
@@ -193,7 +195,7 @@ export default function EmReviewPanel({
         E&amp;M visit review
       </div>
       <h2 style={{ ...serif("32px", { lineHeight: 1.15 }) }}>
-        We flagged a visit charge — answer a few questions to confirm.
+        We flagged a visit charge, answer a few questions to confirm.
       </h2>
       <p
         style={{
@@ -206,7 +208,7 @@ export default function EmReviewPanel({
         Your bill includes an evaluation &amp; management charge
         {flaggedCodes.length > 1 ? "s" : ""}{" "}
         ({flaggedCodes.join(", ")}). Under CMS 2021 E&amp;M guidelines, these
-        are priced by complexity or total time — not a fixed per-visit rate. A
+        are priced by complexity or total time, not a fixed per-visit rate. A
         few quick questions help us decide whether the billed level matches
         what actually happened during your visit.
       </p>
@@ -224,7 +226,7 @@ export default function EmReviewPanel({
           return (
             <div key={blockName}>
               <div style={{ ...label("#6B635C"), marginBottom: "16px" }}>
-                Block {bi + 1} — {blockName}
+                Block {bi + 1}, {blockName}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
                 {questions.map((q) => {
@@ -233,7 +235,7 @@ export default function EmReviewPanel({
                     <div key={q.id}>
                       <div
                         style={{
-                          ...sans("15px", "#F5F0E8", {
+                          ...sans("15px", "var(--surface)", {
                             lineHeight: 1.5,
                             fontWeight: 400,
                           }),
@@ -272,7 +274,7 @@ export default function EmReviewPanel({
                               style={{
                                 ...sans(
                                   "13px",
-                                  active ? "#0D0D0D" : "#A89F96"
+                                  active ? "var(--ink)" : "#A89F96"
                                 ),
                                 backgroundColor: active
                                   ? "#C8A97E"
@@ -288,7 +290,7 @@ export default function EmReviewPanel({
                               onMouseEnter={(e) => {
                                 if (!active) {
                                   e.currentTarget.style.borderColor = "#4A4A4A";
-                                  e.currentTarget.style.color = "#F5F0E8";
+                                  e.currentTarget.style.color = "var(--surface)";
                                 }
                               }}
                               onMouseLeave={(e) => {
@@ -344,7 +346,7 @@ export default function EmReviewPanel({
           style={{
             ...sans(
               "11px",
-              allAnswered && !submitting ? "#0D0D0D" : "#6B635C"
+              allAnswered && !submitting ? "var(--ink)" : "#6B635C"
             ),
             backgroundColor:
               allAnswered && !submitting ? "#C8A97E" : "#1A1A1A",

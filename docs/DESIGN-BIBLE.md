@@ -34,7 +34,9 @@ UI task touching that screen.
 - **NO untouched shadcn/Tailwind defaults** — default zinc/slate palette,
   default radius, default shadows. Primitives are fine; the skin must be ours.
 - **NO glassmorphism / backdrop-blur as decoration.** No aurora / mesh /
-  ambient-glow backgrounds.
+  ambient-glow backgrounds. No exceptions. Navs and modal chrome use solid
+  `--surface` with a `--line` hairline. `backdrop-filter` is banned
+  codebase-wide.
 
 ### P1 — obvious AI smell
 - **NO rounded-2xl + shadow-lg on every surface.** Elevation is earned by the
@@ -47,6 +49,11 @@ UI task touching that screen.
 - **NO "Elevate your workflow" copy.** Ban list: elevate, empower, seamless,
   unlock, supercharge, revolutionize, "built for the modern ___". VERITY copy
   is specific and calm: "We found one error worth $300. Here's the letter."
+- **NO em dashes (—) or en dashes (–) in any user-facing copy, UI strings,
+  marketing text, OR generated dispute letters.** Use a comma, colon,
+  period, or parentheses instead. This is a recognized AI-writing tell and
+  undermines letter credibility. (Regular hyphens are untouched — they are
+  required in code ranges, account numbers, dates, and compound words.)
 - **NO fake authority metrics** ("10,000+ users") until the numbers are real.
 
 ### P2 — cosmetic drift
@@ -73,18 +80,55 @@ UI task touching that screen.
   credit-union statement or a well-designed medical chart than to a SaaS
   landing page. Editorial and quiet, not "startup energetic."
 
-### Typography
-- One display face with genuine character (serif or humanist — chosen with
-  Autumn, then locked here), one clean body face, one mono for numbers,
-  amounts, CPT codes, and tables. **All dollar amounts and codes render in
-  the mono face** — it reads as precision, which is the brand.
+### Brand (LOCKED 2026-07-08)
+- **The product name is Verity**, rendered from the `BRAND_NAME` constant
+  (`src/lib/brand.ts`). ClearClaim never appears in user-facing surfaces.
+  "Med Claim" is not part of the product name.
+
+### Paywall pattern (LOCKED 2026-07-08)
+- The paywall names the exact contents, names the price, makes the
+  follow-up promise, and offers membership as a quiet secondary line.
+  **Never the word "unlock."** Shape: "Your dispute letter and proof:
+  a ready-to-send letter, the regulatory citations behind each finding,
+  and a submission guide. $39 for this bill. If the provider pushes back,
+  the appeal letter is included." + one quiet line for membership.
+
+### Other locked decisions (2026-07-08)
+- The "Most popular" badge is replaced by descriptive guidance ("Best if
+  you have more than one bill").
+- The marketing stats bar (fabricated metrics) is deleted in favor of the
+  live golden-case demo plus one real credential (medical billing
+  specialist, 30+ successful disputes — pending her sign-off).
+- Score surfaces (Financial Harm Score, Outcome Prediction, Digital Twin
+  metrics) get the Part 6 translation treatment: plain-words forecast as
+  the headline, the number demoted to secondary detail.
+
+### Typography (LOCKED 2026-07-08)
+- **Display: Fraunces** (Google Fonts, optical sizing on). Display sizes
+  (20px and up) carry `letter-spacing: -0.015em`; headings below 20px use
+  `-0.01em`. Body text never gets negative tracking.
+- **Body: Public Sans.**
+- **Mono: IBM Plex Mono, weight 500**, for every dollar amount, CPT/HCPCS
+  code, account number, and table figure. **All dollar amounts and codes
+  render in the mono face** — it reads as precision, which is the brand.
 - Contrast through weight extremes (300 vs 700+) and size jumps of 2.5–3x,
   not 400-vs-600 timidity.
 
-### Color
+### Color (LOCKED 2026-07-08 — Option C, charcoal + green accent)
+- The palette, as CSS variables in `globals.css` (semantic names only; **no
+  component may contain a hex literal**):
+  - `--surface: #F6F3EC` (the ONE cream; the other two die)
+  - `--surface-raised: #FCFAF5`
+  - `--ink: #33312B` (primary text)
+  - `--ink-soft: #5C594F` (secondary text)
+  - `--line: #E2DACB` (hairline borders)
+  - `--brand: #2E7D5B` (actions and links ONLY; the UI is neutral at rest,
+    green appears when something is tappable)
+  - `--brand-deep: #1E5940` (hover/active)
+  - `--urgent-amber: #B7791F` and `--urgent-red: #A32D2D` (reserved for
+    genuine deadlines/critical findings per the rule below)
 - **One dominant brand color + one accent + warm neutrals.** Everything else
-  is noise. All colors as CSS variables in one file; no hex values in
-  components.
+  is noise.
 - Semantic colors are reserved: red/amber ONLY for genuine urgency (a real
   deadline, a real critical finding). A stressed user must never see red
   decoration. Most of the dashboard should be neutral at rest.

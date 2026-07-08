@@ -195,7 +195,7 @@ function actionsForDiscrepancy(d: CBSDiscrepancy, order: number): AdvocacyAction
     default:
       actions.push({
         ...base, actionId: uid(), type: 'provider_dispute_letter', sequenceOrder: order, parallel: false,
-        title: `Provider dispute — ${d.type.replace(/_/g, ' ')}`,
+        title: `Provider dispute, ${d.type.replace(/_/g, ' ')}`,
         description: `Dispute the identified ${d.type.replace(/_/g, ' ')} ($${d.estimatedDollarImpact.toFixed(0)}) with itemized evidence and citations.`,
         recipient: 'Provider billing department', daysToWaitForResponse: 30,
         regulatoryBasis: d.applicableRegulations[0],
@@ -309,7 +309,7 @@ export function saveWorkflow(wf: AdvocacyWorkflow): void {
     if (idx >= 0) all[idx] = wf
     else all.push(wf)
     window.localStorage.setItem(WF_KEY, JSON.stringify(all))
-  } catch { /* quota — non-fatal */ }
+  } catch { /* quota, non-fatal */ }
   void pushWorkflowRemote(wf)
 }
 

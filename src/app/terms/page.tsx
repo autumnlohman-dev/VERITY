@@ -2,10 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { BRAND_NAME } from "@/lib/brand";
 
 // ─── Style helpers (shared with landing page) ────────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
   fontSize: size,
   color: "#221C14",
   lineHeight: 1.1,
@@ -14,31 +17,24 @@ const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties =
 });
 
 const sans = (size: string, color = "#5F5648", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 
 function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
   return (
     <nav
       style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
-        backgroundColor: scrolled ? "rgba(235,229,217,0.92)" : "transparent",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
-        transition: "background-color 0.4s, backdrop-filter 0.4s",
+        backgroundColor: "var(--surface)",
+        borderBottom: "1px solid var(--line)",
         padding: "20px 64px", display: "flex", justifyContent: "space-between", alignItems: "center",
       }}
     >
       <Link href="/" style={{ textDecoration: "none" }}>
-        <span style={{ ...sans("15px", "#221C14"), letterSpacing: "0.42em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.42em" }}>Verity</span>
+        <span style={{ ...sans("15px", "#221C14"), letterSpacing: "0.42em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.42em" }}>{BRAND_NAME}</span>
       </Link>
       <Link href="/upload" style={{ textDecoration: "none" }}>
         <span style={{ ...sans("11px", "#221C14"), backgroundColor: "#C8A97E", padding: "12px 24px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>Check my bill →</span>
@@ -60,7 +56,7 @@ function Section({ heading, children }: { heading: string; children: React.React
 
 export default function TermsPage() {
   return (
-    <main className="page-root" style={{ backgroundColor: "#EBE5D9", minHeight: "100vh" }}>
+    <main className="page-root" style={{ backgroundColor: "var(--surface)", minHeight: "100vh" }}>
       <Nav />
       <div style={{ maxWidth: "760px", margin: "0 auto", padding: "160px 32px 96px" }}>
         <div style={{ ...sans("11px", "#C8A97E"), letterSpacing: "0.25em", textTransform: "uppercase", marginBottom: "20px" }}>Terms</div>
@@ -71,13 +67,13 @@ export default function TermsPage() {
           <p>These Terms of Service are a binding agreement between you and Clear Claim Advocacy (&quot;Verity,&quot; &quot;we,&quot; &quot;us&quot;), and govern your use of the Verity service. By creating an account, running an audit, or otherwise using the service, you agree to these terms, including the binding arbitration and class-action waiver in the &quot;Dispute resolution and arbitration&quot; section below. If you do not agree, please do not use Verity.</p>
         </Section>
 
-        <Section heading="What Verity is — and is not">
+        <Section heading="What Verity is, and is not">
           <p>Verity, operated by Clear Claim Advocacy, is a consumer medical-bill audit tool. We review your medical bills and EOBs, identify likely billing and coding errors, and can help you generate dispute letters.</p>
-          <p><strong>Verity is not a law firm and does not provide legal advice. It is not an insurer and does not provide insurance. It does not provide medical, tax, or financial advice.</strong> Our audit results and letters are informational tools to help you advocate for yourself. Using Verity does not create an attorney–client relationship. For legal, medical, or financial decisions, consult a qualified professional.</p>
+          <p><strong>Verity is not a law firm and does not provide legal advice. It is not an insurer and does not provide insurance. It does not provide medical, tax, or financial advice.</strong> Our audit results and letters are informational tools to help you advocate for yourself. Using Verity does not create an attorney-client relationship. For legal, medical, or financial decisions, consult a qualified professional.</p>
         </Section>
 
         <Section heading="Beta service">
-          <p><strong>Verity is currently provided as a beta service</strong> — it is under active development and may contain bugs, incomplete features, or interruptions. We may add, change, or remove features at any time during the beta period. As described in our <Link href="/privacy" style={{ color: "#221C14", fontWeight: 600 }}>Privacy Policy</Link>, during beta we may use uploaded documents and results, in de-identified or aggregated form where practical, to improve the service. Because the service is in beta, it is provided with no service-level commitment and &quot;as is&quot; (see &quot;Disclaimers&quot; below).</p>
+          <p><strong>Verity is currently provided as a beta service</strong>, it is under active development and may contain bugs, incomplete features, or interruptions. We may add, change, or remove features at any time during the beta period. As described in our <Link href="/privacy" style={{ color: "#221C14", fontWeight: 600 }}>Privacy Policy</Link>, during beta we may use uploaded documents and results, in de-identified or aggregated form where practical, to improve the service. Because the service is in beta, it is provided with no service-level commitment and &quot;as is&quot; (see &quot;Disclaimers&quot; below).</p>
         </Section>
 
         <Section heading="Eligibility">
@@ -92,8 +88,8 @@ export default function TermsPage() {
           <p>You agree not to misuse the service: no uploading documents you have no right to, no attempts to break, overload, reverse-engineer, or scrape the service, and no use of Verity for any unlawful purpose.</p>
         </Section>
 
-        <Section heading="Audit results, predictions, and scores — no guarantee">
-          <p>Verity uses AI and published billing rules to find likely errors. <strong>AI-generated analysis may contain errors</strong> — it can miss problems, flag items that are actually correct, or misread a document. We do not guarantee that every error will be found, that flagged items are definitively wrong, or that you will recover any particular amount — or any amount at all.</p>
+        <Section heading="Audit results, predictions, and scores, no guarantee">
+          <p>Verity uses AI and published billing rules to find likely errors. <strong>AI-generated analysis may contain errors</strong>, it can miss problems, flag items that are actually correct, or misread a document. We do not guarantee that every error will be found, that flagged items are definitively wrong, or that you will recover any particular amount, or any amount at all.</p>
           <p><strong>Recovery predictions, win-probability figures, settlement ranges, financial-harm scores, and similar outputs are estimates, not guarantees.</strong> They are generated from published industry baselines and refine over time as real dispute outcomes accumulate; they describe likelihoods, not promised results. Actual outcomes vary, and any specific dollar figures, percentages, or timelines shown anywhere on the site are illustrative. Billing and coverage determinations ultimately rest with your provider and insurer. You are responsible for reviewing results before acting on them.</p>
         </Section>
 
@@ -103,7 +99,7 @@ export default function TermsPage() {
 
         <Section heading="Refund policy">
           <p>We want you to be satisfied with Verity. Our refund policy is as follows:</p>
-          <p><strong>One-time dispute package ($39).</strong> If you are not satisfied, contact us within 14 days of purchase for a full refund — provided we have not yet generated and delivered the dispute letter and package for that bill. Once the dispute package has been delivered, the fee is non-refundable, because the work product has been produced.</p>
+          <p><strong>One-time dispute package ($39).</strong> If you are not satisfied, contact us within 14 days of purchase for a full refund, provided we have not yet generated and delivered the dispute letter and package for that bill. Once the dispute package has been delivered, the fee is non-refundable, because the work product has been produced.</p>
           <p><strong>Monthly membership.</strong> You may cancel at any time and will not be charged for the next billing period. Membership fees already charged for the current period are non-refundable, except that if you cancel within 7 days of your first membership charge and have not generated a dispute package during that period, we will refund that first charge on request.</p>
           <p><strong>How to request a refund.</strong> Email <strong>support@clearclaim.co</strong> with your account email and the charge in question. We process approved refunds to your original payment method through Stripe. Nothing in this policy limits any non-waivable refund or cancellation right you have under applicable law.</p>
         </Section>
@@ -129,7 +125,7 @@ export default function TermsPage() {
         </Section>
 
         <Section heading="Dispute resolution and arbitration">
-          <p><strong>Please read this section carefully — it affects your legal rights.</strong> You and Verity agree to first try to resolve any dispute informally by contacting us at support@clearclaim.co; most concerns can be resolved that way. If we cannot resolve a dispute within 30 days, either party may proceed as set out below.</p>
+          <p><strong>Please read this section carefully, it affects your legal rights.</strong> You and Verity agree to first try to resolve any dispute informally by contacting us at support@clearclaim.co; most concerns can be resolved that way. If we cannot resolve a dispute within 30 days, either party may proceed as set out below.</p>
           <p><strong>Binding arbitration.</strong> Except for the carve-outs below, any dispute, claim, or controversy arising out of or relating to these terms or the service will be resolved by <strong>binding individual arbitration</strong> administered by a recognized arbitration provider under its consumer arbitration rules, rather than in court. The arbitration will be governed by the Federal Arbitration Act. It may be conducted by phone, video, or written submissions, or in person in Montana if required. The arbitrator&apos;s award may be entered in any court of competent jurisdiction.</p>
           <p><strong>Class-action waiver.</strong> You and Verity agree that each may bring claims against the other only in an individual capacity, and not as a plaintiff or class member in any purported class, consolidated, or representative proceeding. The arbitrator may not consolidate more than one person&apos;s claims or preside over any class or representative proceeding.</p>
           <p><strong>Exceptions.</strong> Either party may bring an individual claim in small-claims court if it qualifies, and either party may seek injunctive or equitable relief in court to protect intellectual property or stop misuse of the service. Nothing here waives any right you cannot waive under applicable law.</p>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { BRAND_NAME } from "@/lib/brand";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import { startMembershipCheckout, rememberCheckoutIntent } from "@/lib/checkout";
@@ -9,7 +10,9 @@ import { createClient } from "@/lib/supabase/client";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
   fontSize: size,
   color: "#221C14",
   lineHeight: 1,
@@ -18,14 +21,14 @@ const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties =
 });
 
 const sans = (size: string, color = "#5F5648", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 
 const label = (color = "#C8A97E"): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
   textTransform: "uppercase" as const,
@@ -49,9 +52,8 @@ function Nav() {
         left: 0,
         right: 0,
         zIndex: 50,
-        backgroundColor: scrolled ? "rgba(235,229,217,0.85)" : "transparent",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
-        transition: "background-color 0.4s, backdrop-filter 0.4s",
+        backgroundColor: "var(--surface)",
+        borderBottom: "1px solid var(--line)",
         padding: "20px 64px",
         display: "flex",
         justifyContent: "space-between",
@@ -59,13 +61,8 @@ function Nav() {
       }}
     >
       <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "8px" }}>
-        <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-          <span style={{ ...sans("15px", "#221C14"), letterSpacing: "0.42em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.42em", lineHeight: 1 }}>
-            Verity™
-          </span>
-          <span style={{ ...sans("8px", "#8A7F6E"), letterSpacing: "0.18em", textTransform: "uppercase", paddingLeft: "0.42em", lineHeight: 1 }}>
-            Med Claim
-          </span>
+        <span style={{ ...sans("15px", "#221C14"), letterSpacing: "0.42em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.42em", lineHeight: 1 }}>
+          {BRAND_NAME}
         </span>
       </Link>
       <div className="hidden md:flex" style={{ gap: "40px" }}>
@@ -108,8 +105,7 @@ function Footer() {
       }}
     >
       <div>
-        <div style={{ ...sans("12px", "#221C14"), letterSpacing: "0.34em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.34em", lineHeight: 1 }}>Verity™</div>
-        <div style={{ ...sans("8px", "#8A7F6E"), letterSpacing: "0.2em", textTransform: "uppercase", paddingLeft: "0.34em", marginTop: "5px", marginBottom: "16px" }}>Med Claim</div>
+        <div style={{ ...sans("12px", "#221C14"), letterSpacing: "0.34em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.34em", lineHeight: 1, marginBottom: "16px" }}>{BRAND_NAME}</div>
         <div style={{ ...sans("11px", "#8A7F6E"), maxWidth: "260px", lineHeight: 1.6 }}>
           Verity is an administrative advocacy service. We are not a law firm and do not provide legal advice.
         </div>
@@ -139,7 +135,7 @@ function Footer() {
           <Link href="/privacy" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Privacy</Link>
           <Link href="/terms" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Terms</Link>
         </div>
-        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity™ audit method, scoring models, and datasets are proprietary and confidential. Patent Pending — 41 claims, 13 independent claim categories.</div>
+        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity™ audit method, scoring models, and datasets are proprietary and confidential. Patent Pending, 41 claims, 13 independent claim categories.</div>
       </div>
     </footer>
   );
@@ -165,7 +161,9 @@ function FaqItem({ q, a }: { q: string; a: string }) {
           gap: "24px",
         }}
       >
-        <span style={{ fontFamily: "var(--font-cormorant), Georgia, serif", fontSize: "20px", color: "#221C14", fontWeight: 400 }}>
+        <span style={{ fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em", fontSize: "20px", color: "#221C14", fontWeight: 400 }}>
           {q}
         </span>
         <ChevronDown
@@ -196,15 +194,15 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 const PRICING_FAQS = [
   {
     q: "Why should I start with the free audit?",
-    a: "Because you should know what's wrong before deciding how to fight it. The free Audit tier scans your bill and shows you every error — no credit card, no commitment. If we find nothing, you owe nothing and lose nothing.",
+    a: "Because you should know what's wrong before deciding how to fight it. The free Audit tier scans your bill and shows you every error, no credit card, no commitment. If we find nothing, you owe nothing and lose nothing.",
   },
   {
     q: "Should I pay per bill or join the membership?",
-    a: "If you have a single bill to fight, the $39 Single Dispute covers it — letter, appeal, and submission guide for that one bill. If you see doctors more than a few times a year, or you're managing care for a family or a parent, the $19/mo membership almost always pays for itself: every new bill gets audited automatically and you get unlimited dispute and escalation letters.",
+    a: "If you have a single bill to fight, the $39 Single Dispute covers it, letter, appeal, and submission guide for that one bill. If you see doctors more than a few times a year, or you're managing care for a family or a parent, the $19/mo membership almost always pays for itself: every new bill gets audited automatically and you get unlimited dispute and escalation letters.",
   },
   {
     q: "Can I upgrade mid-case?",
-    a: "Yes, at any time. Start free on Audit, move to a Single Dispute for one bill, or join the membership whenever you want ongoing coverage — you never have to re-upload or start over.",
+    a: "Yes, at any time. Start free on Audit, move to a Single Dispute for one bill, or join the membership whenever you want ongoing coverage, you never have to re-upload or start over.",
   },
   {
     q: "What does the membership actually do between bills?",
@@ -216,7 +214,7 @@ const PRICING_FAQS = [
 type CellVal = "check" | "dash" | string;
 
 const TABLE_ROWS: { feature: string; audit: CellVal; dispute: CellVal; member: CellVal }[] = [
-  { feature: "Full bill audit — every code and charge checked, with evidence and citations", audit: "check", dispute: "check", member: "check" },
+  { feature: "Full bill audit, every code and charge checked, with evidence and citations", audit: "check", dispute: "check", member: "check" },
   { feature: "Bills covered", audit: "Report only", dispute: "1 bill", member: "Unlimited" },
   { feature: "Ready-to-send dispute package (letter, citations, submission guide)", audit: "dash", dispute: "check", member: "check" },
   { feature: "Appeal letter if denied", audit: "dash", dispute: "check", member: "check" },
@@ -230,7 +228,7 @@ const TABLE_ROWS: { feature: string; audit: CellVal; dispute: CellVal; member: C
 
 function TableCell({ val }: { val: CellVal }) {
   if (val === "check") return <span style={{ color: "#5E7E66", fontSize: "15px" }}>✓</span>;
-  if (val === "dash") return <span style={{ color: "#CFC6B4", fontSize: "15px" }}>—</span>;
+  if (val === "dash") return <span style={{ color: "#CFC6B4", fontSize: "15px" }}>-</span>;
   return <span style={{ ...sans("12px", "#221C14") }}>{val}</span>;
 }
 
@@ -260,7 +258,7 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
+    <div className="page-root" style={{ background: "var(--surface)", minHeight: "100vh" }}>
       <Nav />
 
       {/* ── Hero ── */}
@@ -273,7 +271,9 @@ export default function PricingPage() {
           <div style={{ ...label(), marginBottom: "32px" }}>Pricing</div>
           <h1
             style={{
-              fontFamily: "var(--font-cormorant), Georgia, serif",
+              fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
               fontSize: "clamp(64px, 8vw, 96px)",
               color: "#221C14",
               lineHeight: 0.92,
@@ -389,7 +389,7 @@ export default function PricingPage() {
                   el.style.color = "#C8A97E";
                 }}
               >
-                See what&apos;s wrong — free
+                See what&apos;s wrong, free
               </div>
             </Link>
           </motion.div>
@@ -467,14 +467,14 @@ export default function PricingPage() {
                 textTransform: "uppercase",
                 padding: "4px 8px",
                 marginBottom: "12px",
-                fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                fontFamily: "var(--font-public-sans), system-ui, sans-serif",
               }}
             >
               Most popular
             </div>
             <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Membership</div>
             <div style={{ ...serif("52px", { fontStyle: "italic", lineHeight: 1, marginBottom: "4px" }) }}>$19<span style={{ fontSize: "22px" }}>/mo</span></div>
-            <div style={{ ...sans("12px", "#8A7F6E") }}>or $149/yr — two months free</div>
+            <div style={{ ...sans("12px", "#8A7F6E") }}>or $149/yr, two months free</div>
             <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
             <div style={{ ...serif("18px", { fontStyle: "italic", color: "#5F5648", lineHeight: 1.4, marginBottom: "24px" }) }}>
               your ongoing bill watchdog.
@@ -528,7 +528,7 @@ export default function PricingPage() {
                 textUnderlineOffset: "3px",
               }}
             >
-              or $149/yr — two months free
+              or $149/yr, two months free
             </div>
           </motion.div>
         </div>
@@ -558,9 +558,9 @@ export default function PricingPage() {
           >
             {[
               { h: "Feature", col: "#8A7F6E" },
-              { h: "Audit — Free", col: "#5F5648" },
-              { h: "Single Dispute — $39", col: "#5F5648" },
-              { h: "Membership — $19/mo", col: "#C8A97E" },
+              { h: "Audit, Free", col: "#5F5648" },
+              { h: "Single Dispute, $39", col: "#5F5648" },
+              { h: "Membership, $19/mo", col: "#C8A97E" },
             ].map(({ h, col }, i) => (
               <div
                 key={h}

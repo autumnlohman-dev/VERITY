@@ -178,7 +178,7 @@ export async function runDeterministicAudit(
     Number.isFinite(statedTotal) && statedTotal > 0 && totalBilled < statedTotal * 0.9
   if (suspectedPartialRead) {
     console.warn(
-      `runDeterministicAudit[${docIdBase}]: SUSPECTED PARTIAL READ — extracted lines sum to $${totalBilled.toFixed(2)} but the bill states total charges of $${statedTotal.toFixed(2)} (${Math.round((totalBilled / statedTotal) * 100)}%). Findings may be incomplete.`
+      `runDeterministicAudit[${docIdBase}]: SUSPECTED PARTIAL READ, extracted lines sum to $${totalBilled.toFixed(2)} but the bill states total charges of $${statedTotal.toFixed(2)} (${Math.round((totalBilled / statedTotal) * 100)}%). Findings may be incomplete.`
     )
   }
 

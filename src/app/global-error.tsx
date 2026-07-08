@@ -18,7 +18,7 @@ export default function GlobalError({
     <html>
       <body
         style={{
-          background: '#0D0D0D',
+          background: 'var(--ink)',
           minHeight: '100vh',
           margin: 0,
           display: 'flex',
@@ -27,13 +27,15 @@ export default function GlobalError({
           justifyContent: 'center',
           padding: '24px',
           textAlign: 'center',
-          fontFamily: 'var(--font-dm-sans), system-ui, sans-serif',
-          color: '#F5F0E8'
+          fontFamily: 'var(--font-public-sans), system-ui, sans-serif',
+          color: 'var(--surface)'
         }}
       >
         <div
           style={{
-            fontFamily: 'var(--font-cormorant), Georgia, serif',
+            fontFamily: 'var(--font-fraunces), Georgia, serif',
+  fontOpticalSizing: 'auto',
+  letterSpacing: '-0.015em',
             fontSize: '40px',
             lineHeight: 1.1,
             maxWidth: '460px'
@@ -58,7 +60,7 @@ export default function GlobalError({
             onClick={() => reset()}
             style={{
               fontSize: '11px',
-              color: '#0D0D0D',
+              color: 'var(--ink)',
               backgroundColor: '#C8A97E',
               padding: '12px 24px',
               letterSpacing: '0.2em',

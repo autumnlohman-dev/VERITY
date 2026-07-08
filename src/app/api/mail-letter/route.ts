@@ -263,7 +263,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'Your audit was updated after this letter was created — the numbers no longer match. Regenerate the letter, then mail it.',
+            'Your audit was updated after this letter was created, the numbers no longer match. Regenerate the letter, then mail it.',
           code: 'stale_letter',
         },
         { status: 409 }
@@ -335,7 +335,7 @@ export async function POST(request: Request) {
         from: fromParsed,
         html,
         certified,
-        description: `Dispute letter — case ${caseId.slice(0, 8)}`,
+        description: `Dispute letter, case ${caseId.slice(0, 8)}`,
         // Stable key so an accidental double-submit doesn't create two letters.
         idempotencyKey: `mail_${caseId}`,
       })

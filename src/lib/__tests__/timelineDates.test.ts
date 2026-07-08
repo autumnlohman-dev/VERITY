@@ -21,7 +21,7 @@ describe('calendar dates render timezone-safe', () => {
 
   it('degrades unparseable input visibly, not to "Invalid Date"', () => {
     expect(formatCalendarDate('not-a-date')).toBe('not-a-date');
-    expect(formatCalendarDate(null)).toBe('—');
+    expect(formatCalendarDate(null)).toBe('-');
   });
 });
 

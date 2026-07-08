@@ -81,7 +81,7 @@ export async function POST(request: Request) {
       // re-extraction, which is the /api/extract re-run path, never a silent
       // recompute.
       return NextResponse.json(
-        { error: 'This audit cannot be recomputed from stored data — re-run it.', code: 'rerun_required' },
+        { error: 'This audit cannot be recomputed from stored data, re-run it.', code: 'rerun_required' },
         { status: 422 }
       )
     }

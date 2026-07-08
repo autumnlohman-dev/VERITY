@@ -6,6 +6,8 @@
 // expose isLobTestKey() so the product can label such sends "TEST MODE" and we
 // never believe real mail went out.
 
+import { BRAND_NAME } from './brand'
+
 const LOB_BASE = 'https://api.lob.com/v1'
 
 export interface LobAddress {
@@ -164,7 +166,7 @@ export async function createLetter(args: {
   if (args.idempotencyKey) headers['Idempotency-Key'] = args.idempotencyKey
 
   const body: Record<string, unknown> = {
-    description: args.description ?? 'ClearClaim dispute letter',
+    description: args.description ?? `${BRAND_NAME} dispute letter`,
     // Clamp to Lob's field limits as a server-side safety net (the panel also
     // splits the provider blob into clean name/street/city/state/zip fields).
     to: toLobAddress(clampAddress(args.to)),

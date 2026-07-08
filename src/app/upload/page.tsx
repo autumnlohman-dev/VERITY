@@ -12,10 +12,13 @@ import { AuditProgress } from "@/components/AuditProgress";
 import type { CBSDiscrepancy } from "@/lib/cbs/schema";
 import { MAX_PAGES_PER_DOC, MAX_TOTAL_DOC_BYTES, isMergeableExt } from "@/lib/documents/limits";
 import { MANUAL_REVIEW_ERROR_TYPES } from "@/lib/audit/manualReview";
+import { BRAND_NAME } from "@/lib/brand";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontFamily: "var(--font-fraunces), Georgia, serif",
+  fontOpticalSizing: "auto",
+  letterSpacing: "-0.015em",
   fontSize: size,
   color: "#221C14",
   lineHeight: 1,
@@ -24,14 +27,14 @@ const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties =
 });
 
 const sans = (size: string, color = "#5F5648", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 
 const label = (color = "#C8A97E"): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
   textTransform: "uppercase" as const,
@@ -40,13 +43,6 @@ const label = (color = "#C8A97E"): React.CSSProperties => ({
 
 // ─── Nav (copied from landing page) ──────────────────────────────────────────
 function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-  React.useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
     <nav
       style={{
@@ -55,9 +51,8 @@ function Nav() {
         left: 0,
         right: 0,
         zIndex: 50,
-        backgroundColor: scrolled ? "rgba(235,229,217,0.85)" : "transparent",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
-        transition: "background-color 0.4s, backdrop-filter 0.4s",
+        backgroundColor: "var(--surface)",
+        borderBottom: "1px solid var(--line)",
         padding: "20px 64px",
         display: "flex",
         justifyContent: "space-between",
@@ -65,30 +60,17 @@ function Nav() {
       }}
     >
       <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center" }}>
-        <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-          <span
-            style={{
-              ...sans("15px", "#221C14"),
-              letterSpacing: "0.42em",
-              textTransform: "uppercase",
-              fontWeight: 300,
-              paddingLeft: "0.42em",
-              lineHeight: 1,
-            }}
-          >
-            Verity™
-          </span>
-          <span
-            style={{
-              ...sans("8px", "#8A7F6E"),
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              paddingLeft: "0.42em",
-              lineHeight: 1,
-            }}
-          >
-            Med Claim
-          </span>
+        <span
+          style={{
+            ...sans("15px", "#221C14"),
+            letterSpacing: "0.42em",
+            textTransform: "uppercase",
+            fontWeight: 300,
+            paddingLeft: "0.42em",
+            lineHeight: 1,
+          }}
+        >
+          {BRAND_NAME}
         </span>
       </Link>
       <div className="hidden md:flex" style={{ gap: "40px" }}>
@@ -552,7 +534,7 @@ function DropZone({
             {sublabel}
           </div>
           <div style={{ ...sans("12px", "#C9BFAC"), marginTop: "8px" }}>
-            Drop here, or click to browse — PDF, JPG, PNG, HEIC · multiple pages OK
+            Drop here, or click to browse, PDF, JPG, PNG, HEIC · multiple pages OK
           </div>
           <div
             style={{
@@ -925,7 +907,7 @@ function UploadPageInner() {
         ? `${needsReview} line${needsReview === 1 ? "" : "s"} couldn't be priced automatically and ${needsReview === 1 ? "needs" : "need"} manual review.`
         : null;
     return (
-      <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
+      <div className="page-root" style={{ background: "var(--surface)", minHeight: "100vh" }}>
         <Nav />
         <div style={{ maxWidth: "840px", margin: "0 auto", padding: "140px 64px 96px" }}>
           <div style={{ ...label(), marginBottom: "24px" }}>
@@ -935,7 +917,7 @@ function UploadPageInner() {
             {hasErrors
               ? `We found ${r.errorCount} ${r.errorCount === 1 ? "error" : "errors"}.`
               : needsReview > 0
-              ? "No clear overcharges — a few lines need review."
+              ? "No clear overcharges, a few lines need review."
               : "No errors found."}
           </h1>
           {hasErrors ? (
@@ -955,7 +937,7 @@ function UploadPageInner() {
             </p>
           ) : (
             <p style={{ ...sans("15px", "#5F5648"), maxWidth: "460px", lineHeight: 1.7 }}>
-              Every line matched your plan&apos;s expected rates. Keep this — and let Verity watch your future bills automatically.
+              Every line matched your plan&apos;s expected rates. Keep this, and let Verity watch your future bills automatically.
             </p>
           )}
 
@@ -1096,7 +1078,7 @@ function UploadPageInner() {
   // ── Audit in flight (or failed): staged progress, never a frozen spinner ──
   if (phase === "running" || phase === "error") {
     return (
-      <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
+      <div className="page-root" style={{ background: "var(--surface)", minHeight: "100vh" }}>
         <Nav />
         <div style={{ maxWidth: "672px", margin: "0 auto", padding: "200px 24px 96px" }}>
           <AuditProgress
@@ -1115,7 +1097,7 @@ function UploadPageInner() {
   }
 
   return (
-    <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
+    <div className="page-root" style={{ background: "var(--surface)", minHeight: "100vh" }}>
       {/* Top bar */}
       <div
         style={{
@@ -1198,7 +1180,7 @@ function UploadPageInner() {
                 />
                 <DropZone
                   zonelabel="Explanation of Benefits (EOB)"
-                  sublabel="From your insurer — optional but recommended"
+                  sublabel="From your insurer, optional but recommended"
                   required={false}
                   files={eobFiles}
                   zoneError={eobZoneError}
@@ -1207,7 +1189,7 @@ function UploadPageInner() {
               </div>
 
               <p style={{ ...sans("12px", "#8A7F6E"), marginTop: "24px" }}>
-                Don&apos;t have your EOB? You can still proceed — the audit will
+                Don&apos;t have your EOB? You can still proceed, the audit will
                 be less precise.
               </p>
 
@@ -1359,11 +1341,11 @@ function UploadPageInner() {
                     style={{
                       width: "100%",
                       minHeight: "120px",
-                      backgroundColor: "#EBE5D9",
+                      backgroundColor: "var(--surface)",
                       border: "1px solid #CFC6B4",
                       color: "#221C14",
                       padding: "16px",
-                      fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                      fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                       fontSize: "14px",
                       lineHeight: 1.6,
                       resize: "vertical",
@@ -1444,7 +1426,7 @@ function UploadPageInner() {
                     <span style={{ ...serif("26px", { fontStyle: "italic" }), marginLeft: "auto" }}>Free</span>
                   </div>
                   <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "4px" }}>
-                    Always free — see what&apos;s wrong before deciding
+                    Always free, see what&apos;s wrong before deciding
                   </div>
                   <div style={{ borderTop: "1px solid #D8CFBE", margin: "16px 0" }} />
                   {[
@@ -1536,7 +1518,7 @@ function UploadPageInner() {
                       textTransform: "uppercase",
                       padding: "2px 8px",
                       marginBottom: "8px",
-                      fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+                      fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                     }}
                   >
                     Most popular
@@ -1546,7 +1528,7 @@ function UploadPageInner() {
                     <span style={{ ...serif("26px", { fontStyle: "italic" }), marginLeft: "auto" }}>$19/mo</span>
                   </div>
                   <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "4px" }}>
-                    or $149/yr — every bill, covered
+                    or $149/yr, every bill, covered
                   </div>
                   <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "2px" }}>
                     Your ongoing bill watchdog.
@@ -1573,7 +1555,7 @@ function UploadPageInner() {
               {tier && (
                 <div
                   style={{
-                    backgroundColor: "#EBE5D9",
+                    backgroundColor: "var(--surface)",
                     border: "1px solid #E2DACB",
                     padding: "16px 20px",
                     marginTop: "24px",
@@ -1608,7 +1590,7 @@ function UploadPageInner() {
                         <span style={{ ...sans("13px", "#5F5648") }}>
                           {x.files.length === 1
                             ? x.files[0].file.name
-                            : `${x.lbl} — ${x.files.length} pages`}
+                            : `${x.lbl}, ${x.files.length} pages`}
                         </span>
                       </div>
                     ))}

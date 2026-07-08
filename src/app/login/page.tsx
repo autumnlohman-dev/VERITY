@@ -8,6 +8,7 @@ import { syncOutcomes } from '@/lib/outcomes/store'
 import { syncWorkflows } from '@/lib/agent/advocacyAgent'
 import { resumePendingCheckout } from '@/lib/checkout'
 import { claimPendingGuestAudit } from '@/lib/guestClaim'
+import { BRAND_NAME } from '@/lib/brand'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -69,7 +70,7 @@ export default function LoginPage() {
       // render with no data.
       if (!data.session) {
         setNotice(
-          `Check your email — we sent a confirmation link to ${email}. Click it to activate your account, then sign in.`
+          `Check your email, we sent a confirmation link to ${email}. Click it to activate your account, then sign in.`
         )
         setLoading(false)
         return
@@ -91,11 +92,11 @@ export default function LoginPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#0D0D0D',
+      background: 'var(--ink)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: 'var(--font-dm-sans, sans-serif)'
+      fontFamily: 'var(--font-public-sans, sans-serif)'
     }}>
       <div style={{
         width: '100%',
@@ -105,16 +106,18 @@ export default function LoginPage() {
         border: '1px solid #2A2A2A',
       }}>
         <h1 style={{
-          fontFamily: 'var(--font-cormorant, serif)',
+          fontFamily: 'var(--font-fraunces, serif)',
+          fontOpticalSizing: 'auto' as const,
+          letterSpacing: '-0.015em',
           fontSize: '36px',
-          color: '#F5F0E8',
+          color: 'var(--surface)',
           marginBottom: '8px',
           fontWeight: 400
         }}>
           {isSignUp ? 'Create account.' : 'Welcome back.'}
         </h1>
         <p style={{ color: '#A89F96', fontSize: '14px', marginBottom: '32px' }}>
-          {isSignUp ? 'Start your free bill audit.' : 'Sign in to your ClearClaim account.'}
+          {isSignUp ? 'Start your free bill audit.' : `Sign in to your ${BRAND_NAME} account.`}
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -130,9 +133,9 @@ export default function LoginPage() {
               style={{
                 width: '100%',
                 padding: '12px',
-                background: '#0D0D0D',
+                background: 'var(--ink)',
                 border: '1px solid #2A2A2A',
-                color: '#F5F0E8',
+                color: 'var(--surface)',
                 fontSize: '14px',
                 outline: 'none',
                 boxSizing: 'border-box'
@@ -152,9 +155,9 @@ export default function LoginPage() {
               style={{
                 width: '100%',
                 padding: '12px',
-                background: '#0D0D0D',
+                background: 'var(--ink)',
                 border: '1px solid #2A2A2A',
-                color: '#F5F0E8',
+                color: 'var(--surface)',
                 fontSize: '14px',
                 outline: 'none',
                 boxSizing: 'border-box'
@@ -184,7 +187,7 @@ export default function LoginPage() {
               width: '100%',
               padding: '14px',
               background: '#C8A97E',
-              color: '#0D0D0D',
+              color: 'var(--ink)',
               border: 'none',
               fontSize: '14px',
               fontWeight: 500,

@@ -210,7 +210,7 @@ export async function POST(request: Request) {
 
           contextSection = `
 You are advising on a SPECIFIC, already-audited case. Ground every citation,
-escalation, and number in the facts below — do not invent regulations or dollar
+escalation, and number in the facts below, do not invent regulations or dollar
 figures that are not supported here.
 
 PROVIDER: ${cap(caseRow.provider_name, 200) || 'Unknown provider'}
@@ -237,7 +237,7 @@ ${deadlineSummary.length ? JSON.stringify(deadlineSummary, null, 2) : 'None comp
     const system = `You are Verity's Real-Time Advocacy Copilot. The patient is on a live phone
 call with a provider, insurer, or debt collector and has just typed what the
 representative said. Coach the patient: tell them exactly what to say back, which
-law protects them, what to document, and how to negotiate — using THIS case's
+law protects them, what to document, and how to negotiate, using THIS case's
 actual findings when they are provided.
 
 Rules:
@@ -248,7 +248,7 @@ Rules:
   documented case finding (e.g. they deny an overcharge the audit found, claim a
   balance the audit disputes, or assert a policy that a cited regulation overrides).
 - For negotiation, anchor on the case's documented dollar errors / potential
-  savings — give a concrete counter-number when the data supports one.
+  savings, give a concrete counter-number when the data supports one.
 - This is administrative guidance, not legal advice. Never threaten litigation.
 
 Respond with ONLY a JSON object, no prose, in exactly this shape:
@@ -259,7 +259,7 @@ Respond with ONLY a JSON object, no prose, in exactly this shape:
       "kind": "response" | "citation" | "escalation" | "documentation" | "warning",
       "title": "short label (2-4 words)",
       "body": "what to say or do, in the second person",
-      "citation": "optional — the specific statute/rule, only on citation/escalation cards"
+      "citation": "optional, the specific statute/rule, only on citation/escalation cards"
     }
   ]
 }

@@ -69,7 +69,7 @@ export async function loadHousehold(
 
   // Family accumulators: pick latest row for scope='family'
   const familyAccum = accumRows.find((r: { scope: string }) => r.scope === 'family');
-  if (!familyAccum) return null; // incomplete profile — cannot project without accumulators
+  if (!familyAccum) return null; // incomplete profile, cannot project without accumulators
 
   // Individual accumulators: one per member (latest per member_id)
   const seenMembers = new Set<string>();

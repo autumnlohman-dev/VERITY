@@ -90,12 +90,12 @@ export async function runFullAudit(input: FullAuditInput): Promise<FullAuditResu
       // An EOB was supplied but we can't process its file type — log so a silent
       // bill-only result is traceable, then fall through to eobError downstream.
       console.warn(
-        `runFullAudit[${docIdBase}]: EOB supplied but ext "${eob.ext}" is not extractable (and not HEIC by content) — skipping; audit will be bill-only.`
+        `runFullAudit[${docIdBase}]: EOB supplied but ext "${eob.ext}" is not extractable (and not HEIC by content), skipping; audit will be bill-only.`
       )
     } else {
       try {
         eobCbs = await extractEOBToCBS(eob.base64, eob.ext, `eob_${docIdBase}`)
-        console.info(`runFullAudit[${docIdBase}]: EOB extracted — cross-document comparison enabled.`)
+        console.info(`runFullAudit[${docIdBase}]: EOB extracted, cross-document comparison enabled.`)
       } catch (eobErr) {
         // EOB unreadable — degrade gracefully to a bill-only audit.
         // PHI-safe: an APIError can echo request content (the EOB itself) into logs.
