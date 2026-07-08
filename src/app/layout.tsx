@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
-import { Fraunces, Public_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Lora, Public_Sans, IBM_Plex_Mono } from "next/font/google";
 import { BRAND_NAME } from "@/lib/brand";
 import "./globals.css";
 
-// Locked typography (DESIGN-BIBLE Part 3): Fraunces display with optical
-// sizing, Public Sans body, IBM Plex Mono 500 for every figure. Self-hosted
-// via next/font so there is no layout-shift flash.
-const fraunces = Fraunces({
+// Locked typography (DESIGN-BIBLE Part 3): Lora display (400/500/600),
+// Public Sans body, IBM Plex Mono 500 for every figure. Self-hosted via
+// next/font so there is no layout-shift flash.
+const lora = Lora({
   subsets: ["latin"],
-  axes: ["opsz"],
+  weight: ["400", "500", "600"],
   style: ["normal", "italic"],
-  variable: "--font-fraunces",
+  variable: "--font-lora",
 });
 
 const publicSans = Public_Sans({
@@ -48,9 +48,9 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${fraunces.variable} ${publicSans.variable} ${plexMono.variable}`}
+      className={`${lora.variable} ${publicSans.variable} ${plexMono.variable}`}
     >
-      <body className={`${fraunces.variable} ${publicSans.variable} ${plexMono.variable} min-h-full antialiased`}>
+      <body className={`${lora.variable} ${publicSans.variable} ${plexMono.variable} min-h-full antialiased`}>
         {children}
       </body>
     </html>

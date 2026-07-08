@@ -17,10 +17,10 @@ import { userFacingErrorCount } from "@/lib/audit/errorCount";
 import { formatCalendarDate } from "@/lib/dates";
 import { BRAND_NAME } from "@/lib/brand";
 import { getEntitlements } from "@/lib/entitlements";
+import { DigitalTwinView } from "@/components/DigitalTwinView";
 
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+  fontFamily: "var(--font-lora), Georgia, serif",
   letterSpacing: "-0.015em",
   fontSize: size,
   color: "var(--ink)",
@@ -128,6 +128,8 @@ interface BillData {
   tier?: string;
   date_of_service?: string;
   hasEob?: boolean;
+  billPatientResponsibility?: number | null;
+  eobPatientResponsibility?: number | null;
   normalizedCbs?: { crossDocumentDiscrepancies?: unknown[] };
 }
 
@@ -533,6 +535,9 @@ export default function DashboardPage() {
   // Membership entitles every case to letter generation; non-members are
   // entitled per case via dispute_paid. Fetched once to keep row CTAs cheap.
   const [isMember, setIsMember] = useState(false);
+  // The demoted working view (totals, billing picture, full table): collapsed
+  // by default, opened from the quiet "Details" link.
+  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -634,6 +639,29 @@ export default function DashboardPage() {
   const totalRecovered = cases.reduce((s, c) => s + Math.max(0, Number(c.amount_recovered ?? 0)), 0);
   const totalBilled = cases.reduce((s, c) => s + Number(c.amount_billed ?? 0), 0);
   const totalPotential = cases.reduce((s, c) => s + Number(c.potential_savings ?? 0), 0);
+  const counts = cases.reduce(
+    (acc, c) => {
+      if ((c.amount_recovered ?? 0) > 0) acc.resolved += 1;
+      else if (c.status === "error_found" || c.status === "letter_ready") acc.inProgress += 1;
+      else acc.open += 1;
+      return acc;
+    },
+    { open: 0, inProgress: 0, resolved: 0 }
+  );
+
+  // Evidence strip figures: the case's persisted totals. Omitted entirely when
+  // either is missing (legacy case) — never blanks.
+  const billPrRaw = Number(primary.c.bill_data?.billPatientResponsibility);
+  const eobPrRaw = Number(primary.c.bill_data?.eobPatientResponsibility);
+  const evidence =
+    Number.isFinite(billPrRaw) && billPrRaw > 0 && Number.isFinite(eobPrRaw) && eobPrRaw >= 0
+      ? { billAsks: billPrRaw, insuranceSays: eobPrRaw }
+      : null;
+  const cents = (n: number) =>
+    `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  // A letter exists once the case reaches letter_ready (or was mailed).
+  const primaryHasLetter = primary.c.status === "letter_ready" || mailed(primary.c);
 
   const actionButtonStyle: React.CSSProperties = {
     ...sans("11px", "var(--surface-raised)"),
@@ -648,25 +676,71 @@ export default function DashboardPage() {
 
   return (
     <Shell>
+      <style>{`
+        @media (max-width: 520px) {
+          .evidence-strip { flex-direction: column; }
+          .evidence-divider { width: 100% !important; height: 1px !important; }
+        }
+      `}</style>
       <div
         style={{
-          paddingTop: "128px",
-          paddingLeft: "clamp(24px, 6vw, 64px)",
-          paddingRight: "clamp(24px, 6vw, 64px)",
+          paddingTop: "clamp(112px, 16vh, 144px)",
+          paddingLeft: "clamp(20px, 6vw, 64px)",
+          paddingRight: "clamp(20px, 6vw, 64px)",
           paddingBottom: "96px",
-          maxWidth: "880px",
+          maxWidth: "600px",
+          marginLeft: "auto",
+          marginRight: "auto",
+          textAlign: "center",
         }}
       >
-        {/* a. THE verdict: one sentence, one action. The entire above-the-fold. */}
+        {/* The centered verdict composition. The evidence strip IS the imagery. */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, ease: "easeOut" }}
         >
-          <h1 style={{ ...serif("clamp(30px, 5vw, 46px)", { lineHeight: 1.2 }), margin: 0, maxWidth: "760px" }}>
+          {/* a. Eyebrow */}
+          <div style={{ ...label(), marginBottom: "20px" }}>Your open case</div>
+
+          {/* b. The verdict */}
+          <h1 style={{ ...serif("clamp(22px, 3vw, 30px)", { lineHeight: 1.35 }), margin: 0 }}>
             {primary.v.sentence}
           </h1>
-          <div style={{ marginTop: "28px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+
+          {/* c. Evidence strip: the two figures, side by side. */}
+          {evidence && (
+            <div
+              className="evidence-strip"
+              style={{
+                margin: "32px auto 0",
+                maxWidth: "460px",
+                border: "1px solid var(--line)",
+                display: "flex",
+                backgroundColor: "var(--surface-raised)",
+              }}
+            >
+              <div style={{ flex: 1, padding: "18px 16px" }}>
+                <div style={{ ...label(), fontSize: "10px", marginBottom: "8px" }}>The bill asks</div>
+                <div className="figure" style={{ ...sans("19px", "var(--ink)") }}>
+                  {cents(evidence.billAsks)}
+                </div>
+              </div>
+              <div
+                className="evidence-divider"
+                style={{ width: "1px", backgroundColor: "var(--line)", alignSelf: "stretch" }}
+              />
+              <div style={{ flex: 1, padding: "18px 16px" }}>
+                <div style={{ ...label(), fontSize: "10px", marginBottom: "8px" }}>Your insurance says</div>
+                <div className="figure" style={{ ...sans("19px", "var(--brand)") }}>
+                  {cents(evidence.insuranceSays)}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* d. The one action. */}
+          <div style={{ marginTop: "32px", display: "flex", justifyContent: "center", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
             {primary.v.action.kind === "button" ? (
               <Link href={primary.v.action.href} style={actionButtonStyle}>
                 {primary.v.action.label}
@@ -681,30 +755,35 @@ export default function DashboardPage() {
             )}
             <UpdatePendingChip c={primary.c} />
           </div>
+
+          {/* e. What the letter does, quietly. */}
+          {primaryHasLetter && (
+            <p style={{ ...sans("13px"), marginTop: "16px" }}>
+              Your letter asks them to correct it.{" "}
+              <Link
+                href={`/cases/${primary.c.id}/letter`}
+                style={{ color: "var(--brand)", textDecoration: "none" }}
+              >
+                Read it first
+              </Link>
+            </p>
+          )}
         </motion.div>
 
-        {/* b. A quiet one-line summary per other case. */}
+        {/* Other cases: one centered quiet line each. */}
         {rest.length > 0 && (
-          <div style={{ marginTop: "64px", borderTop: "1px solid var(--line)" }}>
+          <div style={{ marginTop: "56px", borderTop: "1px solid var(--line)" }}>
             {rest.map(({ c, v }) => (
               <div
                 key={c.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "baseline",
-                  gap: "16px",
-                  padding: "20px 0",
-                  borderBottom: "1px solid var(--line)",
-                  flexWrap: "wrap",
-                }}
+                style={{ padding: "18px 0", borderBottom: "1px solid var(--line)" }}
               >
-                <div style={{ ...sans("15px", "var(--ink)"), lineHeight: 1.5, flex: "1 1 320px" }}>
+                <div style={{ ...sans("14px", "var(--ink)"), lineHeight: 1.5 }}>
                   {v.sentence} <UpdatePendingChip c={c} />
                 </div>
                 <Link
                   href={v.action.href}
-                  style={{ ...sans("13px", "var(--brand)"), textDecoration: "none", whiteSpace: "nowrap" }}
+                  style={{ ...sans("12px", "var(--brand)"), textDecoration: "none", display: "inline-block", marginTop: "4px" }}
                 >
                   {v.action.kind === "button" ? v.action.label : v.action.text} →
                 </Link>
@@ -713,44 +792,62 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* c. Upload a new bill: calm secondary action. */}
-        <div style={{ marginTop: "40px" }}>
-          <Link
-            href="/upload"
-            style={{
-              ...sans("13px", "var(--brand)"),
-              textDecoration: "none",
-              border: "1px solid var(--line)",
-              padding: "12px 20px",
-              display: "inline-block",
-            }}
-          >
-            Upload a new bill
-          </Link>
-        </div>
-
         {/* Recovered money is something the person cares about; one small line,
             only once it exists. */}
         {totalRecovered > 0 && (
-          <p style={{ ...sans("14px"), marginTop: "32px" }}>
+          <p style={{ ...sans("14px"), marginTop: "40px" }}>
             You&apos;ve gotten <Money n={totalRecovered} /> back so far.
           </p>
         )}
 
-        {/* d. Everything else, behind one collapsed disclosure. */}
-        <details style={{ marginTop: "64px" }}>
-          <summary
+        {/* f. Secondary row: quiet text links. Details opens the working view. */}
+        <div style={{ marginTop: "48px", display: "flex", justifyContent: "center", alignItems: "center", gap: "12px" }}>
+          <Link href="/upload" style={{ ...sans("13px", "var(--brand)"), textDecoration: "none" }}>
+            Upload a new bill
+          </Link>
+          <span style={{ ...sans("13px") }}>·</span>
+          <button
+            onClick={() => setShowDetails((s) => !s)}
+            aria-expanded={showDetails}
             style={{
-              ...sans("12px", "var(--ink-soft)"),
-              letterSpacing: "0.15em",
-              textTransform: "uppercase",
+              ...sans("13px", "var(--brand)"),
+              background: "none",
+              border: "none",
+              padding: 0,
               cursor: "pointer",
-              listStyle: "none",
             }}
           >
             Details
-          </summary>
-          <div style={{ marginTop: "24px" }}>
+          </button>
+        </div>
+
+        {/* Everything demoted lives here (demote, never destroy): status
+            counts, the full billing picture (per-provider history, disputes in
+            progress, what's ahead), totals, and the working table. */}
+        {showDetails && (
+          <div style={{ marginTop: "40px", textAlign: "left" }}>
+            <p style={{ ...sans("13px"), marginBottom: "24px" }}>
+              {counts.open === 1 ? "1 bill open" : `${counts.open} bills open`} ·{" "}
+              {counts.inProgress === 1 ? "1 in progress" : `${counts.inProgress} in progress`} ·{" "}
+              {counts.resolved === 1 ? "1 resolved" : `${counts.resolved} resolved`}
+            </p>
+
+            <DigitalTwinView
+              cases={cases.map((c) => ({
+                caseId: String(c.id),
+                providerName: c.provider_name ?? undefined,
+                insuranceType: c.insurance_type ?? undefined,
+                createdAt: c.created_at,
+                totalBilled: Number(c.amount_billed ?? 0),
+                potentialSavings: Number(c.potential_savings ?? 0),
+                errorCount: userFacingErrorCount(
+                  c.errors_found,
+                  c.bill_data?.normalizedCbs?.crossDocumentDiscrepancies
+                ),
+                status: c.status,
+              }))}
+            />
+
             <div
               style={{
                 display: "flex",
@@ -891,7 +988,7 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-        </details>
+        )}
       </div>
 
       {confirmDelete && (

@@ -9,8 +9,7 @@ const sans = (size: string, color = 'var(--ink-soft)', extra?: React.CSSProperti
   fontFamily: 'var(--font-public-sans), system-ui, sans-serif', fontSize: size, color, ...extra,
 })
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: 'var(--font-fraunces), Georgia, serif',
-  fontOpticalSizing: 'auto',
+  fontFamily: 'var(--font-lora), Georgia, serif',
   letterSpacing: '-0.015em', fontSize: size, color: 'var(--ink)', lineHeight: 1.1, fontWeight: 400, ...extra,
 })
 
@@ -38,17 +37,17 @@ export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
       </div>
       <div style={{ ...serif('24px'), marginBottom: '24px' }}>{twin.headline}</div>
 
-      {/* Top-line metrics */}
+      {/* Top-line metrics — plain words (Part 6) */}
       <div className="r-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '28px' }}>
         {[
-          { label: 'Encounters tracked', value: String(twin.totalEncounters) },
-          { label: 'Errors identified', value: String(twin.totalErrorsIdentified) },
-          { label: 'Recovered', value: `$${twin.totalRecovered.toLocaleString()}`, color: '#7A9E87' },
-          { label: 'Open exposure', value: `$${twin.openExposure.toLocaleString()}`, color: twin.openExposure > 0 ? '#C47C6A' : '#7A9E87' },
+          { label: 'Visits tracked', value: String(twin.totalEncounters) },
+          { label: 'Errors found', value: String(twin.totalErrorsIdentified) },
+          { label: 'Money back', value: `$${twin.totalRecovered.toLocaleString()}` },
+          { label: 'Still in dispute', value: `$${twin.openExposure.toLocaleString()}` },
         ].map(m => (
           <div key={m.label}>
             <div style={{ ...sans('10px', 'var(--ink-soft)'), letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '6px' }}>{m.label}</div>
-            <div style={{ ...serif('28px'), color: m.color ?? 'var(--ink)' }}>{m.value}</div>
+            <div className="figure" style={{ ...sans('22px', 'var(--ink)') }}>{m.value}</div>
           </div>
         ))}
       </div>
@@ -62,14 +61,15 @@ export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{ ...sans('13px', 'var(--ink)') }}>{p.entityName}</span>
                 {p.riskFlag && (
-                  <span style={{ ...sans('9px', 'var(--ink)'), backgroundColor: '#C47C6A', padding: '2px 8px', letterSpacing: '0.1em', fontWeight: 700 }}>
-                    PATTERN FLAG
+                  <span style={{ ...sans('10px', 'var(--ink-soft)'), border: '1px solid var(--urgent-amber)', padding: '2px 8px', letterSpacing: '0.08em' }}>
+                    repeat billing issues
                   </span>
                 )}
               </div>
               <span style={{ ...sans('11px', 'var(--ink-soft)') }}>
-                {p.encounterCount} encounter(s) · {p.totalErrorsFound} error(s) · ${p.totalDisputed.toLocaleString()} disputed
-                {p.disputeWinRate !== null ? ` · ${p.disputeWinRate}% win rate` : ''}
+                {p.encounterCount === 1 ? '1 visit' : `${p.encounterCount} visits`} ·{' '}
+                {p.totalErrorsFound === 1 ? '1 error' : `${p.totalErrorsFound} errors`} · ${p.totalDisputed.toLocaleString()} disputed
+                {p.disputeWinRate !== null ? ` · ${p.disputeWinRate}% of disputes won` : ''}
               </span>
             </div>
           ))}
@@ -97,8 +97,10 @@ export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
       )}
 
       {twin.activeWorkflows.length > 0 && (
-        <div style={{ ...sans('12px', '#7A9E87'), marginTop: '16px' }}>
-          ⚡ {twin.activeWorkflows.length} advocacy workflow(s) actively running
+        <div style={{ ...sans('12px', 'var(--ink-soft)'), marginTop: '16px' }}>
+          {twin.activeWorkflows.length === 1
+            ? '1 dispute in progress'
+            : `${twin.activeWorkflows.length} disputes in progress`}
         </div>
       )}
     </div>

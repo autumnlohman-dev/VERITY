@@ -106,10 +106,12 @@ UI task touching that screen.
   metrics) get the Part 6 translation treatment: plain-words forecast as
   the headline, the number demoted to secondary detail.
 
-### Typography (LOCKED 2026-07-08)
-- **Display: Fraunces** (Google Fonts, optical sizing on). Display sizes
+### Typography (LOCKED 2026-07-08, display face revised same day)
+- **Display: Lora** (Google Fonts, weights 400/500/600). Display sizes
   (20px and up) carry `letter-spacing: -0.015em`; headings below 20px use
   `-0.01em`. Body text never gets negative tracking.
+  (History: Fraunces read too soft at scale, Source Serif 4 too mechanical;
+  Lora chosen as the warm-but-firm middle.)
 - **Body: Public Sans.**
 - **Mono: IBM Plex Mono, weight 500**, for every dollar amount, CPT/HCPCS
   code, account number, and table figure. **All dollar amounts and codes
@@ -141,6 +143,14 @@ UI task touching that screen.
 - **Every screen has ONE primary element** — the thing a first-time,
   stressed user should look at. On the case page that is the verdict:
   "We found N errors worth $X." Everything else is secondary or collapsed.
+- **Demote, never destroy.** "Simplification means demotion, not deletion.
+  Information leaves the primary view by moving DOWN the ladder: primary
+  element → secondary line → collapsed Details → dedicated subpage → data
+  layer (still persisted and exportable). Removing information from the
+  product entirely requires explicit human sign-off, recorded in the commit
+  message. Every demoted item must remain reachable within two taps of the
+  screen it left, and the audit trail (what was demoted where) lives in the
+  design audit doc."
 - **Progressive disclosure is the default.** Findings, timeline, E&M
   questionnaire, deadlines: collapsed summaries that expand on intent.
   Never all expanded at once.

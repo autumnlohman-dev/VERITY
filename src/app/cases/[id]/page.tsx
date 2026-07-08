@@ -33,8 +33,8 @@ import { BRAND_NAME } from "@/lib/brand";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+  fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
   fontSize: size,
   color: "var(--ink)",
@@ -1106,8 +1106,8 @@ export default function CaseDetailPage({
               <div key={i}>
                 <div
                   style={{
-                    fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+                    fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
                     fontSize: "36px",
                     color: item.color,
@@ -1639,8 +1639,8 @@ export default function CaseDetailPage({
                 <span style={{ ...sans("13px", "var(--ink-soft)") }}>Potential savings:</span>
                 <span
                   style={{
-                    fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+                    fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
                     fontSize: "28px",
                     color: "#7A9E87",
@@ -1724,8 +1724,8 @@ export default function CaseDetailPage({
               <div style={{ ...label("var(--ink-soft)"), marginBottom: "12px" }}>Potential savings</div>
               <div
                 style={{
-                  fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+                  fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
                   fontSize: "44px",
                   color: "#7A9E87",

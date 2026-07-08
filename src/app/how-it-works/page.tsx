@@ -8,8 +8,8 @@ import { ChevronDown } from "lucide-react";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+  fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
   fontSize: size,
   color: "#221C14",
@@ -182,8 +182,8 @@ function FaqItem({ q, a }: { q: string; a: string }) {
       >
         <span
           style={{
-            fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+            fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
             fontSize: "20px",
             color: "#221C14",
@@ -292,8 +292,8 @@ export default function HowItWorksPage() {
           <div style={{ ...label(), marginBottom: "32px" }}>How it works</div>
           <h1
             style={{
-              fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+              fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
               fontSize: "clamp(72px, 8vw, 96px)",
               color: "#221C14",
@@ -342,8 +342,8 @@ export default function HowItWorksPage() {
             {/* Step number, decorative */}
             <div
               style={{
-                fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+                fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
                 fontSize: "72px",
                 color: "#E2DACB",

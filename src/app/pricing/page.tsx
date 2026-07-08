@@ -10,8 +10,8 @@ import { createClient } from "@/lib/supabase/client";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+  fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
   fontSize: size,
   color: "#221C14",
@@ -161,8 +161,8 @@ function FaqItem({ q, a }: { q: string; a: string }) {
           gap: "24px",
         }}
       >
-        <span style={{ fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+        <span style={{ fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em", fontSize: "20px", color: "#221C14", fontWeight: 400 }}>
           {q}
         </span>
@@ -271,8 +271,8 @@ export default function PricingPage() {
           <div style={{ ...label(), marginBottom: "32px" }}>Pricing</div>
           <h1
             style={{
-              fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+              fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
               fontSize: "clamp(64px, 8vw, 96px)",
               color: "#221C14",

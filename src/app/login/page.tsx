@@ -106,8 +106,8 @@ export default function LoginPage() {
         border: '1px solid var(--line)',
       }}>
         <h1 style={{
-          fontFamily: 'var(--font-fraunces, serif)',
-          fontOpticalSizing: 'auto' as const,
+          fontFamily: 'var(--font-lora, serif)',
+          
           letterSpacing: '-0.015em',
           fontSize: '36px',
           color: 'var(--ink)',

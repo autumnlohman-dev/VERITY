@@ -10,8 +10,8 @@ import { ChevronDown } from "lucide-react";
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+  fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
   fontSize: size,
   color: "#221C14",
@@ -84,7 +84,7 @@ function Nav() {
       <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "12px" }}>
         <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true" style={{ display: "block" }}>
           <circle cx="32" cy="32" r="20" fill="none" stroke="#B8945C" strokeWidth="1.8" />
-          <text x="32" y="45" textAnchor="middle" fontFamily="var(--font-fraunces), Georgia, serif" fontSize="36" fontWeight={500} fill="#B8945C">V</text>
+          <text x="32" y="45" textAnchor="middle" fontFamily="var(--font-lora), Georgia, serif" fontSize="36" fontWeight={500} fill="#B8945C">V</text>
         </svg>
         <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
           <span
@@ -309,8 +309,8 @@ function FaqItem({ q, a }: { q: string; a: string }) {
       >
         <span
           style={{
-            fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+            fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
             fontSize: "20px",
             color: "#221C14",

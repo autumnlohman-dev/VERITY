@@ -44,8 +44,8 @@ export default async function GatePage({
         </div>
         <div
           style={{
-            fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
+            fontFamily: "var(--font-lora), Georgia, serif",
+  
   letterSpacing: "-0.015em",
             fontSize: "30px",
             fontStyle: "italic",

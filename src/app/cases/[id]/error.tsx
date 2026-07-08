@@ -23,8 +23,8 @@ export default function CaseError({
 
   return (
     <div style={{ background: 'var(--surface)', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center', fontFamily: 'var(--font-public-sans), system-ui, sans-serif', color: 'var(--ink)' }}>
-      <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif',
-  fontOpticalSizing: 'auto',
+      <div style={{ fontFamily: 'var(--font-lora), Georgia, serif',
+  
   letterSpacing: '-0.015em', fontSize: '40px', lineHeight: 1.1, maxWidth: '460px' }}>
         We couldn&apos;t display this case.
       </div>

@@ -18,8 +18,8 @@ const sans = (size: string, color = 'var(--ink-soft)', extra?: React.CSSProperti
 })
 
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: 'var(--font-fraunces), Georgia, serif',
-  fontOpticalSizing: 'auto',
+  fontFamily: 'var(--font-lora), Georgia, serif',
+  
   letterSpacing: '-0.015em',
   fontSize: size,
   color: 'var(--ink)',

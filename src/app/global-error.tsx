@@ -33,8 +33,7 @@ export default function GlobalError({
       >
         <div
           style={{
-            fontFamily: 'var(--font-fraunces), Georgia, serif',
-  fontOpticalSizing: 'auto',
+            fontFamily: 'var(--font-lora), Georgia, serif',
   letterSpacing: '-0.015em',
             fontSize: '40px',
             lineHeight: 1.1,

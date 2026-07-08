@@ -46,11 +46,19 @@ describe('design token guards', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('the previous fonts are fully removed', () => {
+  it('the previous fonts are fully removed (Cormorant, DM Sans, Fraunces)', () => {
     const offenders = allUiSource()
-      .filter((f) => /font-cormorant|font-dm-sans|Cormorant|DM_Sans/.test(f.content))
+      .filter((f) => /font-cormorant|font-dm-sans|Cormorant|DM_Sans|font-fraunces|Fraunces/.test(f.content))
       .map((f) => f.path);
     expect(offenders).toEqual([]);
+  });
+
+  it('the display face is Lora, loaded and referenced', () => {
+    const layout = readFileSync(join(process.cwd(), 'src', 'app', 'layout.tsx'), 'utf8');
+    expect(layout).toContain('Lora');
+    expect(layout).toContain('--font-lora');
+    const css = readFileSync(join(process.cwd(), 'src', 'app', 'globals.css'), 'utf8');
+    expect(css).toContain('var(--font-lora)');
   });
 
   it('ClearClaim and "Med Claim" never appear in user-facing surfaces', () => {

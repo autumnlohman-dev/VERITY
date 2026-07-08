@@ -166,12 +166,15 @@ export function buildDigitalTwin(cases: TwinCaseInput[]): DigitalTwin {
   const activeWorkflows = workflows.filter(w => w.status === 'active')
   const projectedEvents = projectFutureEvents(providers, payers, openExposure)
 
+  // Plain words (DESIGN-BIBLE Part 6): visits and disputes, never
+  // "encounters", "workflows", "exposure", or "(s)" pluralism.
+  const visits = cases.length === 1 ? '1 visit' : `${cases.length} visits`
   const headline =
     totalRecovered > 0
-      ? `$${totalRecovered.toLocaleString()} recovered to date · $${openExposure.toLocaleString()} still at risk across ${cases.length} encounter(s)`
+      ? `$${totalRecovered.toLocaleString()} back so far · $${openExposure.toLocaleString()} still in dispute across ${visits}`
       : totalDollarsAtRisk > 0
-      ? `$${totalDollarsAtRisk.toLocaleString()} at risk across ${cases.length} encounter(s) · ${activeWorkflows.length} active workflow(s)`
-      : `${cases.length} encounter(s) tracked · no open financial exposure detected`
+      ? `$${totalDollarsAtRisk.toLocaleString()} in dispute across ${visits}`
+      : `${visits} tracked · nothing in dispute right now`
 
   return {
     generatedAt: new Date().toISOString(),
