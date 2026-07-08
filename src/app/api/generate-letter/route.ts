@@ -9,6 +9,7 @@ import { checkRateLimit } from '@/lib/rateLimit'
 import { letterRecipient } from '@/lib/letters/recipient'
 import { reconcileLetterNumbers } from '@/lib/letters/reconcile'
 import { JUSTIFICATION_ONLY_WHEN_ADJUDICATED } from '@/lib/audit/savings'
+import { AUDIT_LOGIC_VERSION, auditVersionOf } from '@/lib/audit/version'
 
 // The Anthropic SDK needs the Node runtime (never edge). A full evidentiary
 // letter is ~6000 output tokens (≈90–120s at Sonnet speeds), so the old 60s
@@ -145,6 +146,25 @@ export async function POST(request: Request) {
       caseRecord.bill_data && typeof caseRecord.bill_data === 'object' && !Array.isArray(caseRecord.bill_data)
         ? (caseRecord.bill_data as Record<string, unknown>)
         : {}
+
+    // ── Version gate: letters ONLY from current-logic results ────────────────
+    // A letter is an outward-facing legal document; generating one from
+    // findings computed under superseded logic (e.g. the pre-overhaul false
+    // balance-billing criticals) is exactly the failure this refuses. The case
+    // page recomputes/re-runs stale audits — send the user back through it.
+    if (auditVersionOf(billDataObj) < AUDIT_LOGIC_VERSION) {
+      console.warn(
+        `generate-letter[${caseId}]: REFUSED — audit is v${auditVersionOf(billDataObj)}, current is v${AUDIT_LOGIC_VERSION}.`
+      )
+      return NextResponse.json(
+        {
+          error:
+            'This audit was computed under an older version of our analysis. Open the case page to update it (or re-run the audit), then generate the letter.',
+          code: 'stale_audit_version',
+        },
+        { status: 409 }
+      )
+    }
     const normalizedCbs = billDataObj.normalizedCbs as
       | { crossDocumentDiscrepancies?: unknown[] }
       | undefined

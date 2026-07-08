@@ -27,6 +27,7 @@ import { applyLetterSubstitutions, evidentiaryPackageFilename, todayLongDate } f
 import { disputeUnlocked } from "@/lib/entitlements";
 import { MANUAL_REVIEW_ERROR_TYPES } from "@/lib/audit/manualReview";
 import { formatCalendarDate } from "@/lib/dates";
+import { classifyAuditFreshness, staleBannerFor, type StaleBanner } from "@/lib/audit/version";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -139,6 +140,13 @@ interface BillData {
   billPatientResponsibility?: number | null;
   eobPatientResponsibility?: number | null;
   suspectedPartialRead?: boolean;
+  // Version stamp + stored document refs (drive the stale-audit recompute /
+  // re-run flow).
+  auditLogicVersion?: number;
+  billPages?: string[];
+  eobPages?: string[];
+  billMergedPath?: string;
+  eobMergedPath?: string;
   // Persisted questionnaire state so completed panels survive a refresh and
   // hydrate from the DB instead of re-prompting (see /api/case-state).
   fhs_inputs?: FHSUserInputs;
@@ -492,6 +500,9 @@ export default function CaseDetailPage({
   const [outcomeId, setOutcomeId] = useState(() => (typeof window === 'undefined' ? 'pending' : crypto.randomUUID()));
   const [predictions, setPredictions] = useState<FinancialOutcomePrediction[]>([]);
   const [workflow, setWorkflow] = useState<AdvocacyWorkflow | null>(null);
+  // Set when this case's stored audit predates the current logic version and
+  // couldn't be (fully) brought current on load — drives the staleness banner.
+  const [staleAudit, setStaleAudit] = useState<StaleBanner | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -533,7 +544,50 @@ export default function CaseDetailPage({
         return;
       }
 
-      setCaseRow(caseData as CaseRow);
+      // ── Audit-logic version handling ────────────────────────────────────
+      // Persisted results are a cache of logic that changes. If this row was
+      // computed under an older AUDIT_LOGIC_VERSION and the vision outputs
+      // are persisted, bring it current server-side (deterministic layers
+      // only — no vision tokens) before rendering. On failure, fall back to
+      // the stored results behind a staleness banner — never a broken page.
+      let activeCase = caseData as CaseRow;
+      let recomputeOutcome: boolean | null = null;
+      const freshness = classifyAuditFreshness(
+        caseData.bill_data as Record<string, unknown> | null
+      );
+      if (freshness === "recomputable") {
+        try {
+          const res = await fetch("/api/recompute-audit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ caseId: id }),
+          });
+          const j = await res.json().catch(() => ({}));
+          if (res.ok && (j.case || j.current)) {
+            if (j.case) activeCase = j.case as CaseRow;
+            if (j.recomputed === true) {
+              recomputeOutcome = true;
+              console.info(`Case ${id}: audit recomputed to the current logic version.`);
+            }
+          } else {
+            throw new Error(
+              typeof j.error === "string" ? j.error : `recompute failed (HTTP ${res.status})`
+            );
+          }
+        } catch (err) {
+          console.error(
+            `Case ${id}: audit recompute FAILED — rendering stored (stale) results.`,
+            err
+          );
+          recomputeOutcome = false;
+        }
+        if (cancelled) return;
+      }
+
+      setCaseRow(activeCase);
+      setStaleAudit(
+        staleBannerFor(activeCase.bill_data as Record<string, unknown> | null, recomputeOutcome)
+      );
 
       // Build CBS from available case data and compute deadlines
       // (FHS computed separately after user answers intake questions)
@@ -542,22 +596,22 @@ export default function CaseDetailPage({
         // persisted cross-document CBS, else rebuild from the stored line items.
         // The letter page derives its submission deadline from the same place.
         const set = cbsSetForCase(
-          caseData.bill_data as Record<string, unknown> | null,
-          caseData.provider_name,
-          caseData.id
+          activeCase.bill_data as Record<string, unknown> | null,
+          activeCase.provider_name,
+          activeCase.id
         );
-        const bd = caseData.bill_data as BillData | null;
-        const selfPay = isSelfPay(caseData.insurance_type ?? bd?.insuranceType);
+        const bd = activeCase.bill_data as BillData | null;
+        const selfPay = isSelfPay(activeCase.insurance_type ?? bd?.insuranceType);
         const stakes = {
-          amountBilled: Number(caseData.amount_billed ?? 0),
-          potentialSavings: Number(caseData.potential_savings ?? 0),
+          amountBilled: Number(activeCase.amount_billed ?? 0),
+          potentialSavings: Number(activeCase.potential_savings ?? 0),
           isSelfPay: selfPay,
         };
         if (set) {
           setCbsSet(set);
           const dls = calculateDeadlines(set, {
             selfPay,
-            insuranceType: caseData.insurance_type ?? bd?.insuranceType,
+            insuranceType: activeCase.insurance_type ?? bd?.insuranceType,
           });
           setDeadlines(dls);
           // Hydrate a previously-answered Financial Harm Score questionnaire so
@@ -581,7 +635,7 @@ export default function CaseDetailPage({
         // Reattach the persisted outcome id so the outcome follow-up tracker
         // reloads its recorded status, and hydrate the advocacy workflow.
         if (bd?.outcome_id) setOutcomeId(bd.outcome_id);
-        const wf = bd?.advocacy_workflow ?? getWorkflowForCase(String(caseData.id));
+        const wf = bd?.advocacy_workflow ?? getWorkflowForCase(String(activeCase.id));
         if (wf) setWorkflow(wf);
       } catch {
         // CBS build / hydration is non-blocking — if it fails, page still works
@@ -726,6 +780,8 @@ export default function CaseDetailPage({
   };
 
   // H3: re-run the audit on this case from a freshly re-selected bill file.
+  // rerun:true so the extract route never treats this existing case as a fresh
+  // shell (its dedup branch would DELETE it, destroying documents + history).
   const handleRerun = async (file: File) => {
     setRerunning(true);
     setRerunError(null);
@@ -734,7 +790,7 @@ export default function CaseDetailPage({
       const res = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caseId: id, billFileBase64, billFileName: file.name }),
+        body: JSON.stringify({ caseId: id, billFileBase64, billFileName: file.name, rerun: true }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -748,6 +804,55 @@ export default function CaseDetailPage({
       if (typeof window !== "undefined") window.location.reload();
     } catch (err) {
       console.error("Re-run audit failed:", err);
+      setRerunError("Something went wrong. Please try again.");
+      setRerunning(false);
+    }
+  };
+
+  // Stale-version re-run: goes through the normal extract flow using the
+  // STORED documents (merged PDF preferred, else the original page files) so
+  // the user never has to re-find their bill. Falls back to the file picker
+  // when this case predates stored document paths (inline-base64 uploads).
+  const handleStaleRerun = async () => {
+    const bd = caseRow?.bill_data;
+    const billPaths = bd?.billMergedPath
+      ? [bd.billMergedPath]
+      : Array.isArray(bd?.billPages) && bd.billPages.length > 0
+      ? bd.billPages
+      : null;
+    if (!billPaths) {
+      rerunInputRef.current?.click();
+      return;
+    }
+    const eobPaths = bd?.eobMergedPath
+      ? [bd.eobMergedPath]
+      : Array.isArray(bd?.eobPages) && bd.eobPages.length > 0
+      ? bd.eobPages
+      : null;
+    setRerunning(true);
+    setRerunError(null);
+    try {
+      const res = await fetch("/api/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caseId: id,
+          rerun: true,
+          billPaths,
+          ...(eobPaths ? { eobPaths } : {}),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRerunError(
+          json.error || "We couldn't finish the audit re-run. Please try again."
+        );
+        setRerunning(false);
+        return;
+      }
+      if (typeof window !== "undefined") window.location.reload();
+    } catch (err) {
+      console.error("Stale-audit re-run failed:", err);
       setRerunError("Something went wrong. Please try again.");
       setRerunning(false);
     }
@@ -821,6 +926,19 @@ export default function CaseDetailPage({
 
   return (
     <Shell>
+      {/* Hidden re-run file input — mounted for every status so both the
+          stranded-audit retry and the stale-audit fallback can open it. */}
+      <input
+        ref={rerunInputRef}
+        type="file"
+        accept=".pdf,.png,.jpg,.jpeg,.webp"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void handleRerun(f);
+          e.target.value = "";
+        }}
+      />
       {/* Breadcrumb */}
       <div
         style={{
@@ -878,6 +996,46 @@ export default function CaseDetailPage({
           >
             This bill is already in your dashboard — showing your existing audit
             rather than creating a duplicate.
+          </div>
+        </div>
+      )}
+
+      {/* Stale audit-logic version: either the results shown are stale (re-run
+          needed / recompute failed), or they were recomputed but the newest
+          bill-vs-EOB check needs a document re-read. Never silent. */}
+      {staleAudit && (
+        <div style={{ paddingLeft: "64px", paddingRight: "64px", marginTop: "16px" }}>
+          <div
+            style={{
+              backgroundColor: "rgba(200,169,126,0.08)",
+              border: "1px solid rgba(200,169,126,0.4)",
+              borderLeft: "3px solid #C8A97E",
+              padding: "16px 20px",
+            }}
+          >
+            <div style={{ ...label("#C8A97E"), marginBottom: "6px" }}>Audit update available</div>
+            <p style={{ ...sans("13px", "#A89F96"), lineHeight: 1.6 }}>{staleAudit.message}</p>
+            {rerunError && (
+              <p style={{ ...sans("13px", "#C47C6A"), marginTop: "8px" }}>{rerunError}</p>
+            )}
+            <button
+              onClick={() => void handleStaleRerun()}
+              disabled={rerunning}
+              style={{
+                ...sans("10px", "#0D0D0D"),
+                backgroundColor: "#C8A97E",
+                border: "none",
+                padding: "10px 20px",
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                fontWeight: 500,
+                cursor: rerunning ? "wait" : "pointer",
+                opacity: rerunning ? 0.6 : 1,
+                marginTop: "12px",
+              }}
+            >
+              {rerunning ? "Re-running audit…" : "Re-run audit →"}
+            </button>
           </div>
         </div>
       )}
@@ -1337,17 +1495,6 @@ export default function CaseDetailPage({
               {rerunError && (
                 <p style={{ ...sans("13px", "#C47C6A"), marginTop: "12px" }}>{rerunError}</p>
               )}
-              <input
-                ref={rerunInputRef}
-                type="file"
-                accept=".pdf,.png,.jpg,.jpeg,.webp"
-                style={{ display: "none" }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handleRerun(f);
-                  e.target.value = "";
-                }}
-              />
               <button
                 onClick={() => rerunInputRef.current?.click()}
                 disabled={rerunning}

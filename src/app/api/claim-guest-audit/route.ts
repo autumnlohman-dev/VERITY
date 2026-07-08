@@ -4,6 +4,7 @@ import { type LineItem } from '@/lib/errorDetection'
 import { runFullAudit } from '@/lib/audit/runFullAudit'
 import { findDuplicateCase } from '@/lib/audit/dedup'
 import { normalizeInsuranceType } from '@/lib/insuranceMapping'
+import { AUDIT_LOGIC_VERSION } from '@/lib/audit/version'
 import type { NormalizedCBSSet } from '@/lib/cbs/schema'
 
 // Turns a guest's localStorage audit claim into a real, user-owned case row.
@@ -33,6 +34,9 @@ interface ClaimBody {
     hasEob?: unknown
     eobError?: unknown
     lowConfidence?: unknown
+    auditLogicVersion?: unknown
+    billPatientResponsibility?: unknown
+    eobPatientResponsibility?: unknown
   }
   inputs?: {
     careType?: unknown
@@ -107,6 +111,19 @@ export async function POST(request: Request) {
     const provider = asString(audit.provider)
     const dateOfService = deriveDateOfService(lineItems)
 
+    // The guest audit's honest-numbers inputs (vision-extracted totals) carry
+    // through the claim so the re-audit keeps the savings cap and, if the
+    // guest CBS is preserved, the case page's honest "amount expected".
+    const guestBillPr =
+      typeof audit.billPatientResponsibility === 'number' && audit.billPatientResponsibility >= 0
+        ? audit.billPatientResponsibility
+        : null
+    const guestEobPr =
+      typeof audit.eobPatientResponsibility === 'number' && audit.eobPatientResponsibility >= 0
+        ? audit.eobPatientResponsibility
+        : null
+    const guestAuditVersion = Number(audit.auditLogicVersion) || 1
+
     // Re-audit server-side through the shared pipeline (don't trust client errors).
     const result = await runFullAudit({
       lineItems,
@@ -117,6 +134,7 @@ export async function POST(request: Request) {
       // isn't meaningful here (and bill_data.lowConfidence is display-only).
       lowConfidence: [],
       docIdBase: `claim_${claimId}`,
+      billTotals: { statedTotalBilled: null, patientResponsibility: guestBillPr },
       supabase,
     })
 
@@ -153,7 +171,18 @@ export async function POST(request: Request) {
             .update({
               bill_data: {
                 ...survivorBillData,
-                ...(guestHasEob && guestCbsUsable ? { normalizedCbs: guestDupCbs, hasEob: true } : {}),
+                ...(guestHasEob && guestCbsUsable
+                  ? {
+                      normalizedCbs: guestDupCbs,
+                      hasEob: true,
+                      // The migrated CBS was computed under the GUEST audit's
+                      // logic version — stamp that, so a stale guest CBS is
+                      // recomputed on the survivor's next view instead of
+                      // replaying as current.
+                      auditLogicVersion: guestAuditVersion,
+                      ...(guestEobPr !== null ? { eobPatientResponsibility: guestEobPr } : {}),
+                    }
+                  : {}),
                 eobError: guestEobError,
               },
             })
@@ -176,12 +205,16 @@ export async function POST(request: Request) {
     }
 
     // Preserve the guest's richer cross-document CBS (e.g. bill+EOB) when it has
-    // documents; otherwise use the freshly recomputed bill-only set.
+    // documents; otherwise use the freshly recomputed bill-only set. A preserved
+    // guest CBS is stamped with the GUEST audit's logic version: if that audit
+    // predates the current logic, the case lands stale and the case page's
+    // recompute-on-view brings it current from the persisted EOB document —
+    // never replayed as if current.
     const guestCbs = audit.normalizedCbs as NormalizedCBSSet | null | undefined
-    const normalizedCbs =
-      guestCbs && Array.isArray(guestCbs.documents) && guestCbs.documents.length > 0
-        ? guestCbs
-        : result.normalizedCbs
+    const guestCbsUsed =
+      !!guestCbs && Array.isArray(guestCbs.documents) && guestCbs.documents.length > 0
+    const normalizedCbs = guestCbsUsed ? guestCbs : result.normalizedCbs
+    const stampVersion = guestCbsUsed ? guestAuditVersion : AUDIT_LOGIC_VERSION
 
     const billData = {
       careType: asString(inputs.careType),
@@ -198,6 +231,9 @@ export async function POST(request: Request) {
       // surface the "couldn't read your EOB" notice instead of degrading silently.
       eobError: !!audit.eobError,
       lowConfidence: result.lowConfidence,
+      billPatientResponsibility: guestBillPr,
+      eobPatientResponsibility: guestEobPr ?? result.eobPatientResponsibility,
+      auditLogicVersion: stampVersion,
       // Provenance + idempotency key for re-import dedup.
       guest_claim_id: claimId,
     }

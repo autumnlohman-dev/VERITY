@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { claimPendingGuestAudit } from "@/lib/guestClaim";
+import { classifyAuditFreshness } from "@/lib/audit/version";
+import { formatCalendarDate } from "@/lib/dates";
 import { getEntitlements } from "@/lib/entitlements";
 import { DigitalTwinView } from "@/components/DigitalTwinView";
 
@@ -166,8 +168,13 @@ function displayStatus(c: CaseRow): { key: string; label: string; dot: string; t
 
 function StatusPill({ c }: { c: CaseRow }) {
   const cfg = displayStatus(c);
+  // Stored results predate the current audit logic — the row's numbers update
+  // when the case is next viewed (recompute-on-view), so aggregate figures on
+  // this page aren't uniformly current. Mark it, lightly.
+  const stale =
+    classifyAuditFreshness(c.bill_data as Record<string, unknown> | null) !== "current";
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
       <span
         className={cfg.pulse ? "dot-pulse" : ""}
         style={{
@@ -180,6 +187,21 @@ function StatusPill({ c }: { c: CaseRow }) {
         }}
       />
       <span style={{ ...sans("12px", cfg.text) }}>{cfg.label}</span>
+      {stale && c.status !== "auditing" && (
+        <span
+          title="Computed under an older analysis version — open the case to update it"
+          style={{
+            ...sans("9px", "#8A7F6E"),
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            border: "1px solid #2A2A2A",
+            padding: "2px 6px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          update pending
+        </span>
+      )}
     </div>
   );
 }
@@ -212,16 +234,12 @@ function formatCurrency(n: number): string {
   return `$${Math.round(n).toLocaleString("en-US")}`;
 }
 
+// Timezone-safe: a date-only date_of_service must not render a day early for
+// viewers west of Greenwich (full created_at timestamps parse natively).
 function formatServiceDate(c: CaseRow): { value: string; labelText: string } {
   const dos = c.bill_data?.date_of_service?.trim();
   const iso = dos && dos.length > 0 ? dos : c.created_at;
-  try {
-    const d = new Date(iso);
-    const value = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    return { value, labelText: dos ? "Date of service" : "Filed" };
-  } catch {
-    return { value: iso, labelText: dos ? "Date of service" : "Filed" };
-  }
+  return { value: formatCalendarDate(iso), labelText: dos ? "Date of service" : "Filed" };
 }
 
 function Shell({ children }: { children: React.ReactNode }) {

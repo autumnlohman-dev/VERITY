@@ -9,6 +9,7 @@ import { isUuid } from '@/lib/storage/bills'
 import { MergeError } from '@/lib/documents/mergePages'
 import { resolveSlot } from '@/lib/documents/resolveUpload'
 import { checkRateLimit, clientIp, decodedBase64Bytes } from '@/lib/rateLimit'
+import { AUDIT_LOGIC_VERSION } from '@/lib/audit/version'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -162,6 +163,9 @@ export async function POST(request: Request) {
       billPatientResponsibility: result.billPatientResponsibility,
       eobPatientResponsibility: result.eobPatientResponsibility,
       suspectedPartialRead: result.suspectedPartialRead,
+      // Carried through the guest claim so /api/claim-guest-audit knows which
+      // logic version the guest's CBS was computed under.
+      auditLogicVersion: AUDIT_LOGIC_VERSION,
       crossDocumentDiscrepancies: result.normalizedCbs.crossDocumentDiscrepancies,
       timeline: result.normalizedCbs.timeline,
       normalizedCbs: result.normalizedCbs,

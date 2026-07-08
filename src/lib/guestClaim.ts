@@ -31,6 +31,13 @@ export interface GuestClaimAudit {
   // "couldn't read your EOB" notice instead of degrading silently.
   eobError?: boolean
   lowConfidence?: boolean
+  // AUDIT_LOGIC_VERSION the guest audit was computed under — the claim route
+  // only preserves the guest's cross-document CBS when it is current.
+  auditLogicVersion?: number
+  // The bill's stated bottom line + EOB obligation, carried so the saved case
+  // keeps the honest-numbers inputs without a re-extraction.
+  billPatientResponsibility?: number | null
+  eobPatientResponsibility?: number | null
 }
 
 export interface GuestClaimInputs {
@@ -66,6 +73,11 @@ export function saveGuestClaim(audit: GuestClaimAudit, inputs: GuestClaimInputs)
         hasEob: !!audit.hasEob,
         eobError: !!audit.eobError,
         lowConfidence: !!audit.lowConfidence,
+        auditLogicVersion: Number(audit.auditLogicVersion) || undefined,
+        billPatientResponsibility:
+          typeof audit.billPatientResponsibility === 'number' ? audit.billPatientResponsibility : null,
+        eobPatientResponsibility:
+          typeof audit.eobPatientResponsibility === 'number' ? audit.eobPatientResponsibility : null,
       },
       inputs,
     }

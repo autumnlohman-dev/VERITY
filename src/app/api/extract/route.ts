@@ -10,6 +10,7 @@ import { BILLS_BUCKET } from '@/lib/storage/bills'
 import { MergeError } from '@/lib/documents/mergePages'
 import { resolveSlot } from '@/lib/documents/resolveUpload'
 import { checkRateLimit, decodedBase64Bytes } from '@/lib/rateLimit'
+import { AUDIT_LOGIC_VERSION } from '@/lib/audit/version'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -40,6 +41,11 @@ export async function POST(request: Request) {
       // document, merged server-side before extraction.
       billPaths, billFilesBase64, billFileNames,
       eobPaths, eobFilesBase64, eobFileNames,
+      // True when re-running an EXISTING case (stale-version refresh or the
+      // stranded-audit retry). A re-run must never trip bill-level dedup: the
+      // dedup branch deletes the "new" case, and here the "new" case is the
+      // original — deleting it would destroy the case's outcome history.
+      rerun,
     } = await request.json()
 
     if (typeof caseId !== 'string' || !caseId) {
@@ -194,7 +200,9 @@ export async function POST(request: Request) {
     // The same physical bill (same provider + date of service + amount billed)
     // should live in the dashboard exactly once. If a populated case already
     // matches, discard this freshly-created shell and point the user at it.
-    const duplicate = await findDuplicateCase(supabase, {
+    // SKIPPED on re-runs: the case being refreshed is not a fresh shell, and
+    // the delete branch below would destroy it (documents, outcome history).
+    const duplicate = rerun === true ? null : await findDuplicateCase(supabase, {
       userId: user.id,
       excludeCaseId: caseId,
       providerName: result.provider ?? caseRow.provider_name ?? null,
@@ -243,6 +251,7 @@ export async function POST(request: Request) {
               billPatientResponsibility: result.billPatientResponsibility,
               eobPatientResponsibility: result.eobPatientResponsibility,
               suspectedPartialRead: result.suspectedPartialRead,
+              auditLogicVersion: AUDIT_LOGIC_VERSION,
             },
           })
           .eq('id', duplicate.id)
@@ -281,6 +290,9 @@ export async function POST(request: Request) {
       billPatientResponsibility: result.billPatientResponsibility,
       eobPatientResponsibility: result.eobPatientResponsibility,
       suspectedPartialRead: result.suspectedPartialRead,
+      // Version stamp: readers compare against AUDIT_LOGIC_VERSION and
+      // recompute/re-run when the logic has moved since this was computed.
+      auditLogicVersion: AUDIT_LOGIC_VERSION,
       // One bill/EOB record with page references: the original page files (in
       // merge order) plus the merged artifact when the upload was multi-file.
       ...(bill.pageRefs.length > 0 ? { billPages: bill.pageRefs } : {}),
