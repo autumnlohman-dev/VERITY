@@ -11,6 +11,7 @@ import { MergeError } from '@/lib/documents/mergePages'
 import { resolveSlot } from '@/lib/documents/resolveUpload'
 import { checkRateLimit, decodedBase64Bytes } from '@/lib/rateLimit'
 import { AUDIT_LOGIC_VERSION } from '@/lib/audit/version'
+import { auditSnapshotFingerprint, markLettersStaleIfChanged } from '@/lib/letters/staleness'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -268,6 +269,25 @@ export async function POST(request: Request) {
             `extract[${caseId}]: dedup migrated fresh audit onto surviving case ${duplicate.id} ` +
               `(hasEob=${result.hasEob}, eobError=${result.eobError}, discrepancies now recomputed)`
           )
+          // The survivor's findings just changed — any letter written from its
+          // previous results is now out of sync. Mark, never delete.
+          await markLettersStaleIfChanged(
+            supabase,
+            duplicate.id,
+            auditSnapshotFingerprint({
+              amount_billed: result.totalBilled,
+              amount_expected: result.totalExpected,
+              potential_savings: result.potentialSavings,
+              errors_found: result.errors,
+              bill_data: {
+                ...survivorBillData,
+                normalizedCbs: result.normalizedCbs,
+                billPatientResponsibility: result.billPatientResponsibility,
+                eobPatientResponsibility: result.eobPatientResponsibility,
+                auditLogicVersion: AUDIT_LOGIC_VERSION,
+              },
+            })
+          )
         }
       }
 
@@ -319,6 +339,20 @@ export async function POST(request: Request) {
       console.error('Case update error:', updateErr)
       return NextResponse.json({ error: 'Failed to save audit results' }, { status: 500 })
     }
+
+    // A re-run (or any persist that changed the findings) invalidates letters
+    // written from the previous snapshot — mark them stale, never delete.
+    await markLettersStaleIfChanged(
+      supabase,
+      caseId,
+      auditSnapshotFingerprint({
+        amount_billed: result.totalBilled,
+        amount_expected: result.totalExpected,
+        potential_savings: result.potentialSavings,
+        errors_found: result.errors,
+        bill_data: updatedBillData,
+      })
+    )
 
     return NextResponse.json({
       success: true,

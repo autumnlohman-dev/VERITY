@@ -22,6 +22,7 @@ import { isSelfPay } from "@/lib/insuranceMapping";
 import { filterOutEmErrors, type EmReview } from "@/lib/emReview";
 import type { BillingError } from "@/lib/errorDetection";
 import { letterRecipient, type RecipientSignal } from "@/lib/letters/recipient";
+import { auditSnapshotFingerprint, isLetterStale } from "@/lib/letters/staleness";
 import { formatCalendarDate } from "@/lib/dates";
 import { MailItPanel, type MailState, type MailAddress } from "@/components/MailItPanel";
 
@@ -67,6 +68,7 @@ interface CaseRow {
   insurance_type: string | null;
   amount_billed: number | null;
   amount_expected: number | null;
+  potential_savings: number | null;
   errors_found: unknown[] | null;
   bill_data: { userNotes?: string; date_of_service?: string; em_review?: EmReview } | null;
   created_at: string;
@@ -85,6 +87,12 @@ interface LetterRow {
   letter_content: string;
   generated_at: string | null;
   sent_at: string | null;
+  // Audit-snapshot stamp (set at generation). A letter whose snapshot no
+  // longer matches the case's current results — or that predates stamping —
+  // is stale: viewable, but download/print/mail refuse it until regenerated.
+  stale?: boolean | null;
+  audit_fingerprint?: string | null;
+  audit_logic_version?: number | null;
 }
 
 // ─── Placeholder substitution ────────────────────────────────────────────────
@@ -1277,7 +1285,7 @@ export default function LetterPage({
     const { data: caseData, error: caseErr } = await supabase
       .from("cases")
       .select(
-        "id, status, provider_name, insurance_type, amount_billed, amount_expected, errors_found, bill_data, created_at, patient_info, lob_letter_id, mail_status, mail_test_mode, mail_certified, mail_expected_delivery, mail_to"
+        "id, status, provider_name, insurance_type, amount_billed, amount_expected, potential_savings, errors_found, bill_data, created_at, patient_info, lob_letter_id, mail_status, mail_test_mode, mail_certified, mail_expected_delivery, mail_to"
       )
       .eq("id", id)
       .eq("user_id", user.id)
@@ -1654,9 +1662,26 @@ export default function LetterPage({
   const displayContent = substitutePlaceholders(letter.letter_content, patientInfo, {
     provider_name: caseRow.provider_name,
   });
+  // Stale: the audit was recomputed/re-run after this letter was generated (or
+  // the letter predates snapshot stamping), so its numbers no longer match the
+  // case. Viewing stays available; download / print / mail refuse it — and the
+  // mail + package endpoints enforce the same check server-side.
+  const letterStale = isLetterStale(
+    letter,
+    auditSnapshotFingerprint({
+      amount_billed: caseRow.amount_billed,
+      amount_expected: caseRow.amount_expected,
+      potential_savings: caseRow.potential_savings,
+      errors_found: caseRow.errors_found,
+      bill_data: caseRow.bill_data as Record<string, unknown> | null,
+    })
+  );
   // Gate download / print / mail: never ship a letter that still has an unfilled
-  // [BRACKET] placeholder. true → safe to download/print/mail.
-  const letterReady = !hasUnfilledPlaceholders(displayContent);
+  // [BRACKET] placeholder — or whose audit snapshot is stale.
+  const letterReady = !hasUnfilledPlaceholders(displayContent) && !letterStale;
+  const blockedTitle = letterStale
+    ? "Your audit was updated after this letter was created — regenerate the letter first"
+    : "Fill in the highlighted details below before printing";
 
   return (
     <div style={{ background: "#0D0D0D", minHeight: "100vh" }}>
@@ -1695,7 +1720,7 @@ export default function LetterPage({
           <button
             onClick={() => { if (letterReady) window.print(); }}
             disabled={!letterReady}
-            title={letterReady ? "" : "Fill in the highlighted details below before printing"}
+            title={letterReady ? "" : blockedTitle}
             style={{
               ...sans("11px", "#A89F96"),
               letterSpacing: "0.15em",
@@ -1711,7 +1736,12 @@ export default function LetterPage({
             Print
           </button>
           <button
+            disabled={letterStale}
+            title={letterStale ? blockedTitle : ""}
             onClick={() => {
+              // Stale letters are view-only — the numbers no longer match the
+              // audit; regenerate (banner below) re-enables download.
+              if (letterStale) return;
               const missing = getMissingFields(
                 letter.letter_content,
                 {
@@ -1741,7 +1771,8 @@ export default function LetterPage({
               backgroundColor: "#C8A97E",
               border: "none",
               padding: "8px 16px",
-              cursor: "pointer",
+              cursor: letterStale ? "not-allowed" : "pointer",
+              opacity: letterStale ? 0.45 : 1,
               fontWeight: 500,
             }}
           >
@@ -1770,6 +1801,48 @@ export default function LetterPage({
               ? "This deadline has passed — act immediately to preserve your dispute rights."
               : "File before this date to preserve your dispute rights."}
           </span>
+        </div>
+      )}
+
+      {/* Stale letter: the audit changed after generation — view-only until
+          regenerated. Same check the mail endpoint enforces server-side. */}
+      {letterStale && (
+        <div
+          style={{
+            maxWidth: "720px",
+            margin: "32px auto 0",
+            backgroundColor: "rgba(196,124,106,0.08)",
+            border: "1px solid rgba(196,124,106,0.4)",
+            borderLeft: "3px solid #C47C6A",
+            padding: "20px 24px",
+          }}
+        >
+          <div style={{ ...label("#C47C6A"), marginBottom: "6px" }}>Letter out of date</div>
+          <p style={{ ...sans("13px", "#A89F96"), lineHeight: 1.65 }}>
+            Your audit was updated after this letter was created. The numbers no longer
+            match. Regenerate your letter.
+          </p>
+          {genError && (
+            <p style={{ ...sans("13px", "#C47C6A"), marginTop: "8px" }}>{genError}</p>
+          )}
+          <button
+            onClick={() => void generate()}
+            disabled={generating}
+            style={{
+              ...sans("10px", "#0D0D0D"),
+              backgroundColor: "#C8A97E",
+              border: "none",
+              padding: "10px 20px",
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              fontWeight: 500,
+              cursor: generating ? "wait" : "pointer",
+              opacity: generating ? 0.6 : 1,
+              marginTop: "12px",
+            }}
+          >
+            {generating ? "Regenerating…" : "Regenerate letter →"}
+          </button>
         </div>
       )}
 

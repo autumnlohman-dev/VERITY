@@ -6,6 +6,7 @@ import { runDeterministicAudit } from '@/lib/audit/deterministicCore'
 import { AUDIT_LOGIC_VERSION, auditVersionOf, classifyAuditFreshness } from '@/lib/audit/version'
 import { normalizeInsuranceType } from '@/lib/insuranceMapping'
 import { checkRateLimit } from '@/lib/rateLimit'
+import { auditSnapshotFingerprint, markLettersStaleIfChanged } from '@/lib/letters/staleness'
 import type { CanonicalBillingSchema, NormalizedCBSSet } from '@/lib/cbs/schema'
 
 export const runtime = 'nodejs'
@@ -177,6 +178,11 @@ export async function POST(request: Request) {
       console.error(`recompute-audit[${caseId}]: persist failed:`, updateErr)
       return NextResponse.json({ error: 'Failed to save recomputed audit' }, { status: 500 })
     }
+
+    // Any letter written from the previous results now disagrees with the case
+    // — mark it stale (view-only until regenerated). Letters whose snapshot
+    // still matches are untouched, so a no-op recompute never invalidates.
+    await markLettersStaleIfChanged(supabase, caseId, auditSnapshotFingerprint(updated))
 
     console.info(
       `recompute-audit[${caseId}]: recomputed v${fromVersion} → v${AUDIT_LOGIC_VERSION} ` +

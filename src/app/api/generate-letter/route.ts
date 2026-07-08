@@ -10,6 +10,7 @@ import { letterRecipient } from '@/lib/letters/recipient'
 import { reconcileLetterNumbers } from '@/lib/letters/reconcile'
 import { JUSTIFICATION_ONLY_WHEN_ADJUDICATED } from '@/lib/audit/savings'
 import { AUDIT_LOGIC_VERSION, auditVersionOf } from '@/lib/audit/version'
+import { auditSnapshotFingerprint } from '@/lib/letters/staleness'
 
 // The Anthropic SDK needs the Node runtime (never edge). A full evidentiary
 // letter is ~6000 output tokens (≈90–120s at Sonnet speeds), so the old 60s
@@ -426,12 +427,19 @@ The letter should:
       )
     }
 
-    // Save the letter to the database
+    // Save the letter, stamped with the audit snapshot it was generated from:
+    // the logic version + a fingerprint of the persisted findings/totals. If a
+    // later recompute or re-run changes the results, the mismatch marks this
+    // letter stale (view-only until regenerated) instead of letting it render
+    // — or get mailed — with numbers the case page no longer shows.
     const { data: letter, error: dbError } = await supabase
       .from('dispute_letters')
       .insert({
         case_id: caseId,
-        letter_content: letterContent
+        letter_content: letterContent,
+        audit_logic_version: AUDIT_LOGIC_VERSION,
+        audit_fingerprint: auditSnapshotFingerprint(caseRecord),
+        stale: false,
       })
       .select()
       .single()

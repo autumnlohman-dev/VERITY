@@ -11,6 +11,7 @@ import {
   LobError,
   type LobAddress,
 } from '@/lib/lob'
+import { auditSnapshotFingerprint, isLetterStale } from '@/lib/letters/staleness'
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 
@@ -207,10 +208,13 @@ export async function POST(request: Request) {
     const fromParsed = parseAddress(body.from, 'return')
     if ('error' in fromParsed) return NextResponse.json({ error: fromParsed.error, field: 'from' }, { status: 400 })
 
-    // Ownership + current mail state.
+    // Ownership + current mail state (+ the audit snapshot fields the letter
+    // staleness check compares against).
     const { data: caseRecord } = await supabase
       .from('cases')
-      .select('id, provider_name, bill_data, patient_info, lob_letter_id, mail_status')
+      .select(
+        'id, provider_name, bill_data, patient_info, lob_letter_id, mail_status, amount_billed, amount_expected, potential_savings, errors_found'
+      )
       .eq('id', caseId)
       .eq('user_id', user.id)
       .maybeSingle()
@@ -237,14 +241,31 @@ export async function POST(request: Request) {
     // Need a generated letter to mail.
     const { data: letterData } = await supabase
       .from('dispute_letters')
-      .select('letter_content')
+      .select('letter_content, stale, audit_fingerprint, audit_logic_version')
       .eq('case_id', caseId)
       .order('generated_at', { ascending: false })
       .limit(1)
-    const letterContent = letterData?.[0]?.letter_content
+    const letterRow = letterData?.[0]
+    const letterContent = letterRow?.letter_content
     if (!letterContent) {
       return NextResponse.json(
         { error: 'Generate the dispute letter before mailing it.', code: 'no_letter' },
+        { status: 409 }
+      )
+    }
+
+    // HARD REFUSAL: never mail a letter whose audit snapshot no longer matches
+    // the case (recompute/re-run changed the findings after generation) or
+    // that predates snapshot stamping. Mailing outdated numbers to a billing
+    // office is the exact failure this check exists to prevent — the UI hides
+    // the button, but the server is the enforcement point.
+    if (isLetterStale(letterRow, auditSnapshotFingerprint(caseRecord))) {
+      return NextResponse.json(
+        {
+          error:
+            'Your audit was updated after this letter was created — the numbers no longer match. Regenerate the letter, then mail it.',
+          code: 'stale_letter',
+        },
         { status: 409 }
       )
     }

@@ -28,6 +28,7 @@ import { disputeUnlocked } from "@/lib/entitlements";
 import { MANUAL_REVIEW_ERROR_TYPES } from "@/lib/audit/manualReview";
 import { formatCalendarDate } from "@/lib/dates";
 import { classifyAuditFreshness, staleBannerFor, type StaleBanner } from "@/lib/audit/version";
+import { auditSnapshotFingerprint, isLetterStale } from "@/lib/letters/staleness";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -181,6 +182,11 @@ interface LetterRow {
   letter_content: string;
   generated_at: string | null;
   sent_at: string | null;
+  // Audit-snapshot stamp — see lib/letters/staleness. A stale letter is
+  // view-only: the evidentiary package must never ship outdated numbers.
+  stale?: boolean | null;
+  audit_fingerprint?: string | null;
+  audit_logic_version?: number | null;
 }
 
 // ─── Status display ───────────────────────────────────────────────────────────
@@ -895,11 +901,28 @@ export default function CaseDetailPage({
   const findingsCount = disputableErrors.length + significantCrossDoc;
   const statusCfg = STATUS_DISPLAY[caseRow.status] ?? { label: caseRow.status };
 
+  // Stale letter: the audit was recomputed/re-run after generation, so the
+  // letter's numbers no longer match this page. The package generator refuses
+  // it here (it renders client-side; the mail endpoint enforces the same
+  // check server-side) — regenerate on the letter page to re-enable.
+  const letterStale =
+    !!letter &&
+    isLetterStale(
+      letter,
+      auditSnapshotFingerprint({
+        amount_billed: caseRow.amount_billed,
+        amount_expected: caseRow.amount_expected,
+        potential_savings: caseRow.potential_savings,
+        errors_found: caseRow.errors_found,
+        bill_data: caseRow.bill_data as Record<string, unknown> | null,
+      })
+    );
+
   // Generate the full Evidentiary Package PDF client-side from the data already
   // loaded on this page: the dispute letter, plus the CBS timeline, deadlines,
   // and itemized audit findings that the letter page does not have on hand.
   const handleDownloadPackage = () => {
-    if (!letter) return;
+    if (!letter || letterStale) return;
     const caseShortId = caseRow.id.slice(0, 8).toUpperCase();
     const finalLetter = applyLetterSubstitutions(letter.letter_content, {
       account_number: caseRow.id,
@@ -1133,40 +1156,45 @@ export default function CaseDetailPage({
             }}
           >
             <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
-              Your Evidentiary Package is ready.
+              {letterStale ? "Your letter is out of date." : "Your Evidentiary Package is ready."}
             </div>
             <p style={{ ...sans("13px", "#A89F96") }}>
-              A complete, ready-to-send PDF: cover sheet, dispute letter, chronological timeline,
-              financial calculation worksheet, regulatory citation appendix, and a deadline summary.
+              {letterStale
+                ? "Your audit was updated after this letter was created — the numbers no longer match. Regenerate the letter to re-enable download and mailing."
+                : "A complete, ready-to-send PDF: cover sheet, dispute letter, chronological timeline, financial calculation worksheet, regulatory citation appendix, and a deadline summary."}
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
-              <button
-                onClick={handleDownloadPackage}
-                style={{
-                  ...sans("10px", "#0D0D0D"),
-                  backgroundColor: "#C8A97E",
-                  padding: "10px 20px",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  display: "inline-block",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
-                Download Evidentiary Package ↓
-              </button>
-              <Link href={`/cases/${caseRow.id}/letter`} style={{ textDecoration: "none" }}>
-                <span
+              {!letterStale && (
+                <button
+                  onClick={handleDownloadPackage}
                   style={{
-                    ...sans("10px", "#C8A97E"),
-                    border: "1px solid rgba(200,169,126,0.4)",
+                    ...sans("10px", "#0D0D0D"),
+                    backgroundColor: "#C8A97E",
                     padding: "10px 20px",
                     letterSpacing: "0.2em",
                     textTransform: "uppercase",
                     display: "inline-block",
+                    border: "none",
+                    cursor: "pointer",
                   }}
                 >
-                  View dispute letter →
+                  Download Evidentiary Package ↓
+                </button>
+              )}
+              <Link href={`/cases/${caseRow.id}/letter`} style={{ textDecoration: "none" }}>
+                <span
+                  style={{
+                    ...sans("10px", letterStale ? "#0D0D0D" : "#C8A97E"),
+                    backgroundColor: letterStale ? "#C8A97E" : "transparent",
+                    border: letterStale ? "none" : "1px solid rgba(200,169,126,0.4)",
+                    padding: "10px 20px",
+                    letterSpacing: "0.2em",
+                    textTransform: "uppercase",
+                    fontWeight: letterStale ? 500 : undefined,
+                    display: "inline-block",
+                  }}
+                >
+                  {letterStale ? "Regenerate letter →" : "View dispute letter →"}
                 </span>
               </Link>
             </div>
