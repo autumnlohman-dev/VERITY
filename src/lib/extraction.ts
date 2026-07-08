@@ -59,6 +59,17 @@ function parseJsonObject(text: string): unknown {
   return JSON.parse(text.slice(start, end + 1))
 }
 
+// Thrown when the vision response was cut off at the token cap — a truncated
+// JSON payload either fails to parse or silently DROPS charge rows, and a
+// partial audit is worse than a failed one. Mirrors EOBExtractionError's
+// style: structural-only message (lengths/counts), never document content.
+export class BillExtractionError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'BillExtractionError'
+  }
+}
+
 export type ExtractionResult = {
   lineItems: LineItem[]
   provider: string | null
@@ -91,7 +102,10 @@ export async function extractFromBase64(base64: string, ext: string): Promise<Ex
 
   const message = await boundedMessage('bill-extraction', 'raw-document', {
     model: 'claude-sonnet-4-6',
-    max_tokens: 1500,
+    // A multi-page merged bill (up to 10 files in one PDF) far exceeds the old
+    // 1500-token cap, which truncated the JSON mid-array — a parse throw at
+    // best, silently dropped charge rows at worst. Matches eobExtractor's cap.
+    max_tokens: 8000,
     system: EXTRACTION_SYSTEM,
     messages: [
       { role: 'user', content: [documentBlock, { type: 'text', text: 'Extract the structured data from this document.' }] },
@@ -100,6 +114,15 @@ export async function extractFromBase64(base64: string, ext: string): Promise<Ex
 
   const textOut = message.content.find((b) => b.type === 'text')
   const raw = textOut && textOut.type === 'text' ? textOut.text : ''
+
+  // Truncation is an extraction FAILURE, never a partial result: a cut-off
+  // JSON array parses as fewer rows than the bill has, and an audit over a
+  // subset of charges asserts wrong totals with full confidence.
+  if (message.stop_reason === 'max_tokens') {
+    throw new BillExtractionError(
+      `Bill extraction hit the token cap and was truncated (responseChars=${raw.length}).`
+    )
+  }
   const parsed = parseJsonObject(raw) as {
     line_items?: Array<Record<string, unknown>>
     provider?: unknown
