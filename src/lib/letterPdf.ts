@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import type { NormalizedCBSSet, TimelineEvent, CBSDiscrepancy } from "./cbs/schema";
 import type { DeadlineResult, UrgencyLevel } from "./deadlines/calculator";
 import type { BillingError } from "./errorDetection";
+import { MANUAL_REVIEW_ERROR_TYPES } from "./audit/manualReview";
 
 type Block =
   | { kind: "h1" | "h2" | "h3"; text: string }
@@ -780,8 +781,28 @@ function renderTimeline(env: Env, input: EvidentiaryPackageInput): void {
 }
 
 // ── Section 3: Financial calculation worksheet ───────────────────────────────
+// Manual-review findings (rate_unavailable / reference_data_missing) carry
+// expected_amount 0 because we could NOT price them — counting them at 100% of
+// billed would assert dollars the audit never established. They are excluded
+// from ALL impact math and listed without dollars.
+function pricedErrors(errors: BillingError[]): BillingError[] {
+  return errors.filter((e) => !MANUAL_REVIEW_ERROR_TYPES.has(e.error_type));
+}
+
+function manualReviewErrors(errors: BillingError[]): BillingError[] {
+  return errors.filter((e) => MANUAL_REVIEW_ERROR_TYPES.has(e.error_type));
+}
+
+// Same formula as runFullAudit's potentialSavings: audit recoverable and
+// cross-document at-risk overlap (an EOB-benchmarked overcharge appears in
+// both), so the honest headline is the max, never the sum. The caller's
+// potentialSavings (the case's stored headline) wins when provided so the PDF
+// can never disagree with the case page.
 function computeTotalImpact(input: EvidentiaryPackageInput): number {
-  const auditImpact = input.errors.reduce(
+  if (typeof input.potentialSavings === "number" && Number.isFinite(input.potentialSavings)) {
+    return input.potentialSavings;
+  }
+  const auditImpact = pricedErrors(input.errors).reduce(
     (s, e) => s + Math.max(0, Number(e.billed_amount ?? 0) - Number(e.expected_amount ?? 0)),
     0
   );
@@ -789,11 +810,13 @@ function computeTotalImpact(input: EvidentiaryPackageInput): number {
     (s, d) => s + Number(d.estimatedDollarImpact ?? 0),
     0
   );
-  return auditImpact + crossImpact;
+  return Math.max(auditImpact, crossImpact);
 }
 
 function renderWorksheet(env: Env, input: EvidentiaryPackageInput): void {
   const cross: CBSDiscrepancy[] = input.cbsSet?.crossDocumentDiscrepancies ?? [];
+  const priced = pricedErrors(input.errors);
+  const manualReview = manualReviewErrors(input.errors);
 
   if (input.errors.length === 0 && cross.length === 0) {
     para(env, "No itemized discrepancies were identified in the documents on file.", {
@@ -809,9 +832,9 @@ function renderWorksheet(env: Env, input: EvidentiaryPackageInput): void {
   );
 
   let auditTotal = 0;
-  if (input.errors.length > 0) {
+  if (priced.length > 0) {
     heading(env, "Audit findings", 12, 6, 6);
-    const rows = input.errors.map((e) => {
+    const rows = priced.map((e) => {
       const impact = Math.max(0, Number(e.billed_amount ?? 0) - Number(e.expected_amount ?? 0));
       auditTotal += impact;
       return [
@@ -833,6 +856,30 @@ function renderWorksheet(env: Env, input: EvidentiaryPackageInput): void {
         { header: "Overcharge", weight: 1.2, align: "right" },
       ],
       rows
+    );
+  }
+
+  // Unpriceable findings: listed for completeness, but NEVER with a dollar
+  // figure — expected_amount 0 means "couldn't price", not "worth $billed".
+  if (manualReview.length > 0) {
+    heading(env, "Flagged for manual review — no dollar amount asserted", 12, 6, 6);
+    para(
+      env,
+      "These lines could not be priced against a published benchmark (proprietary facility or chargemaster codes, or missing reference data). They are flagged for human review and are NOT included in any dollar total in this package.",
+      { color: MUTE }
+    );
+    renderTable(
+      env,
+      [
+        { header: "Code", weight: 1 },
+        { header: "Finding", weight: 4.6 },
+        { header: "Billed", weight: 1.1, align: "right" },
+      ],
+      manualReview.map((e) => [
+        e.cpt_code || "—",
+        `${errorTypeLabel(e.error_type)}${e.description ? ` — ${e.description}` : ""}`,
+        fmtMoney(e.billed_amount),
+      ])
     );
   }
 
@@ -861,8 +908,13 @@ function renderWorksheet(env: Env, input: EvidentiaryPackageInput): void {
     );
   }
 
-  // Grand total band.
-  const grand = auditTotal + crossTotal;
+  // Grand total band — same formula as runFullAudit's potentialSavings (the
+  // audit and cross-document views overlap, so max, never sum), and the case's
+  // stored headline wins when provided so the PDF matches the case page.
+  const grand =
+    typeof input.potentialSavings === "number" && Number.isFinite(input.potentialSavings)
+      ? input.potentialSavings
+      : Math.max(auditTotal, crossTotal);
   ensure(env, 40);
   env.y += 4;
   env.doc.setFillColor(...HEAD_FILL);

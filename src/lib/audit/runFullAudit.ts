@@ -17,13 +17,12 @@ import { logAnthropicError } from '../ai/phiBoundary'
 // way (one honest/priced-only, one netting every line), so the same bill read
 // as $924 to a guest and $851 once signed in. There is now exactly one formula.
 
-// Findings the audit could not price (proprietary facility/revenue codes, OCR
-// misreads, or the systemic reference-data notice) are NOT overcharges — they
-// surface for manual review and are never summed into recoverable dollars.
-export const MANUAL_REVIEW_ERROR_TYPES = new Set<string>([
-  'rate_unavailable',
-  'reference_data_missing',
-])
+// Findings the audit could not price are NOT overcharges — see the definition
+// (moved to a dependency-free module so the client-bundled letterPdf can share
+// it without pulling this file's server-only graph). Re-exported here so
+// existing server-side imports are unchanged.
+import { MANUAL_REVIEW_ERROR_TYPES } from './manualReview'
+export { MANUAL_REVIEW_ERROR_TYPES }
 
 export interface FullAuditInput {
   lineItems: LineItem[]
