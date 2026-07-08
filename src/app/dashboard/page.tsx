@@ -1,42 +1,53 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+// ─── Dashboard: one question ──────────────────────────────────────────────────
+// DESIGN-BIBLE Part 1: "What does the stressed person with the bill care
+// about? Only show that." The screen is one verdict sentence per case with one
+// action; everything else lives behind a single collapsed Details disclosure.
+// Paper scheme throughout: --surface page, --ink text, --surface-raised cards.
+
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { claimPendingGuestAudit } from "@/lib/guestClaim";
 import { classifyAuditFreshness } from "@/lib/audit/version";
+import { userFacingErrorCount } from "@/lib/audit/errorCount";
 import { formatCalendarDate } from "@/lib/dates";
 import { BRAND_NAME } from "@/lib/brand";
 import { getEntitlements } from "@/lib/entitlements";
-import { DigitalTwinView } from "@/components/DigitalTwinView";
 
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: "var(--font-fraunces), Georgia, serif",
   fontOpticalSizing: "auto",
   letterSpacing: "-0.015em",
   fontSize: size,
-  color: "var(--surface)",
-  lineHeight: 1,
+  color: "var(--ink)",
+  lineHeight: 1.15,
   fontWeight: 400,
   ...extra,
 });
 
-const sans = (size: string, color = "#A89F96", extra?: React.CSSProperties): React.CSSProperties => ({
+const sans = (size: string, color = "var(--ink-soft)", extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 
-const label = (color = "#C8A97E"): React.CSSProperties => ({
+const label = (color = "var(--ink-soft)"): React.CSSProperties => ({
   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
   textTransform: "uppercase" as const,
   color,
 });
+
+// Dollar amounts render in the mono face (DESIGN-BIBLE Part 3).
+function Money({ n }: { n: number }) {
+  return <span className="figure">{`$${Math.round(n).toLocaleString("en-US")}`}</span>;
+}
 
 function Nav() {
   return (
@@ -49,7 +60,7 @@ function Nav() {
         zIndex: 50,
         backgroundColor: "var(--surface)",
         borderBottom: "1px solid var(--line)",
-        padding: "20px 64px",
+        padding: "20px clamp(24px, 6vw, 64px)",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -93,8 +104,8 @@ function Nav() {
       <Link href="/upload" style={{ textDecoration: "none" }}>
         <span
           style={{
-            ...sans("11px", "var(--ink)"),
-            backgroundColor: "#C8A97E",
+            ...sans("11px", "var(--surface-raised)"),
+            backgroundColor: "var(--brand)",
             padding: "12px 24px",
             letterSpacing: "0.2em",
             textTransform: "uppercase",
@@ -102,7 +113,7 @@ function Nav() {
             display: "inline-block",
           }}
         >
-          Upload my bill free →
+          Upload a bill
         </span>
       </Link>
     </nav>
@@ -114,10 +125,10 @@ type RawStatus = "auditing" | "error_found" | "no_errors" | "letter_ready" | str
 interface BillData {
   careType?: string;
   insuranceType?: string;
-  gfe?: string;
   tier?: string;
-  userNotes?: string;
   date_of_service?: string;
+  hasEob?: boolean;
+  normalizedCbs?: { crossDocumentDiscrepancies?: unknown[] };
 }
 
 interface CaseRow {
@@ -132,45 +143,151 @@ interface CaseRow {
   bill_data: BillData | null;
   errors_found: unknown[] | null;
   dispute_paid: boolean | null;
+  lob_letter_id: string | null;
+  mail_status: string | null;
+  mailed_at: string | null;
   created_at: string;
 }
 
-const STATUS_DISPLAY: Record<string, { label: string; dot: string; text: string; pulse?: boolean }> = {
-  auditing: { label: "Auditing", dot: "var(--brand)", text: "#A89F96", pulse: true },
-  error_found: { label: "Error Found", dot: "#C47C6A", text: "#C47C6A" },
-  no_errors: { label: "No Errors Found", dot: "#7A9E87", text: "#7A9E87" },
-  letter_ready: { label: "Letter Ready", dot: "#C8A97E", text: "#C8A97E" },
-  resolved: { label: "Resolved", dot: "#7A9E87", text: "#7A9E87" },
+// ─── The verdict: one sentence + one action per case ─────────────────────────
+// Plain words only (Part 6): no "encounters", no "workflows", no "(s)".
+type Verdict = {
+  sentence: React.ReactNode;
+  action:
+    | { kind: "button"; label: string; href: string }
+    | { kind: "waiting"; text: string; href: string };
+  // Ranking for which case leads the page: lower = more urgent.
+  rank: number;
 };
 
-// Resolved is derived from amount_recovered > 0, not the status column.
-// Everything else buckets by whether a dispute is actively in flight.
-type Bucket = "open" | "in_progress" | "resolved";
-function bucketOf(c: CaseRow): Bucket {
-  if ((c.amount_recovered ?? 0) > 0) return "resolved";
-  if (c.status === "error_found" || c.status === "letter_ready") return "in_progress";
-  return "open";
+function mailed(c: CaseRow): boolean {
+  return !!c.lob_letter_id && c.mail_status !== "failed";
 }
 
-function displayStatus(c: CaseRow): { key: string; label: string; dot: string; text: string; pulse?: boolean } {
-  if ((c.amount_recovered ?? 0) > 0) {
-    return { key: "resolved", ...STATUS_DISPLAY.resolved };
+function replyDueDate(c: CaseRow): string | null {
+  // The letter requests a corrected statement within 30 days of mailing.
+  if (!c.mailed_at) return null;
+  const d = new Date(c.mailed_at);
+  if (isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + 30);
+  return formatCalendarDate(d.toISOString().slice(0, 10));
+}
+
+function verdictFor(c: CaseRow): Verdict {
+  const provider = c.provider_name?.trim() || "your provider";
+  const recovered = Number(c.amount_recovered ?? 0);
+  const savings = Number(c.potential_savings ?? 0);
+  const errorCount = userFacingErrorCount(
+    c.errors_found,
+    c.bill_data?.normalizedCbs?.crossDocumentDiscrepancies
+  );
+  const caseHref = `/cases/${c.id}`;
+  const letterHref = `/cases/${c.id}/letter`;
+
+  if (recovered > 0) {
+    return {
+      sentence: (
+        <>
+          You got <Money n={recovered} /> back from {provider}.
+        </>
+      ),
+      action: { kind: "waiting", text: "Resolved", href: caseHref },
+      rank: 4,
+    };
   }
-  const cfg = STATUS_DISPLAY[c.status] ?? { label: c.status, dot: "#A89F96", text: "#A89F96" };
-  return { key: c.status, ...cfg };
+
+  if (c.status === "auditing") {
+    return {
+      sentence: <>We&apos;re still checking your {provider} bill.</>,
+      action: { kind: "button", label: "See progress", href: caseHref },
+      rank: 2,
+    };
+  }
+
+  if (c.status === "error_found" || c.status === "letter_ready") {
+    const sentence =
+      savings > 0 && c.bill_data?.hasEob ? (
+        <>
+          {provider} is charging you <Money n={savings} /> more than your insurance says you owe.
+        </>
+      ) : savings > 0 ? (
+        <>
+          We found <Money n={savings} /> in likely errors on your {provider} bill.
+        </>
+      ) : (
+        <>
+          We flagged {errorCount === 1 ? "one item" : `${errorCount} items`} to review on your{" "}
+          {provider} bill.
+        </>
+      );
+
+    if (mailed(c)) {
+      const due = replyDueDate(c);
+      return {
+        sentence,
+        action: {
+          kind: "waiting",
+          text: due ? `Waiting for the reply, due ${due}` : "Waiting for the reply",
+          href: caseHref,
+        },
+        rank: 1,
+      };
+    }
+    if (c.status === "letter_ready") {
+      return { sentence, action: { kind: "button", label: "Send your letter", href: letterHref }, rank: 0 };
+    }
+    return { sentence, action: { kind: "button", label: "Review your letter", href: letterHref }, rank: 0 };
+  }
+
+  return {
+    sentence: <>Your {provider} bill looks right.</>,
+    action: { kind: "waiting", text: "Nothing to do", href: caseHref },
+    rank: 3,
+  };
 }
 
-function StatusPill({ c }: { c: CaseRow }) {
-  const cfg = displayStatus(c);
-  // Stored results predate the current audit logic — the row's numbers update
-  // when the case is next viewed (recompute-on-view), so aggregate figures on
-  // this page aren't uniformly current. Mark it, lightly.
+// The stale-version chip: results predate the current audit logic and update
+// on the next case view. Kept in the new layout, with its next step visible.
+function UpdatePendingChip({ c }: { c: CaseRow }) {
   const stale =
     classifyAuditFreshness(c.bill_data as Record<string, unknown> | null) !== "current";
+  if (!stale || c.status === "auditing") return null;
+  return (
+    <Link
+      href={`/cases/${c.id}`}
+      title="These numbers were computed under an older version of our analysis. Open the case to update them."
+      style={{
+        ...sans("9px", "var(--ink-soft)"),
+        letterSpacing: "0.12em",
+        textTransform: "uppercase",
+        border: "1px solid var(--line)",
+        padding: "2px 6px",
+        whiteSpace: "nowrap",
+        textDecoration: "none",
+      }}
+    >
+      update pending
+    </Link>
+  );
+}
+
+const STATUS_DISPLAY: Record<string, { label: string; dot: string }> = {
+  auditing: { label: "Checking", dot: "var(--ink-soft)" },
+  error_found: { label: "Needs action", dot: "var(--urgent-amber)" },
+  no_errors: { label: "Looks right", dot: "var(--brand)" },
+  letter_ready: { label: "Letter ready", dot: "var(--brand)" },
+  resolved: { label: "Resolved", dot: "var(--brand)" },
+};
+
+function StatusPill({ c }: { c: CaseRow }) {
+  const cfg =
+    (Number(c.amount_recovered ?? 0) > 0 ? STATUS_DISPLAY.resolved : STATUS_DISPLAY[c.status]) ?? {
+      label: c.status,
+      dot: "var(--ink-soft)",
+    };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
       <span
-        className={cfg.pulse ? "dot-pulse" : ""}
         style={{
           display: "inline-block",
           width: "6px",
@@ -180,48 +297,10 @@ function StatusPill({ c }: { c: CaseRow }) {
           flexShrink: 0,
         }}
       />
-      <span style={{ ...sans("12px", cfg.text) }}>{cfg.label}</span>
-      {stale && c.status !== "auditing" && (
-        <span
-          title="Computed under an older analysis version, open the case to update it"
-          style={{
-            ...sans("9px", "#8A7F6E"),
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            border: "1px solid #2A2A2A",
-            padding: "2px 6px",
-            whiteSpace: "nowrap",
-          }}
-        >
-          update pending
-        </span>
-      )}
+      <span style={{ ...sans("12px", "var(--ink)") }}>{cfg.label}</span>
+      <UpdatePendingChip c={c} />
     </div>
   );
-}
-
-function useCountUp(target: number, duration = 1500) {
-  const [count, setCount] = useState(0);
-  const lastTarget = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (lastTarget.current === target) return;
-    lastTarget.current = target;
-    const startValue = 0;
-    const startTime = performance.now();
-    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-    let raf = 0;
-    const tick = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      setCount(Math.round(startValue + easeOutCubic(progress) * (target - startValue)));
-      if (progress < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-
-  return count;
 }
 
 function formatCurrency(n: number): string {
@@ -238,11 +317,7 @@ function formatServiceDate(c: CaseRow): { value: string; labelText: string } {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: "var(--ink)", minHeight: "100vh" }}>
-      <style>{`
-        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
-        .dot-pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
-      `}</style>
+    <div style={{ background: "var(--surface)", minHeight: "100vh" }}>
       <Nav />
       {children}
     </div>
@@ -262,18 +337,8 @@ function LoadingState() {
           textAlign: "center",
         }}
       >
-        <div
-          className="dot-pulse"
-          style={{
-            width: "10px",
-            height: "10px",
-            borderRadius: "50%",
-            backgroundColor: "#C8A97E",
-            marginBottom: "24px",
-          }}
-        />
-        <div style={{ ...serif("32px", { fontStyle: "italic", color: "#A89F96" }) }}>
-          Loading your cases.
+        <div style={{ ...serif("32px", { fontStyle: "italic", color: "var(--ink-soft)" }) }}>
+          Loading your bills.
         </div>
       </div>
     </Shell>
@@ -295,7 +360,7 @@ function ErrorState({ message }: { message: string }) {
         }}
       >
         <div style={{ ...serif("40px", { lineHeight: 1.1 }) }}>Something went wrong.</div>
-        <p style={{ ...sans("14px", "#A89F96"), marginTop: "16px", maxWidth: "420px" }}>{message}</p>
+        <p style={{ ...sans("14px"), marginTop: "16px", maxWidth: "420px" }}>{message}</p>
       </div>
     </Shell>
   );
@@ -316,17 +381,16 @@ function EmptyState() {
         }}
       >
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
         >
-          <div style={{ ...label("#6B635C"), marginBottom: "16px" }}>No cases yet</div>
-          <h1 style={{ ...serif("56px", { lineHeight: 1.05 }), margin: 0 }}>
+          <h1 style={{ ...serif("clamp(36px, 7vw, 56px)", { lineHeight: 1.05 }), margin: 0 }}>
             Start with your first bill.
           </h1>
           <p
             style={{
-              ...sans("15px", "#A89F96"),
+              ...sans("15px"),
               marginTop: "20px",
               maxWidth: "480px",
               lineHeight: 1.6,
@@ -334,15 +398,14 @@ function EmptyState() {
               marginRight: "auto",
             }}
           >
-            Upload a medical bill and we&apos;ll audit every charge against the Medicare
-            Physician Fee Schedule, NCCI edits, and MUE limits. Errors become a prefilled
-            dispute letter.
+            Upload a medical bill and we&apos;ll check every charge against published billing
+            rules. Anything wrong becomes a ready-to-send dispute letter.
           </p>
           <Link href="/upload" style={{ textDecoration: "none", marginTop: "40px", display: "inline-block" }}>
             <span
               style={{
-                ...sans("11px", "var(--ink)"),
-                backgroundColor: "#C8A97E",
+                ...sans("11px", "var(--surface-raised)"),
+                backgroundColor: "var(--brand)",
                 padding: "16px 32px",
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
@@ -350,7 +413,7 @@ function EmptyState() {
                 display: "inline-block",
               }}
             >
-              Upload my first bill →
+              Upload my first bill
             </span>
           </Link>
         </motion.div>
@@ -382,7 +445,7 @@ function DeleteConfirmModal({
         position: "fixed",
         inset: 0,
         zIndex: 100,
-        backgroundColor: "rgba(0,0,0,0.55)",
+        backgroundColor: "rgba(51,49,43,0.4)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -393,28 +456,28 @@ function DeleteConfirmModal({
       }}
     >
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
         style={{
           width: "100%",
           maxWidth: "440px",
-          backgroundColor: "var(--ink)",
-          border: "1px solid #242424",
-          borderLeft: "4px solid #C47C6A",
+          backgroundColor: "var(--surface-raised)",
+          border: "1px solid var(--line)",
+          borderLeft: "4px solid var(--urgent-red)",
           padding: "32px",
         }}
       >
         <h2 id="delete-case-title" style={{ ...serif("28px", { lineHeight: 1.2 }), margin: 0 }}>
           Delete this case?
         </h2>
-        <p style={{ ...sans("13px", "#A89F96"), marginTop: "12px", lineHeight: 1.6 }}>
+        <p style={{ ...sans("13px"), marginTop: "12px", lineHeight: 1.6 }}>
           This can&rsquo;t be undone. The case for{" "}
-          <span style={{ color: "var(--surface)" }}>{providerName}</span>, its audit findings, any
+          <span style={{ color: "var(--ink)" }}>{providerName}</span>, its audit findings, any
           dispute letters, and the uploaded documents will be permanently removed.
         </p>
         {error && (
-          <p role="alert" style={{ ...sans("12px", "#C47C6A"), marginTop: "12px" }}>
+          <p role="alert" style={{ ...sans("12px", "var(--urgent-red)"), marginTop: "12px" }}>
             {error}
           </p>
         )}
@@ -423,11 +486,11 @@ function DeleteConfirmModal({
             onClick={onCancel}
             disabled={deleting}
             style={{
-              ...sans("11px", "#A89F96"),
+              ...sans("11px"),
               letterSpacing: "0.2em",
               textTransform: "uppercase",
               background: "transparent",
-              border: "1px solid #242424",
+              border: "1px solid var(--line)",
               padding: "10px 20px",
               cursor: deleting ? "not-allowed" : "pointer",
             }}
@@ -438,10 +501,10 @@ function DeleteConfirmModal({
             onClick={onConfirm}
             disabled={deleting}
             style={{
-              ...sans("11px", "var(--ink)"),
+              ...sans("11px", "var(--surface-raised)"),
               letterSpacing: "0.2em",
               textTransform: "uppercase",
-              backgroundColor: "#C47C6A",
+              backgroundColor: "var(--urgent-red)",
               border: "none",
               padding: "10px 20px",
               cursor: deleting ? "wait" : "pointer",
@@ -505,7 +568,7 @@ export default function DashboardPage() {
       const { data, error } = await supabase
         .from("cases")
         .select(
-          "id, user_id, status, provider_name, insurance_type, amount_billed, amount_recovered, potential_savings, bill_data, errors_found, dispute_paid, created_at"
+          "id, user_id, status, provider_name, insurance_type, amount_billed, amount_recovered, potential_savings, bill_data, errors_found, dispute_paid, lob_letter_id, mail_status, mailed_at, created_at"
         )
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
@@ -557,373 +620,278 @@ export default function DashboardPage() {
     }
   }
 
-  const totals = cases.reduce(
-    (acc, c) => {
-      const billed = Number(c.amount_billed ?? 0);
-      const potential = Number(c.potential_savings ?? 0);
-      const recovered = Number(c.amount_recovered ?? 0);
-      acc.totalBilled += billed;
-      acc.totalPotentialSavings += potential;
-      // M4: "total recovered" must sum what was actually recovered, not the
-      // potential-savings estimate (which would overstate recoveries).
-      if (recovered > 0) acc.totalSaved += recovered;
-      const b = bucketOf(c);
-      acc.counts[b] += 1;
-      return acc;
-    },
-    {
-      totalBilled: 0,
-      totalPotentialSavings: 0,
-      totalSaved: 0,
-      counts: { open: 0, in_progress: 0, resolved: 0 } as Record<Bucket, number>,
-    }
-  );
-
-  const savedAnimated = useCountUp(totals.totalSaved);
-
   if (loading) return <LoadingState />;
   if (fetchError) return <ErrorState message={fetchError} />;
   if (cases.length === 0) return <EmptyState />;
+
+  // One verdict per case; the most urgent case leads the page.
+  const withVerdicts = cases
+    .map((c) => ({ c, v: verdictFor(c) }))
+    .sort((a, b) => a.v.rank - b.v.rank);
+  const primary = withVerdicts[0];
+  const rest = withVerdicts.slice(1);
+
+  const totalRecovered = cases.reduce((s, c) => s + Math.max(0, Number(c.amount_recovered ?? 0)), 0);
+  const totalBilled = cases.reduce((s, c) => s + Number(c.amount_billed ?? 0), 0);
+  const totalPotential = cases.reduce((s, c) => s + Number(c.potential_savings ?? 0), 0);
+
+  const actionButtonStyle: React.CSSProperties = {
+    ...sans("11px", "var(--surface-raised)"),
+    backgroundColor: "var(--brand)",
+    padding: "14px 28px",
+    letterSpacing: "0.2em",
+    textTransform: "uppercase",
+    fontWeight: 500,
+    display: "inline-block",
+    textDecoration: "none",
+  };
 
   return (
     <Shell>
       <div
         style={{
-          paddingTop: "112px",
-          paddingLeft: "64px",
-          paddingRight: "64px",
+          paddingTop: "128px",
+          paddingLeft: "clamp(24px, 6vw, 64px)",
+          paddingRight: "clamp(24px, 6vw, 64px)",
           paddingBottom: "96px",
+          maxWidth: "880px",
         }}
       >
-        {/* v8: Healthcare Financial Digital Twin (Component P) */}
-        <DigitalTwinView
-          cases={cases.map((c) => ({
-            caseId: String(c.id),
-            providerName: c.provider_name ?? undefined,
-            insuranceType: c.insurance_type ?? undefined,
-            createdAt: c.created_at,
-            totalBilled: Number(c.amount_billed ?? 0),
-            potentialSavings: Number(c.potential_savings ?? 0),
-            // L8: real per-case error count from errors_found, not a 0/1 proxy
-            // derived from potential_savings (which undercounted multi-error bills).
-            errorCount: Array.isArray(c.errors_found) ? c.errors_found.length : 0,
-            status: c.status,
-          }))}
-        />
-
-        {/* Header row */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-end",
-            marginBottom: "48px",
-          }}
-        >
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
-            style={{ ...serif("56px", { lineHeight: 0.95 }), margin: 0 }}
-          >
-            Your cases.
-          </motion.h1>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
-            style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}
-          >
-            <div style={{ ...label("#6B635C"), marginBottom: "4px" }}>total recovered</div>
-            <div
-              style={{
-                fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
-  letterSpacing: "-0.015em",
-                fontSize: "48px",
-                color: totals.totalSaved > 0 ? "#7A9E87" : "#6B635C",
-                lineHeight: 1,
-                fontWeight: 400,
-                fontStyle: "italic",
-              }}
-            >
-              {formatCurrency(savedAnimated)}
-            </div>
-            <Link
-              href="/upload"
-              style={{
-                ...sans("12px", "#C8A97E"),
-                textDecoration: "none",
-                letterSpacing: "0.1em",
-                marginTop: "8px",
-                transition: "color 0.2s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--surface)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#C8A97E")}
-            >
-              Upload new bill →
-            </Link>
-          </motion.div>
-        </div>
-
-        {/* Totals summary */}
+        {/* a. THE verdict: one sentence, one action. The entire above-the-fold. */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.15 }}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1px 1fr 1px 1fr",
-            alignItems: "stretch",
-            backgroundColor: "var(--ink)",
-            border: "1px solid #242424",
-            padding: "28px 32px",
-            marginBottom: "24px",
-          }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
         >
-          {[
-            { labelText: "total billed", value: formatCurrency(totals.totalBilled), color: "var(--surface)" },
-            null,
-            {
-              labelText: "total potential savings",
-              value: formatCurrency(totals.totalPotentialSavings),
-              color: totals.totalPotentialSavings > 0 ? "#C8A97E" : "#6B635C",
-            },
-            null,
-            {
-              labelText: "total recovered",
-              value: formatCurrency(totals.totalSaved),
-              color: totals.totalSaved > 0 ? "#7A9E87" : "#6B635C",
-            },
-          ].map((item, i) =>
-            item === null ? (
-              <div
-                key={i}
-                style={{ width: "1px", backgroundColor: "#242424", alignSelf: "stretch", margin: "0 24px" }}
-              />
+          <h1 style={{ ...serif("clamp(30px, 5vw, 46px)", { lineHeight: 1.2 }), margin: 0, maxWidth: "760px" }}>
+            {primary.v.sentence}
+          </h1>
+          <div style={{ marginTop: "28px", display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+            {primary.v.action.kind === "button" ? (
+              <Link href={primary.v.action.href} style={actionButtonStyle}>
+                {primary.v.action.label}
+              </Link>
             ) : (
-              <div key={i}>
-                <div style={{ ...label("#6B635C"), marginBottom: "8px" }}>{item.labelText}</div>
-                <div
-                  style={{
-                    fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
-  letterSpacing: "-0.015em",
-                    fontSize: "36px",
-                    color: item.color,
-                    lineHeight: 1,
-                    fontWeight: 400,
-                  }}
-                >
-                  {item.value}
-                </div>
-              </div>
-            )
-          )}
+              <Link
+                href={primary.v.action.href}
+                style={{ ...sans("14px", "var(--ink)"), textDecoration: "none" }}
+              >
+                {primary.v.action.text} →
+              </Link>
+            )}
+            <UpdatePendingChip c={primary.c} />
+          </div>
         </motion.div>
 
-        {/* Status counts */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.2 }}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: "16px",
-            marginBottom: "48px",
-          }}
-        >
-          {([
-            { key: "open", labelText: "Open", count: totals.counts.open, dot: "var(--brand)" },
-            { key: "in_progress", labelText: "In progress", count: totals.counts.in_progress, dot: "#C8A97E" },
-            { key: "resolved", labelText: "Resolved", count: totals.counts.resolved, dot: "#7A9E87" },
-          ] as const).map((item) => (
-            <div
-              key={item.key}
-              style={{
-                backgroundColor: "var(--ink)",
-                border: "1px solid #242424",
-                padding: "20px 24px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <span
-                  style={{
-                    display: "inline-block",
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "50%",
-                    backgroundColor: item.dot,
-                  }}
-                />
-                <span
-                  style={{
-                    ...sans("12px", "#A89F96"),
-                    letterSpacing: "0.15em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {item.labelText}
-                </span>
-              </div>
+        {/* b. A quiet one-line summary per other case. */}
+        {rest.length > 0 && (
+          <div style={{ marginTop: "64px", borderTop: "1px solid var(--line)" }}>
+            {rest.map(({ c, v }) => (
               <div
+                key={c.id}
                 style={{
-                  fontFamily: "var(--font-fraunces), Georgia, serif",
-  fontOpticalSizing: "auto",
-  letterSpacing: "-0.015em",
-                  fontSize: "32px",
-                  color: "var(--surface)",
-                  lineHeight: 1,
-                  fontWeight: 400,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  gap: "16px",
+                  padding: "20px 0",
+                  borderBottom: "1px solid var(--line)",
+                  flexWrap: "wrap",
                 }}
               >
-                {item.count}
+                <div style={{ ...sans("15px", "var(--ink)"), lineHeight: 1.5, flex: "1 1 320px" }}>
+                  {v.sentence} <UpdatePendingChip c={c} />
+                </div>
+                <Link
+                  href={v.action.href}
+                  style={{ ...sans("13px", "var(--brand)"), textDecoration: "none", whiteSpace: "nowrap" }}
+                >
+                  {v.action.kind === "button" ? v.action.label : v.action.text} →
+                </Link>
               </div>
-            </div>
-          ))}
-        </motion.div>
-
-        {/* Cases list */}
-        <div>
-          <div style={{ ...label("#6B635C"), marginBottom: "24px" }}>All cases</div>
-
-          {/* Column headers */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(220px, 2fr) 160px 140px 160px 160px 150px",
-              gap: "16px",
-              paddingBottom: "12px",
-              borderBottom: "1px solid #242424",
-            }}
-          >
-            {["Provider", "Date of service", "Amount billed", "Potential savings", "Status", ""].map((h, i) => (
-              <span
-                key={i}
-                style={{
-                  ...sans("11px", "#6B635C"),
-                  letterSpacing: "0.15em",
-                  textTransform: "uppercase",
-                }}
-              >
-                {h}
-              </span>
             ))}
           </div>
+        )}
 
-          {cases.map((c, i) => {
-            const providerName = c.provider_name?.trim() || "Pending provider";
-            const dateInfo = formatServiceDate(c);
-            const billed = Number(c.amount_billed ?? 0);
-            const potential = Number(c.potential_savings ?? 0);
+        {/* c. Upload a new bill: calm secondary action. */}
+        <div style={{ marginTop: "40px" }}>
+          <Link
+            href="/upload"
+            style={{
+              ...sans("13px", "var(--brand)"),
+              textDecoration: "none",
+              border: "1px solid var(--line)",
+              padding: "12px 20px",
+              display: "inline-block",
+            }}
+          >
+            Upload a new bill
+          </Link>
+        </div>
 
-            // State-aware letter action, same logic as the case page. status
-            // 'letter_ready' means a letter exists; 'error_found' means findings
-            // but no letter yet (buy vs generate by entitlement). Clean/auditing
-            // cases get no letter action.
-            const entitled = isMember || c.dispute_paid === true;
-            const letterCta =
-              c.status === "letter_ready"
-                ? { label: "View letter →" }
-                : c.status === "error_found"
-                ? { label: entitled ? "Generate letter →" : "Get package →" }
-                : null;
+        {/* Recovered money is something the person cares about; one small line,
+            only once it exists. */}
+        {totalRecovered > 0 && (
+          <p style={{ ...sans("14px"), marginTop: "32px" }}>
+            You&apos;ve gotten <Money n={totalRecovered} /> back so far.
+          </p>
+        )}
 
-            return (
-              <motion.div
-                key={c.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1], delay: 0.25 + i * 0.05 }}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(220px, 2fr) 160px 140px 160px 160px 150px",
-                  gap: "16px",
-                  alignItems: "center",
-                  padding: "20px 0",
-                  borderBottom: "1px solid #1C1C1C",
-                }}
-              >
-                <div>
-                  <div style={{ ...serif("20px", { lineHeight: 1.2 }) }}>{providerName}</div>
-                  {c.insurance_type && (
-                    <div style={{ ...sans("12px", "#6B635C"), marginTop: "4px" }}>{c.insurance_type}</div>
-                  )}
+        {/* d. Everything else, behind one collapsed disclosure. */}
+        <details style={{ marginTop: "64px" }}>
+          <summary
+            style={{
+              ...sans("12px", "var(--ink-soft)"),
+              letterSpacing: "0.15em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+              listStyle: "none",
+            }}
+          >
+            Details
+          </summary>
+          <div style={{ marginTop: "24px" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "32px",
+                flexWrap: "wrap",
+                padding: "20px 24px",
+                backgroundColor: "var(--surface-raised)",
+                border: "1px solid var(--line)",
+                marginBottom: "32px",
+              }}
+            >
+              <div>
+                <div style={{ ...label(), marginBottom: "4px" }}>billed across your cases</div>
+                <div style={{ ...sans("18px", "var(--ink)") }} className="figure">
+                  {formatCurrency(totalBilled)}
                 </div>
-                <div>
-                  <div style={{ ...sans("13px", "#A89F96") }}>{dateInfo.value}</div>
-                  <div style={{ ...sans("11px", "#6B635C"), marginTop: "2px" }}>{dateInfo.labelText}</div>
+              </div>
+              <div>
+                <div style={{ ...label(), marginBottom: "4px" }}>possible savings found</div>
+                <div style={{ ...sans("18px", "var(--ink)") }} className="figure">
+                  {formatCurrency(totalPotential)}
                 </div>
-                <div style={{ ...sans("14px", "var(--surface)") }}>{formatCurrency(billed)}</div>
+              </div>
+              <div>
+                <div style={{ ...label(), marginBottom: "4px" }}>recovered</div>
+                <div style={{ ...sans("18px", "var(--ink)") }} className="figure">
+                  {formatCurrency(totalRecovered)}
+                </div>
+              </div>
+            </div>
+
+            {/* Full case table (the working surface: view, letter, delete). */}
+            <div style={{ overflowX: "auto" }}>
+              <div style={{ minWidth: "720px" }}>
                 <div
                   style={{
-                    ...sans("14px", potential > 0 ? "#7A9E87" : "#6B635C"),
+                    display: "grid",
+                    gridTemplateColumns: "minmax(180px, 2fr) 140px 120px 130px 150px 130px",
+                    gap: "16px",
+                    paddingBottom: "12px",
+                    borderBottom: "1px solid var(--line)",
                   }}
                 >
-                  {potential > 0 ? formatCurrency(potential) : "-"}
-                </div>
-                <StatusPill c={c} />
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
-                  <Link
-                    href={`/cases/${c.id}`}
-                    style={{
-                      ...sans("12px", "#C8A97E"),
-                      textDecoration: "none",
-                      letterSpacing: "0.1em",
-                      transition: "color 0.2s",
-                      textAlign: "right",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--surface)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = "#C8A97E")}
-                  >
-                    View →
-                  </Link>
-                  {letterCta && (
-                    <Link
-                      href={`/cases/${c.id}/letter`}
-                      style={{
-                        ...sans("11px", "#8A7F6E"),
-                        textDecoration: "none",
-                        letterSpacing: "0.05em",
-                        transition: "color 0.2s",
-                        textAlign: "right",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = "#C8A97E")}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = "#8A7F6E")}
+                  {["Provider", "Date", "Billed", "Savings", "Status", ""].map((h, i) => (
+                    <span
+                      key={i}
+                      style={{ ...sans("11px"), letterSpacing: "0.15em", textTransform: "uppercase" }}
                     >
-                      {letterCta.label}
-                    </Link>
-                  )}
-                  <button
-                    onClick={() => {
-                      setDeleteError(null);
-                      setConfirmDelete(c);
-                    }}
-                    aria-label={`Delete case for ${providerName}`}
-                    style={{
-                      ...sans("11px", "#6B635C"),
-                      letterSpacing: "0.05em",
-                      background: "none",
-                      border: "none",
-                      padding: 0,
-                      cursor: "pointer",
-                      transition: "color 0.2s",
-                      textAlign: "right",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#C47C6A")}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = "#6B635C")}
-                  >
-                    Delete
-                  </button>
+                      {h}
+                    </span>
+                  ))}
                 </div>
-              </motion.div>
-            );
-          })}
-        </div>
+
+                {cases.map((c) => {
+                  const providerName = c.provider_name?.trim() || "Pending provider";
+                  const dateInfo = formatServiceDate(c);
+                  const billed = Number(c.amount_billed ?? 0);
+                  const potential = Number(c.potential_savings ?? 0);
+                  const entitled = isMember || c.dispute_paid === true;
+                  const letterCta =
+                    c.status === "letter_ready"
+                      ? "View letter"
+                      : c.status === "error_found"
+                      ? entitled
+                        ? "Get letter"
+                        : "Get letter"
+                      : null;
+
+                  return (
+                    <div
+                      key={c.id}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "minmax(180px, 2fr) 140px 120px 130px 150px 130px",
+                        gap: "16px",
+                        alignItems: "center",
+                        padding: "16px 0",
+                        borderBottom: "1px solid var(--line)",
+                      }}
+                    >
+                      <div>
+                        <div style={{ ...serif("18px", { lineHeight: 1.2 }) }}>{providerName}</div>
+                        {c.insurance_type && (
+                          <div style={{ ...sans("12px"), marginTop: "4px" }}>{c.insurance_type}</div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ ...sans("13px", "var(--ink)") }}>{dateInfo.value}</div>
+                        <div style={{ ...sans("11px"), marginTop: "2px" }}>{dateInfo.labelText}</div>
+                      </div>
+                      <div style={{ ...sans("14px", "var(--ink)") }} className="figure">
+                        {formatCurrency(billed)}
+                      </div>
+                      <div style={{ ...sans("14px", potential > 0 ? "var(--ink)" : "var(--ink-soft)") }} className="figure">
+                        {potential > 0 ? formatCurrency(potential) : "-"}
+                      </div>
+                      <StatusPill c={c} />
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
+                        <Link
+                          href={`/cases/${c.id}`}
+                          style={{ ...sans("12px", "var(--brand)"), textDecoration: "none", textAlign: "right" }}
+                        >
+                          View
+                        </Link>
+                        {letterCta && (
+                          <Link
+                            href={`/cases/${c.id}/letter`}
+                            style={{ ...sans("11px"), textDecoration: "none", textAlign: "right" }}
+                          >
+                            {letterCta}
+                          </Link>
+                        )}
+                        <button
+                          onClick={() => {
+                            setDeleteError(null);
+                            setConfirmDelete(c);
+                          }}
+                          aria-label={`Delete case for ${providerName}`}
+                          style={{
+                            ...sans("11px"),
+                            letterSpacing: "0.05em",
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            cursor: "pointer",
+                            transition: "color 0.2s",
+                            textAlign: "right",
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--urgent-red)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ink-soft)")}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </details>
       </div>
 
       {confirmDelete && (

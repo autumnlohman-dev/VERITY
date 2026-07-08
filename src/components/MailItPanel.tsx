@@ -20,12 +20,12 @@ const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties =
   fontOpticalSizing: "auto",
   letterSpacing: "-0.015em",
   fontSize: size,
-  color: "var(--surface)",
+  color: "var(--ink)",
   lineHeight: 1.2,
   fontWeight: 400,
   ...extra,
 });
-const labelStyle = (color = "#6B635C"): React.CSSProperties => ({
+const labelStyle = (color = "var(--ink-soft)"): React.CSSProperties => ({
   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
@@ -131,9 +131,9 @@ function AddressFields({
     onChange({ ...value, [k]: e.target.value });
   const inputStyle: React.CSSProperties = {
     width: "100%",
-    backgroundColor: "var(--ink)",
-    border: "1px solid #2A2A2A",
-    color: "var(--surface)",
+    backgroundColor: "var(--surface-raised)",
+    border: "1px solid var(--line)",
+    color: "var(--ink)",
     padding: "10px 12px",
     fontFamily: "var(--font-public-sans), system-ui, sans-serif",
     fontSize: "13px",
@@ -196,12 +196,12 @@ export function MailItPanel({
             </span>
           )}
         </div>
-        <p style={{ ...sans("13px", "#A89F96"), marginTop: "10px", lineHeight: 1.65 }}>
+        <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "10px", lineHeight: 1.65 }}>
           {initial.testMode
             ? "This was created in test mode, no physical letter was actually printed or mailed. Connect a live mail key to send for real."
             : `Your dispute letter has been handed off for printing and first-class${initial.certified ? ", certified" : ""} mail.`}
         </p>
-        <div style={{ ...sans("12px", "#6B635C"), marginTop: "12px", lineHeight: 1.8 }}>
+        <div style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "12px", lineHeight: 1.8 }}>
           {delivery && !initial.testMode && <div>Estimated delivery: {delivery}</div>}
           {initial.certified && <div>Certified mail, tracking and proof of delivery included.</div>}
           <div>Reference: {initial.lobLetterId}</div>
@@ -271,10 +271,10 @@ export function MailItPanel({
 
   return (
     <Wrapper>
-      <div style={{ ...labelStyle("#6B635C"), marginBottom: "8px" }}>Mail it for me</div>
+      <div style={{ ...labelStyle("var(--ink-soft)"), marginBottom: "8px" }}>Mail it for me</div>
       <div style={{ ...serif("26px") }}>Let us print and mail it for you.</div>
-      <p style={{ ...sans("13px", "#A89F96"), marginTop: "10px", lineHeight: 1.7, maxWidth: "560px" }}>
-        We&apos;ll print your dispute letter and send a <strong style={{ color: "var(--surface)" }}>physical letter</strong> to
+      <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "10px", lineHeight: 1.7, maxWidth: "560px" }}>
+        We&apos;ll print your dispute letter and send a <strong style={{ color: "var(--ink)" }}>physical letter</strong> to
         the provider&apos;s billing office by first-class mail. Confirm both addresses below, we verify the
         recipient address before anything is mailed.
       </p>
@@ -286,8 +286,8 @@ export function MailItPanel({
 
       <label style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "20px", cursor: "pointer" }}>
         <input type="checkbox" checked={certified} onChange={(e) => setCertified(e.target.checked)} />
-        <span style={{ ...sans("13px", "#A89F96") }}>
-          Send as <strong style={{ color: "var(--surface)" }}>certified mail</strong> (tracking + proof of delivery)
+        <span style={{ ...sans("13px", "var(--ink-soft)") }}>
+          Send as <strong style={{ color: "var(--ink)" }}>certified mail</strong> (tracking + proof of delivery)
         </span>
       </label>
 
@@ -321,8 +321,8 @@ export function MailItPanel({
         disabled={!canSend || submitting}
         style={{
           ...sans("11px", "var(--ink)", { letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500 }),
-          backgroundColor: canSend && !submitting ? "#C8A97E" : "#2A2A2A",
-          color: canSend && !submitting ? "var(--ink)" : "#6B635C",
+          backgroundColor: canSend && !submitting ? "#C8A97E" : "var(--line)",
+          color: canSend && !submitting ? "var(--ink)" : "var(--ink-soft)",
           border: "none",
           padding: "14px 28px",
           marginTop: "24px",
@@ -331,7 +331,7 @@ export function MailItPanel({
       >
         {submitting ? "Sending…" : "Confirm and mail this letter"}
       </button>
-      <p style={{ ...sans("11px", "#6B635C"), fontStyle: "italic", marginTop: "12px" }}>
+      <p style={{ ...sans("11px", "var(--ink-soft)"), fontStyle: "italic", marginTop: "12px" }}>
         A physical letter will be printed and mailed. This action can&apos;t be undone once submitted.
       </p>
     </Wrapper>
@@ -344,8 +344,8 @@ function Wrapper({ children }: { children: React.ReactNode }) {
       style={{
         maxWidth: "720px",
         margin: "32px auto 0",
-        backgroundColor: "var(--ink)",
-        border: "1px solid #242424",
+        backgroundColor: "var(--surface-raised)",
+        border: "1px solid var(--line)",
         borderLeft: "4px solid #C8A97E",
         padding: "32px",
       }}

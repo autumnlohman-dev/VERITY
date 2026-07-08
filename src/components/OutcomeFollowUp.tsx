@@ -5,7 +5,7 @@ import { updateOutcome, getOutcome } from '@/lib/outcomes/store'
 import type { DisputeOutcomeLabel } from '@/lib/outcomes/store'
 import { useClientMemo } from '@/lib/useClientMemo'
 
-const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
+const sans = (size: string, color = 'var(--ink-soft)', extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: 'var(--font-public-sans), system-ui, sans-serif',
   fontSize: size,
   color,
@@ -27,9 +27,9 @@ function StatusButton({ label, active, onSelect }: { label: string; active: bool
     <button
       onClick={onSelect}
       style={{
-        ...sans('12px', active ? 'var(--ink)' : '#A89F96'),
+        ...sans('12px', active ? 'var(--ink)' : 'var(--ink-soft)'),
         backgroundColor: active ? '#C8A97E' : 'transparent',
-        border: `1px solid ${active ? '#C8A97E' : '#2A2A2A'}`,
+        border: `1px solid ${active ? '#C8A97E' : 'var(--line)'}`,
         padding: '8px 16px',
         cursor: 'pointer',
         letterSpacing: '0.08em',
@@ -62,16 +62,16 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
       won: { label: 'Won, Full Amount', color: '#7A9E87' },
       partial: { label: 'Partial Win', color: '#C8A97E' },
       lost: { label: 'Dispute Lost', color: '#C47C6A' },
-      abandoned: { label: 'Abandoned', color: '#5F5648' },
+      abandoned: { label: 'Abandoned', color: 'var(--ink-soft)' },
       in_progress: { label: 'In Progress', color: 'var(--brand)' },
     }
     const cfg = statusLabels[outcome.status] || statusLabels.in_progress
     return (
-      <div style={{ border: '1px solid #1C1C1C', padding: '16px', marginTop: '16px' }}>
-        <div style={{ ...sans('11px', '#A89F96'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '6px' }}>Dispute outcome recorded</div>
+      <div style={{ border: '1px solid var(--line)', padding: '16px', marginTop: '16px' }}>
+        <div style={{ ...sans('11px', 'var(--ink-soft)'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '6px' }}>Dispute outcome recorded</div>
         <span style={{ ...sans('13px', cfg.color), fontWeight: 600 }}>{cfg.label}</span>
         {outcome.amountRecovered ? (
-          <span style={{ ...sans('13px', '#A89F96'), marginLeft: '12px' }}>
+          <span style={{ ...sans('13px', 'var(--ink-soft)'), marginLeft: '12px' }}>
             ${outcome.amountRecovered.toLocaleString('en-US', { minimumFractionDigits: 2 })} recovered
           </span>
         ) : null}
@@ -91,11 +91,11 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
   }
 
   return (
-    <div style={{ border: '1px solid #1C1C1C', padding: '20px', marginTop: '24px', backgroundColor: 'var(--ink)' }}>
+    <div style={{ border: '1px solid var(--line)', padding: '20px', marginTop: '24px', backgroundColor: 'var(--surface-raised)' }}>
       <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '8px' }}>
         How did your dispute go?
       </div>
-      <div style={{ ...sans('13px', '#5F5648'), marginBottom: '16px' }}>
+      <div style={{ ...sans('13px', 'var(--ink-soft)'), marginBottom: '16px' }}>
         Tracking outcomes helps improve recovery predictions for every VERITY user.
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
@@ -108,7 +108,7 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
 
       {(status === 'won' || status === 'partial') && (
         <div style={{ marginBottom: '16px' }}>
-          <div style={{ ...sans('13px', 'var(--surface)'), marginBottom: '8px' }}>
+          <div style={{ ...sans('13px', 'var(--ink)'), marginBottom: '8px' }}>
             How much did you recover? (originally disputed: ${dollarAmountDisputed.toFixed(2)})
           </div>
           <input
@@ -117,9 +117,9 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
             onChange={e => setAmountRecovered(e.target.value)}
             placeholder="0.00"
             style={{
-              ...sans('14px', 'var(--surface)'),
-              backgroundColor: 'var(--ink)',
-              border: '1px solid #2A2A2A',
+              ...sans('14px', 'var(--ink)'),
+              backgroundColor: 'var(--surface-raised)',
+              border: '1px solid var(--line)',
               padding: '10px 14px',
               width: '160px',
               outline: 'none',

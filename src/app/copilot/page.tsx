@@ -10,13 +10,13 @@ import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { BRAND_NAME } from '@/lib/brand'
 
-const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
+const sans = (size: string, color = 'var(--ink-soft)', extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: 'var(--font-public-sans), system-ui, sans-serif', fontSize: size, color, ...extra,
 })
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: 'var(--font-fraunces), Georgia, serif',
   fontOpticalSizing: 'auto',
-  letterSpacing: '-0.015em', fontSize: size, color: 'var(--surface)', lineHeight: 1.15, fontWeight: 400, ...extra,
+  letterSpacing: '-0.015em', fontSize: size, color: 'var(--ink)', lineHeight: 1.15, fontWeight: 400, ...extra,
 })
 
 interface GuidanceCard {
@@ -234,7 +234,7 @@ export default function CopilotPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--ink)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--surface)', display: 'flex', flexDirection: 'column' }}>
       {/* Nav */}
       <nav style={{ padding: '20px 32px', backgroundColor: 'var(--surface)', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Link href="/" style={{ textDecoration: 'none' }}>
@@ -244,9 +244,9 @@ export default function CopilotPage() {
       </nav>
 
       {/* Header */}
-      <div style={{ padding: '32px', borderBottom: '1px solid #1C1C1C' }}>
+      <div style={{ padding: '32px', borderBottom: '1px solid var(--line)' }}>
         <div style={{ ...serif('30px'), marginBottom: '8px' }}>On the phone with them right now?</div>
-        <div style={{ ...sans('13px', '#A89F96'), maxWidth: '560px' }}>
+        <div style={{ ...sans('13px', 'var(--ink-soft)'), maxWidth: '560px' }}>
           Type what the representative just said. Verity instantly tells you what to say back, which law protects you, and what to document. Voice mode is coming soon.
         </div>
 
@@ -255,8 +255,8 @@ export default function CopilotPage() {
           <div
             style={{
               marginTop: '16px',
-              backgroundColor: 'var(--ink)',
-              border: '1px solid #242424',
+              backgroundColor: 'var(--surface-raised)',
+              border: '1px solid var(--line)',
               borderLeft: '3px solid #C8A97E',
               padding: '14px 18px',
               maxWidth: '560px',
@@ -265,8 +265,8 @@ export default function CopilotPage() {
             <div style={{ ...sans('10px', '#C8A97E'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '6px' }}>
               Advising on your case
             </div>
-            <div style={{ ...sans('14px', 'var(--surface)') }}>{caseContext.providerName}</div>
-            <div style={{ ...sans('12px', '#6B635C'), marginTop: '4px' }}>
+            <div style={{ ...sans('14px', 'var(--ink)') }}>{caseContext.providerName}</div>
+            <div style={{ ...sans('12px', 'var(--ink-soft)'), marginTop: '4px' }}>
               {caseContext.insurer}
               {caseContext.errorCount > 0 && ` · ${caseContext.errorCount} documented ${caseContext.errorCount === 1 ? 'error' : 'errors'}`}
               {caseContext.discrepancyCount > 0 && ` · ${caseContext.discrepancyCount} cross-document ${caseContext.discrepancyCount === 1 ? 'discrepancy' : 'discrepancies'}`}
@@ -281,19 +281,19 @@ export default function CopilotPage() {
           <div
             style={{
               marginTop: '16px',
-              backgroundColor: 'var(--ink)',
-              border: '1px solid #242424',
+              backgroundColor: 'var(--surface-raised)',
+              border: '1px solid var(--line)',
               borderLeft: '3px solid #6B635C',
               padding: '14px 18px',
               maxWidth: '560px',
-              ...sans('12px', '#A89F96'),
+              ...sans('12px', 'var(--ink-soft)'),
             }}
           >
             Open this from your case page while signed in for case-specific guidance.
           </div>
         )}
 
-        <div style={{ ...sans('11px', '#5F5648'), marginTop: '10px', maxWidth: '560px' }}>
+        <div style={{ ...sans('11px', 'var(--ink-soft)'), marginTop: '10px', maxWidth: '560px' }}>
           Guidance-only mode: nothing you type here is stored after you close this page. Verity provides administrative guidance, not legal advice.
         </div>
       </div>
@@ -301,16 +301,16 @@ export default function CopilotPage() {
       {/* Exchange feed */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 32px' }}>
         {exchanges.length === 0 && (
-          <div style={{ ...sans('13px', '#3A3A3A'), textAlign: 'center', marginTop: '40px' }}>
+          <div style={{ ...sans('13px', 'var(--line)'), textAlign: 'center', marginTop: '40px' }}>
             Try: &quot;They said the balance is $2,400 and it&apos;s going to collections next week&quot;
           </div>
         )}
         {exchanges.map(e =>
           e.speaker === 'them' ? (
             <div key={e.id} style={{ marginBottom: '14px', display: 'flex', justifyContent: 'flex-end' }}>
-              <div style={{ maxWidth: '70%', backgroundColor: '#1C1C1C', padding: '12px 16px', borderRadius: '2px' }}>
-                <div style={{ ...sans('10px', '#5F5648'), letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '4px' }}>They said</div>
-                <div style={{ ...sans('14px', 'var(--surface)') }}>{e.text}</div>
+              <div style={{ maxWidth: '70%', backgroundColor: 'var(--line)', padding: '12px 16px', borderRadius: '2px' }}>
+                <div style={{ ...sans('10px', 'var(--ink-soft)'), letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '4px' }}>They said</div>
+                <div style={{ ...sans('14px', 'var(--ink)') }}>{e.text}</div>
               </div>
             </div>
           ) : (
@@ -323,15 +323,15 @@ export default function CopilotPage() {
               {e.cards?.map(c => {
                 const ks = KIND_STYLE[c.kind]
                 return (
-                  <div key={c.id} style={{ borderLeft: `3px solid ${ks.border}`, backgroundColor: 'var(--ink)', padding: '12px 16px' }}>
+                  <div key={c.id} style={{ borderLeft: `3px solid ${ks.border}`, backgroundColor: 'var(--surface-raised)', padding: '12px 16px' }}>
                     <div style={{ ...sans('10px', ks.color), letterSpacing: '0.2em', fontWeight: 700, marginBottom: '4px' }}>{ks.label}</div>
-                    <div style={{ ...sans('13px', 'var(--surface)'), marginBottom: c.citation ? '6px' : 0 }}>{c.body}</div>
-                    {c.citation && <div style={{ ...sans('11px', '#5F5648'), fontStyle: 'italic' }}>{c.citation}</div>}
+                    <div style={{ ...sans('13px', 'var(--ink)'), marginBottom: c.citation ? '6px' : 0 }}>{c.body}</div>
+                    {c.citation && <div style={{ ...sans('11px', 'var(--ink-soft)'), fontStyle: 'italic' }}>{c.citation}</div>}
                   </div>
                 )
               })}
               {e.pending && (
-                <div style={{ ...sans('11px', '#5F5648'), letterSpacing: '0.1em', fontStyle: 'italic' }}>
+                <div style={{ ...sans('11px', 'var(--ink-soft)'), letterSpacing: '0.1em', fontStyle: 'italic' }}>
                   {caseContext ? 'Tailoring this to your case…' : 'Refining guidance…'}
                 </div>
               )}
@@ -342,13 +342,13 @@ export default function CopilotPage() {
       </div>
 
       {/* Input */}
-      <div style={{ padding: '20px 32px', borderTop: '1px solid #1C1C1C', display: 'flex', gap: '12px' }}>
+      <div style={{ padding: '20px 32px', borderTop: '1px solid var(--line)', display: 'flex', gap: '12px' }}>
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && submit()}
           placeholder="Type what they just said…"
-          style={{ ...sans('14px', 'var(--surface)'), flex: 1, backgroundColor: 'var(--ink)', border: '1px solid #2A2A2A', padding: '14px 16px', outline: 'none' }}
+          style={{ ...sans('14px', 'var(--ink)'), flex: 1, backgroundColor: 'var(--surface-raised)', border: '1px solid var(--line)', padding: '14px 16px', outline: 'none' }}
         />
         <button
           onClick={submit}

@@ -18,7 +18,7 @@ export default function GlobalError({
     <html>
       <body
         style={{
-          background: 'var(--ink)',
+          background: 'var(--surface)',
           minHeight: '100vh',
           margin: 0,
           display: 'flex',
@@ -28,7 +28,7 @@ export default function GlobalError({
           padding: '24px',
           textAlign: 'center',
           fontFamily: 'var(--font-public-sans), system-ui, sans-serif',
-          color: 'var(--surface)'
+          color: 'var(--ink)'
         }}
       >
         <div
@@ -46,7 +46,7 @@ export default function GlobalError({
         <p
           style={{
             fontSize: '14px',
-            color: '#A89F96',
+            color: 'var(--ink-soft)',
             marginTop: '16px',
             maxWidth: '420px',
             lineHeight: 1.65
@@ -76,11 +76,11 @@ export default function GlobalError({
             href="/dashboard"
             style={{
               fontSize: '11px',
-              color: '#A89F96',
+              color: 'var(--ink-soft)',
               padding: '12px 24px',
               letterSpacing: '0.2em',
               textTransform: 'uppercase',
-              border: '1px solid #242424',
+              border: '1px solid var(--line)',
               textDecoration: 'none'
             }}
           >

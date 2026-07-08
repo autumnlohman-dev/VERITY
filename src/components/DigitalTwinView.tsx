@@ -5,13 +5,13 @@ import Link from 'next/link'
 import { buildDigitalTwin, type DigitalTwin, type TwinCaseInput } from '@/lib/twin/digitalTwin'
 import { useClientMemo } from '@/lib/useClientMemo'
 
-const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
+const sans = (size: string, color = 'var(--ink-soft)', extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: 'var(--font-public-sans), system-ui, sans-serif', fontSize: size, color, ...extra,
 })
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: 'var(--font-fraunces), Georgia, serif',
   fontOpticalSizing: 'auto',
-  letterSpacing: '-0.015em', fontSize: size, color: 'var(--surface)', lineHeight: 1.1, fontWeight: 400, ...extra,
+  letterSpacing: '-0.015em', fontSize: size, color: 'var(--ink)', lineHeight: 1.1, fontWeight: 400, ...extra,
 })
 
 export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
@@ -27,7 +27,7 @@ export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
   if (!twin) return null
 
   return (
-    <div style={{ border: '1px solid #2A2A2A', backgroundColor: 'var(--ink)', padding: '32px', marginBottom: '48px' }}>
+    <div style={{ border: '1px solid var(--line)', backgroundColor: 'var(--surface-raised)', padding: '32px', marginBottom: '48px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
         <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.25em', textTransform: 'uppercase' }}>
           Your Complete Billing Picture
@@ -47,8 +47,8 @@ export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
           { label: 'Open exposure', value: `$${twin.openExposure.toLocaleString()}`, color: twin.openExposure > 0 ? '#C47C6A' : '#7A9E87' },
         ].map(m => (
           <div key={m.label}>
-            <div style={{ ...sans('10px', '#5F5648'), letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '6px' }}>{m.label}</div>
-            <div style={{ ...serif('28px'), color: m.color ?? 'var(--surface)' }}>{m.value}</div>
+            <div style={{ ...sans('10px', 'var(--ink-soft)'), letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '6px' }}>{m.label}</div>
+            <div style={{ ...serif('28px'), color: m.color ?? 'var(--ink)' }}>{m.value}</div>
           </div>
         ))}
       </div>
@@ -56,18 +56,18 @@ export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
       {/* Provider relationships */}
       {twin.providers.length > 0 && (
         <div style={{ marginBottom: '24px' }}>
-          <div style={{ ...sans('10px', '#5F5648'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '10px' }}>Providers</div>
+          <div style={{ ...sans('10px', 'var(--ink-soft)'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '10px' }}>Providers</div>
           {twin.providers.slice(0, 5).map(p => (
-            <div key={p.entityName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #1C1C1C', padding: '10px 0', flexWrap: 'wrap', gap: '6px' }}>
+            <div key={p.entityName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--line)', padding: '10px 0', flexWrap: 'wrap', gap: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ ...sans('13px', 'var(--surface)') }}>{p.entityName}</span>
+                <span style={{ ...sans('13px', 'var(--ink)') }}>{p.entityName}</span>
                 {p.riskFlag && (
                   <span style={{ ...sans('9px', 'var(--ink)'), backgroundColor: '#C47C6A', padding: '2px 8px', letterSpacing: '0.1em', fontWeight: 700 }}>
                     PATTERN FLAG
                   </span>
                 )}
               </div>
-              <span style={{ ...sans('11px', '#5F5648') }}>
+              <span style={{ ...sans('11px', 'var(--ink-soft)') }}>
                 {p.encounterCount} encounter(s) · {p.totalErrorsFound} error(s) · ${p.totalDisputed.toLocaleString()} disputed
                 {p.disputeWinRate !== null ? ` · ${p.disputeWinRate}% win rate` : ''}
               </span>
@@ -79,18 +79,18 @@ export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
       {/* Projected events (Claim 41: predictive liability) */}
       {twin.projectedEvents.length > 0 && (
         <div>
-          <div style={{ ...sans('10px', '#5F5648'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '10px' }}>
+          <div style={{ ...sans('10px', 'var(--ink-soft)'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '10px' }}>
             Looking ahead
           </div>
           {twin.projectedEvents.slice(0, 3).map((e, i) => (
             <div key={i} style={{ borderLeft: '3px solid #C8A97E', backgroundColor: 'rgba(200,169,126,0.05)', padding: '12px 16px', marginBottom: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
-                <span style={{ ...sans('13px', 'var(--surface)') }}>{e.description}</span>
+                <span style={{ ...sans('13px', 'var(--ink)') }}>{e.description}</span>
                 <span style={{ ...sans('12px', '#C8A97E'), fontWeight: 600 }}>
                   {Math.round(e.probability * 100)}% likely{e.estimatedAmount ? ` · ~$${e.estimatedAmount.toLocaleString()}` : ''}
                 </span>
               </div>
-              <div style={{ ...sans('11px', '#5F5648'), marginTop: '4px' }}>{e.basis}</div>
+              <div style={{ ...sans('11px', 'var(--ink-soft)'), marginTop: '4px' }}>{e.basis}</div>
             </div>
           ))}
         </div>

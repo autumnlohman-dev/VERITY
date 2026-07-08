@@ -16,6 +16,9 @@ assistive. One thing to look at first on every screen. Progressive disclosure
 everywhere. If a screen makes a stressed person's eyes bounce, it failed,
 no matter how much information it technically shows.
 
+The governing question for every screen: "What does the stressed person with
+the bill care about? Only show that."
+
 ---
 
 ## Part 2 — AI tells: HARD BANS

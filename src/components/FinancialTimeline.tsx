@@ -4,7 +4,7 @@ import React from 'react'
 import type { TimelineEvent } from '@/lib/cbs/schema'
 import { formatCalendarDate } from '@/lib/dates'
 
-const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
+const sans = (size: string, color = 'var(--ink-soft)', extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: 'var(--font-public-sans), system-ui, sans-serif',
   fontSize: size,
   color,
@@ -35,9 +35,9 @@ interface FinancialTimelineProps {
 export function FinancialTimeline({ events, totalDocuments, totalInconsistencies }: FinancialTimelineProps) {
   if (events.length === 0) {
     return (
-      <div style={{ border: '1px solid #1C1C1C', padding: '24px', marginBottom: '24px', textAlign: 'center' }}>
-        <div style={{ ...sans('14px', '#5F5648') }}>No timeline data available</div>
-        <div style={{ ...sans('13px', '#3A3A3A'), marginTop: '8px' }}>
+      <div style={{ border: '1px solid var(--line)', padding: '24px', marginBottom: '24px', textAlign: 'center' }}>
+        <div style={{ ...sans('14px', 'var(--ink-soft)') }}>No timeline data available</div>
+        <div style={{ ...sans('13px', 'var(--line)'), marginTop: '8px' }}>
           Upload your EOB, denial letter, or prior authorization to see your complete financial timeline
         </div>
       </div>
@@ -48,10 +48,10 @@ export function FinancialTimeline({ events, totalDocuments, totalInconsistencies
     <div style={{ marginBottom: '32px' }}>
       {/* Summary header */}
       <div style={{ marginBottom: '20px' }}>
-        <div style={{ ...sans('11px', '#A89F96'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '6px' }}>
+        <div style={{ ...sans('11px', 'var(--ink-soft)'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '6px' }}>
           Healthcare Financial Timeline
         </div>
-        <div style={{ ...sans('13px', '#5F5648') }}>
+        <div style={{ ...sans('13px', 'var(--ink-soft)') }}>
           {events.length} events across {totalDocuments} document{totalDocuments !== 1 ? 's' : ''}
           {totalInconsistencies > 0 && (
             <span style={{ color: '#C47C6A', marginLeft: '8px' }}>
@@ -70,7 +70,7 @@ export function FinancialTimeline({ events, totalDocuments, totalInconsistencies
           top: '8px',
           bottom: '8px',
           width: '1px',
-          backgroundColor: '#2A2A2A',
+          backgroundColor: 'var(--line)',
         }} />
 
         {events.map((event, idx) => {
@@ -96,26 +96,26 @@ export function FinancialTimeline({ events, totalDocuments, totalInconsistencies
                 width: '10px',
                 height: '10px',
                 borderRadius: '50%',
-                backgroundColor: hasFlag ? '#C47C6A' : isFuture ? '#C8A97E' : '#2A2A2A',
-                border: `1px solid ${hasFlag ? '#C47C6A' : isFuture ? '#C8A97E' : '#3A3A3A'}`,
+                backgroundColor: hasFlag ? '#C47C6A' : isFuture ? '#C8A97E' : 'var(--line)',
+                border: `1px solid ${hasFlag ? '#C47C6A' : isFuture ? '#C8A97E' : 'var(--line)'}`,
                 zIndex: 1,
               }} />
 
               {/* Event card */}
               <div style={{
-                border: `1px solid ${hasFlag ? 'rgba(196,124,106,0.4)' : isFuture ? 'rgba(200,169,126,0.3)' : '#1C1C1C'}`,
+                border: `1px solid ${hasFlag ? 'rgba(196,124,106,0.4)' : isFuture ? 'rgba(200,169,126,0.3)' : 'var(--line)'}`,
                 backgroundColor: hasFlag ? 'rgba(196,124,106,0.06)' : isFuture ? 'rgba(200,169,126,0.06)' : 'var(--ink)',
                 padding: '14px 16px',
-                borderLeft: hasFlag ? '3px solid #C47C6A' : isFuture ? `3px solid ${event.urgencyLevel === 'critical' ? '#C47C6A' : '#C8A97E'}` : '3px solid #1C1C1C',
+                borderLeft: hasFlag ? '3px solid #C47C6A' : isFuture ? `3px solid ${event.urgencyLevel === 'critical' ? '#C47C6A' : '#C8A97E'}` : '3px solid var(--line)',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px', flexWrap: 'wrap', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '14px' }}>{icon}</span>
-                    <span style={{ ...sans('14px', hasFlag ? '#C47C6A' : isFuture ? '#C8A97E' : 'var(--surface)'), fontWeight: 500 }}>
+                    <span style={{ ...sans('14px', hasFlag ? '#C47C6A' : isFuture ? '#C8A97E' : 'var(--ink)'), fontWeight: 500 }}>
                       {event.title}
                     </span>
                   </div>
-                  <span style={{ ...sans('11px', '#5F5648'), whiteSpace: 'nowrap' }}>
+                  <span style={{ ...sans('11px', 'var(--ink-soft)'), whiteSpace: 'nowrap' }}>
                     {event.isFutureDeadline && event.daysUntil !== undefined
                       ? event.daysUntil < 0
                         ? `${Math.abs(event.daysUntil)}d overdue`
@@ -127,7 +127,7 @@ export function FinancialTimeline({ events, totalDocuments, totalInconsistencies
                   </span>
                 </div>
 
-                <div style={{ ...sans('12px', '#A89F96'), marginBottom: event.hasInconsistency ? '8px' : 0 }}>
+                <div style={{ ...sans('12px', 'var(--ink-soft)'), marginBottom: event.hasInconsistency ? '8px' : 0 }}>
                   {event.description}
                   {event.financialAmount ? `, $${event.financialAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : ''}
                 </div>
@@ -145,7 +145,7 @@ export function FinancialTimeline({ events, totalDocuments, totalInconsistencies
                 )}
 
                 {event.sourceDocumentType && (
-                  <div style={{ ...sans('11px', '#3A3A3A'), marginTop: '6px', textTransform: 'capitalize' }}>
+                  <div style={{ ...sans('11px', 'var(--ink-soft)'), marginTop: '6px', textTransform: 'capitalize' }}>
                     Source: {event.sourceDocumentType.replace(/_/g, ' ')}
                     {event.entityName ? ` · ${event.entityName}` : ''}
                   </div>

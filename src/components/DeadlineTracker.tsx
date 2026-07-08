@@ -3,7 +3,7 @@
 import React from 'react'
 import type { DeadlineResult } from '@/lib/deadlines/calculator'
 
-const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
+const sans = (size: string, color = 'var(--ink-soft)', extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: 'var(--font-public-sans), system-ui, sans-serif',
   fontSize: size,
   color,
@@ -14,8 +14,8 @@ const URGENCY_STYLES = {
   missed: { bg: 'rgba(200,60,60,0.12)', border: '#C83C3C', badge: '#C83C3C', badgeText: 'var(--ink)', label: 'MISSED' },
   critical: { bg: 'rgba(196,124,106,0.12)', border: '#C47C6A', badge: '#C47C6A', badgeText: 'var(--ink)', label: 'CRITICAL' },
   high: { bg: 'rgba(200,169,126,0.10)', border: '#C8A97E', badge: '#C8A97E', badgeText: 'var(--ink)', label: 'HIGH' },
-  moderate: { bg: 'rgba(200,169,126,0.06)', border: '#2A2A2A', badge: '#5F5648', badgeText: 'var(--surface)', label: 'MODERATE' },
-  informational: { bg: 'transparent', border: '#1C1C1C', badge: '#2A2A2A', badgeText: '#A89F96', label: 'INFO' },
+  moderate: { bg: 'rgba(200,169,126,0.06)', border: 'var(--line)', badge: 'var(--ink-soft)', badgeText: 'var(--surface-raised)', label: 'MODERATE' },
+  informational: { bg: 'transparent', border: 'var(--line)', badge: 'var(--line)', badgeText: 'var(--ink-soft)', label: 'INFO' },
 }
 
 interface DeadlineTrackerProps {
@@ -25,11 +25,11 @@ interface DeadlineTrackerProps {
 export function DeadlineTracker({ deadlines }: DeadlineTrackerProps) {
   if (deadlines.length === 0) {
     return (
-      <div style={{ border: '1px solid #1C1C1C', padding: '20px', marginBottom: '24px', backgroundColor: 'var(--ink)' }}>
+      <div style={{ border: '1px solid var(--line)', padding: '20px', marginBottom: '24px', backgroundColor: 'var(--surface-raised)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ color: '#7A9E87', fontSize: '16px' }}>✓</span>
           <span style={{ ...sans('14px', '#7A9E87') }}>No urgent deadlines detected</span>
-          <span style={{ ...sans('13px', '#5F5648') }}>Always act within 30 days of any billing event to preserve your rights</span>
+          <span style={{ ...sans('13px', 'var(--ink-soft)') }}>Always act within 30 days of any billing event to preserve your rights</span>
         </div>
       </div>
     )
@@ -52,7 +52,7 @@ export function DeadlineTracker({ deadlines }: DeadlineTrackerProps) {
           gap: '10px',
         }}>
           <span style={{ fontSize: '18px' }}>⚠️</span>
-          <span style={{ ...sans('13px', 'var(--surface)'), fontWeight: 600 }}>
+          <span style={{ ...sans('13px', 'var(--ink)'), fontWeight: 600 }}>
             {hasMissed
               ? `${deadlines.filter(d => d.urgencyLevel === 'missed').length} deadline(s) have already passed, contact a patient advocate immediately`
               : `You have ${deadlines.filter(d => d.urgencyLevel === 'critical').length} critical deadline(s), act now`
@@ -61,7 +61,7 @@ export function DeadlineTracker({ deadlines }: DeadlineTrackerProps) {
         </div>
       )}
 
-      <div style={{ ...sans('11px', '#A89F96'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '12px' }}>
+      <div style={{ ...sans('11px', 'var(--ink-soft)'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '12px' }}>
         Appeal & Dispute Deadlines ({deadlines.length})
       </div>
 
@@ -95,7 +95,7 @@ export function DeadlineTracker({ deadlines }: DeadlineTrackerProps) {
                 }}>
                   {styles.label}
                 </span>
-                <span style={{ ...sans('14px', 'var(--surface)'), fontWeight: 500 }}>{dl.deadlineType}</span>
+                <span style={{ ...sans('14px', 'var(--ink)'), fontWeight: 500 }}>{dl.deadlineType}</span>
               </div>
               <span style={{
                 ...sans('14px', dl.daysRemaining < 0 ? '#C83C3C' : dl.daysRemaining <= 7 ? '#C47C6A' : '#C8A97E'),
@@ -106,25 +106,25 @@ export function DeadlineTracker({ deadlines }: DeadlineTrackerProps) {
               </span>
             </div>
 
-            <div style={{ ...sans('13px', '#A89F96'), marginBottom: '10px' }}>{dl.description}</div>
+            <div style={{ ...sans('13px', 'var(--ink-soft)'), marginBottom: '10px' }}>{dl.description}</div>
 
-            <div style={{ ...sans('13px', 'var(--surface)'), marginBottom: '8px' }}>
+            <div style={{ ...sans('13px', 'var(--ink)'), marginBottom: '8px' }}>
               <span style={{ ...sans('10px', '#C8A97E'), letterSpacing: '0.15em', textTransform: 'uppercase', marginRight: '8px' }}>Action:</span>
               {dl.actionRequired}
             </div>
 
-            <div style={{ ...sans('12px', '#5F5648'), marginBottom: '8px' }}>
+            <div style={{ ...sans('12px', 'var(--ink-soft)'), marginBottom: '8px' }}>
               <span style={{ marginRight: '6px' }}>↳</span>
               {dl.escalationPath}
             </div>
 
-            <div style={{ ...sans('11px', '#3A3A3A'), fontStyle: 'italic' }}>
+            <div style={{ ...sans('11px', 'var(--ink-soft)'), fontStyle: 'italic' }}>
               {dl.applicableRegulation}
             </div>
 
             {dl.estimatedRecovery && dl.estimatedRecovery > 0 && (
-              <div style={{ marginTop: '10px', ...sans('12px', '#A89F96') }}>
-                Amount at stake: <span style={{ color: 'var(--surface)', fontWeight: 600 }}>${dl.estimatedRecovery.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              <div style={{ marginTop: '10px', ...sans('12px', 'var(--ink-soft)') }}>
+                Amount at stake: <span style={{ color: 'var(--ink)', fontWeight: 600 }}>${dl.estimatedRecovery.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
               </div>
             )}
           </div>

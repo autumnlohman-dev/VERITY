@@ -25,7 +25,7 @@ import { OutcomePredictionPanel, AdvocacyWorkflowPanel } from "@/components/Advo
 import { generateEvidentiaryPackage } from "@/lib/letterPdf";
 import { applyLetterSubstitutions, evidentiaryPackageFilename, todayLongDate } from "@/lib/letterFields";
 import { disputeUnlocked } from "@/lib/entitlements";
-import { MANUAL_REVIEW_ERROR_TYPES } from "@/lib/audit/manualReview";
+import { userFacingErrorCount } from "@/lib/audit/errorCount";
 import { formatCalendarDate } from "@/lib/dates";
 import { classifyAuditFreshness, staleBannerFor, type StaleBanner } from "@/lib/audit/version";
 import { auditSnapshotFingerprint, isLetterStale } from "@/lib/letters/staleness";
@@ -37,13 +37,13 @@ const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties =
   fontOpticalSizing: "auto",
   letterSpacing: "-0.015em",
   fontSize: size,
-  color: "var(--surface)",
+  color: "var(--ink)",
   lineHeight: 1,
   fontWeight: 400,
   ...extra,
 });
 
-const sans = (size: string, color = "#A89F96", extra?: React.CSSProperties): React.CSSProperties => ({
+const sans = (size: string, color = "var(--ink-soft)", extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
@@ -180,14 +180,14 @@ interface LetterRow {
 
 // ─── Status display ───────────────────────────────────────────────────────────
 const STATUS_DISPLAY: Record<string, { label: string; dot: string; text: string; pulse?: boolean }> = {
-  auditing: { label: "Auditing", dot: "var(--brand)", text: "#A89F96", pulse: true },
+  auditing: { label: "Auditing", dot: "var(--brand)", text: "var(--ink-soft)", pulse: true },
   error_found: { label: "Error Found", dot: "#C47C6A", text: "#C47C6A" },
   no_errors: { label: "No Errors Found", dot: "#7A9E87", text: "#7A9E87" },
   letter_ready: { label: "Letter Ready", dot: "#C8A97E", text: "#C8A97E" },
 };
 
 function StatusPill({ status }: { status: string }) {
-  const cfg = STATUS_DISPLAY[status] ?? { label: status, dot: "#A89F96", text: "#A89F96" };
+  const cfg = STATUS_DISPLAY[status] ?? { label: status, dot: "var(--ink-soft)", text: "var(--ink-soft)" };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
       <span
@@ -218,9 +218,9 @@ const CONFIDENCE_STYLE: Record<string, React.CSSProperties> = {
     backgroundColor: "rgba(200,169,126,0.08)",
   },
   LOW: {
-    color: "#A89F96",
-    borderColor: "#2A2A2A",
-    backgroundColor: "var(--ink)",
+    color: "var(--ink-soft)",
+    borderColor: "var(--line)",
+    backgroundColor: "var(--surface-raised)",
   },
 };
 
@@ -283,7 +283,7 @@ function errorTypeLabel(type: string): string {
 // ─── Loading / Empty states ───────────────────────────────────────────────────
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: "var(--ink)", minHeight: "100vh" }}>
+    <div style={{ background: "var(--surface)", minHeight: "100vh" }}>
       <style>{`
         @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
         .dot-pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
@@ -317,7 +317,7 @@ function LoadingState() {
             marginBottom: "24px",
           }}
         />
-        <div style={{ ...serif("32px", { fontStyle: "italic", color: "#A89F96" }) }}>
+        <div style={{ ...serif("32px", { fontStyle: "italic", color: "var(--ink-soft)" }) }}>
           Loading your case.
         </div>
       </div>
@@ -340,7 +340,7 @@ function NotFoundState({ message }: { message: string }) {
         <div style={{ ...serif("40px", { lineHeight: 1.1 }) }}>
           Case not found.
         </div>
-        <p style={{ ...sans("14px", "#A89F96"), marginTop: "16px", maxWidth: "360px" }}>
+        <p style={{ ...sans("14px", "var(--ink-soft)"), marginTop: "16px", maxWidth: "360px" }}>
           {message}
         </p>
         <Link
@@ -380,14 +380,14 @@ function EmOutcomeCallout({ review }: { review: EmReview }) {
   return (
     <div
       style={{
-        backgroundColor: "var(--ink)",
-        border: "1px solid #242424",
+        backgroundColor: "var(--surface-raised)",
+        border: "1px solid var(--line)",
         borderLeft: `3px solid ${borderColor}`,
         padding: "24px 28px",
         marginBottom: "48px",
       }}
     >
-      <div style={{ ...label("#6B635C"), marginBottom: "8px" }}>E&amp;M visit review</div>
+      <div style={{ ...label("var(--ink-soft)"), marginBottom: "8px" }}>E&amp;M visit review</div>
       <div
         style={{
           ...serif("22px", {
@@ -401,7 +401,7 @@ function EmOutcomeCallout({ review }: { review: EmReview }) {
       </div>
       <p
         style={{
-          ...sans("13px", "#A89F96"),
+          ...sans("13px", "var(--ink-soft)"),
           marginTop: "12px",
           lineHeight: 1.65,
           maxWidth: "640px",
@@ -411,7 +411,7 @@ function EmOutcomeCallout({ review }: { review: EmReview }) {
       </p>
       <div
         style={{
-          ...sans("11px", "#6B635C"),
+          ...sans("11px", "var(--ink-soft)"),
           marginTop: "16px",
           letterSpacing: "0.05em",
         }}
@@ -423,15 +423,15 @@ function EmOutcomeCallout({ review }: { review: EmReview }) {
       {review.outcome === "borderline" && (
         <div
           style={{
-            backgroundColor: "var(--ink)",
-            border: "1px solid #242424",
+            backgroundColor: "var(--surface-raised)",
+            border: "1px solid var(--line)",
             padding: "16px 20px",
             marginTop: "20px",
           }}
         >
           <div
             style={{
-              ...sans("10px", "#6B635C"),
+              ...sans("10px", "var(--ink-soft)"),
               letterSpacing: "0.2em",
               textTransform: "uppercase",
               marginBottom: "8px",
@@ -441,7 +441,7 @@ function EmOutcomeCallout({ review }: { review: EmReview }) {
           </div>
           <p
             style={{
-              ...sans("13px", "#A89F96"),
+              ...sans("13px", "var(--ink-soft)"),
               lineHeight: 1.7,
               whiteSpace: "pre-wrap",
             }}
@@ -673,12 +673,6 @@ export default function CaseDetailPage({
 
   const errors = caseRow.errors_found ?? [];
 
-  // Disputable findings = priced audit errors + dollar-backed or high/critical
-  // cross-document findings. Manual-review flags (rate_unavailable,
-  // reference_data_missing) are review aids, not errors — the headline count
-  // must never say "2 errors found" about two internal notices.
-  const disputableErrors = errors.filter((e) => !MANUAL_REVIEW_ERROR_TYPES.has(e.error_type));
-
   // The E&M complexity review should be offered whenever an E&M visit code
   // (99201–99215 / 99281–99285) appears on the bill — even when it produced no
   // pricing error (E&M codes are routed to this review instead of a PFS
@@ -881,13 +875,9 @@ export default function CaseDetailPage({
     caseRow.bill_data?.hasEob && Number.isFinite(eobPatientResp) && eobPatientResp >= 0
       ? eobPatientResp
       : Math.max(0, billed - savings);
-  const significantCrossDoc = (cbsSet?.crossDocumentDiscrepancies ?? []).filter(
-    (d) =>
-      Number(d.estimatedDollarImpact || 0) > 0 ||
-      d.severity === "critical" ||
-      d.severity === "high"
-  ).length;
-  const findingsCount = disputableErrors.length + significantCrossDoc;
+  // The one shared counting rule (lib/audit/errorCount): the dashboard shows
+  // the same number for the same data, so the counts cannot drift again.
+  const findingsCount = userFacingErrorCount(errors, cbsSet?.crossDocumentDiscrepancies);
   const statusCfg = STATUS_DISPLAY[caseRow.status] ?? { label: caseRow.status };
 
   // Stale letter: the audit was recomputed/re-run after generation, so the
@@ -964,9 +954,9 @@ export default function CaseDetailPage({
       >
         <Link
           href="/dashboard"
-          style={{ ...sans("12px", "#6B635C"), textDecoration: "none", transition: "color 0.2s" }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#A89F96")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#6B635C")}
+          style={{ ...sans("12px", "var(--ink-soft)"), textDecoration: "none", transition: "color 0.2s" }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ink-soft)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ink-soft)")}
         >
           ← Dashboard
         </Link>
@@ -984,7 +974,7 @@ export default function CaseDetailPage({
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = "rgba(200,169,126,0.08)";
-            e.currentTarget.style.color = "var(--surface)";
+            e.currentTarget.style.color = "var(--ink)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = "transparent";
@@ -1025,7 +1015,7 @@ export default function CaseDetailPage({
               padding: "16px 20px",
             }}
           >
-            <div style={{ ...label("var(--urgent-amber)"), marginBottom: "6px" }}>Audit update available</div>
+            <div style={{ ...label("var(--ink-soft)"), marginBottom: "6px" }}>Audit update available</div>
             <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.6 }}>{staleAudit.message}</p>
             {rerunError && (
               <p style={{ ...sans("13px", "var(--urgent-red)"), marginTop: "8px" }}>{rerunError}</p>
@@ -1062,11 +1052,11 @@ export default function CaseDetailPage({
           paddingRight: "64px",
           paddingTop: "24px",
           paddingBottom: "40px",
-          borderBottom: "1px solid #242424",
+          borderBottom: "1px solid var(--line)",
         }}
       >
         <h1 style={{ ...serif("48px", { lineHeight: 1.05 }) }}>{providerName}</h1>
-        <div style={{ ...sans("14px", "#6B635C"), marginTop: "8px" }}>
+        <div style={{ ...sans("14px", "var(--ink-soft)"), marginTop: "8px" }}>
           {insurer} · Filed {formatDate(caseRow.created_at)}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "16px", marginTop: "16px" }}>
@@ -1074,10 +1064,10 @@ export default function CaseDetailPage({
           {tierLabel && (
             <div
               style={{
-                ...sans("10px", "#6B635C"),
+                ...sans("10px", "var(--ink-soft)"),
                 letterSpacing: "0.15em",
                 textTransform: "uppercase",
-                border: "1px solid #242424",
+                border: "1px solid var(--line)",
                 padding: "2px 8px",
                 display: "inline-block",
               }}
@@ -1097,20 +1087,20 @@ export default function CaseDetailPage({
           }}
         >
           {[
-            { value: formatCurrency(billed), sublabel: "amount billed", color: "var(--surface)" },
+            { value: formatCurrency(billed), sublabel: "amount billed", color: "var(--ink)" },
             null,
-            { value: formatCurrency(expected), sublabel: "amount expected", color: "var(--surface)" },
+            { value: formatCurrency(expected), sublabel: "amount expected", color: "var(--ink)" },
             null,
             {
               value: formatCurrency(savings),
               sublabel: "potential savings",
-              color: savings > 0 ? "#7A9E87" : "#6B635C",
+              color: savings > 0 ? "#7A9E87" : "var(--ink-soft)",
             },
           ].map((item, i) =>
             item === null ? (
               <div
                 key={i}
-                style={{ width: "1px", backgroundColor: "#242424", alignSelf: "stretch", margin: "0 24px" }}
+                style={{ width: "1px", backgroundColor: "var(--line)", alignSelf: "stretch", margin: "0 24px" }}
               />
             ) : (
               <div key={i}>
@@ -1127,7 +1117,7 @@ export default function CaseDetailPage({
                 >
                   {item.value}
                 </div>
-                <div style={{ ...sans("11px", "#6B635C"), marginTop: "6px" }}>{item.sublabel}</div>
+                <div style={{ ...sans("11px", "var(--ink-soft)"), marginTop: "6px" }}>{item.sublabel}</div>
               </div>
             )
           )}
@@ -1137,7 +1127,7 @@ export default function CaseDetailPage({
         {letter ? (
           <div
             style={{
-              backgroundColor: "#1A1A1A",
+              backgroundColor: "var(--surface-raised)",
               borderLeft: "4px solid #C8A97E",
               padding: "20px 24px",
               marginTop: "32px",
@@ -1149,7 +1139,7 @@ export default function CaseDetailPage({
             <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
               {letterStale ? "Your letter is out of date." : "Your Evidentiary Package is ready."}
             </div>
-            <p style={{ ...sans("13px", "#A89F96") }}>
+            <p style={{ ...sans("13px", "var(--ink-soft)") }}>
               {letterStale
                 ? "Your audit was updated after this letter was created, the numbers no longer match. Regenerate the letter to re-enable download and mailing."
                 : "A complete, ready-to-send PDF: cover sheet, dispute letter, chronological timeline, financial calculation worksheet, regulatory citation appendix, and a deadline summary."}
@@ -1221,7 +1211,7 @@ export default function CaseDetailPage({
         ) : caseRow.status === "error_found" ? (
           <div
             style={{
-              backgroundColor: "#1A1A1A",
+              backgroundColor: "var(--surface-raised)",
               borderLeft: "4px solid #C8A97E",
               padding: "20px 24px",
               marginTop: "32px",
@@ -1233,7 +1223,7 @@ export default function CaseDetailPage({
             <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
               {findingsCount} {findingsCount === 1 ? "error" : "errors"} found.
             </div>
-            <p style={{ ...sans("13px", "#A89F96") }}>
+            <p style={{ ...sans("13px", "var(--ink-soft)") }}>
               {unlocked
                 ? "Your dispute package is unlocked. Generate your insurer-ready letter, regulatory citations, chronological timeline, and evidence included."
                 : "Turn these findings into a ready-to-send dispute package: an insurer-specific letter, regulatory citations, and a step-by-step submission guide."}
@@ -1257,7 +1247,7 @@ export default function CaseDetailPage({
         ) : caseRow.status === "no_errors" ? (
           <div
             style={{
-              backgroundColor: "#1A1A1A",
+              backgroundColor: "var(--surface-raised)",
               borderLeft: "4px solid #7A9E87",
               padding: "20px 24px",
               marginTop: "32px",
@@ -1266,7 +1256,7 @@ export default function CaseDetailPage({
             <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
               No errors found.
             </div>
-            <p style={{ ...sans("13px", "#A89F96"), marginTop: "8px" }}>
+            <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "8px" }}>
               We audited every charge against the Medicare Physician Fee Schedule,
               NCCI edits, and MUE limits. This bill is clean.
             </p>
@@ -1274,7 +1264,7 @@ export default function CaseDetailPage({
         ) : (
           <div
             style={{
-              backgroundColor: "#1A1A1A",
+              backgroundColor: "var(--surface-raised)",
               borderLeft: "4px solid var(--brand)",
               padding: "20px 24px",
               marginTop: "32px",
@@ -1283,7 +1273,7 @@ export default function CaseDetailPage({
             <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
               {statusCfg.label}.
             </div>
-            <p style={{ ...sans("13px", "#A89F96"), marginTop: "8px" }}>
+            <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "8px" }}>
               We&apos;re reviewing your bill now. Check back shortly.
             </p>
           </div>
@@ -1319,7 +1309,7 @@ export default function CaseDetailPage({
                   <button
                     onClick={() => setEditingFhs(true)}
                     style={{
-                      ...sans("11px", "#A89F96"),
+                      ...sans("11px", "var(--ink-soft)"),
                       background: "none",
                       border: "none",
                       cursor: "pointer",
@@ -1372,7 +1362,7 @@ export default function CaseDetailPage({
                   <div style={{ ...label("#C47C6A"), marginBottom: "6px" }}>
                     Possible incomplete read
                   </div>
-                  <p style={{ ...sans("13px", "#A89F96"), lineHeight: 1.6 }}>
+                  <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.6 }}>
                     The charge lines we extracted add up to noticeably less than the total
                     printed on your bill, some pages or rows may not have been read. These
                     findings may be incomplete: re-upload all pages of the itemized bill
@@ -1394,7 +1384,7 @@ export default function CaseDetailPage({
                   }}
                 >
                   <div style={{ ...label("#C8A97E"), marginBottom: "6px" }}>EOB notice</div>
-                  <p style={{ ...sans("13px", "#A89F96"), lineHeight: 1.6 }}>
+                  <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.6 }}>
                     We couldn&apos;t read your EOB, so this audit was completed using your bill
                     only. Re-upload a clearer EOB (PDF or photo) to add the bill-vs-EOB cross-check.
                   </p>
@@ -1404,7 +1394,7 @@ export default function CaseDetailPage({
               {/* Cross-document discrepancies (bill vs. EOB) */}
               {cbsSet && (cbsSet.crossDocumentDiscrepancies?.length ?? 0) > 0 && (
                 <div style={{ marginBottom: "48px" }}>
-                  <div style={{ ...label("#6B635C"), marginBottom: "16px" }}>
+                  <div style={{ ...label("var(--ink-soft)"), marginBottom: "16px" }}>
                     Cross-document findings · bill vs. EOB
                   </div>
                   {cbsSet.crossDocumentDiscrepancies.map((d) => {
@@ -1414,8 +1404,8 @@ export default function CaseDetailPage({
                       <div
                         key={d.discrepancyId}
                         style={{
-                          backgroundColor: "var(--ink)",
-                          border: "1px solid #242424",
+                          backgroundColor: "var(--surface-raised)",
+                          border: "1px solid var(--line)",
                           borderLeft: `3px solid ${sev}`,
                           padding: "20px 24px",
                           marginBottom: "12px",
@@ -1434,11 +1424,11 @@ export default function CaseDetailPage({
                         <div style={{ ...sans("10px", sev), letterSpacing: "0.15em", textTransform: "uppercase", marginTop: "4px" }}>
                           {d.severity} · {Math.round(d.confidenceScore * 100)}% confidence
                         </div>
-                        <p style={{ ...sans("13px", "#A89F96"), marginTop: "10px", lineHeight: 1.65 }}>
+                        <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "10px", lineHeight: 1.65 }}>
                           {d.description}
                         </p>
                         {d.applicableRegulations.length > 0 && (
-                          <div style={{ ...sans("11px", "#6B635C"), marginTop: "10px", lineHeight: 1.55 }}>
+                          <div style={{ ...sans("11px", "var(--ink-soft)"), marginTop: "10px", lineHeight: 1.55 }}>
                             {d.applicableRegulations.map((reg, ri) => (
                               <div key={ri} style={{ marginTop: ri === 0 ? 0 : "4px" }}>· {reg}</div>
                             ))}
@@ -1491,16 +1481,16 @@ export default function CaseDetailPage({
               </div>
             ))}
 
-          <div style={{ ...label("#6B635C"), marginBottom: "24px" }}>Audit findings</div>
+          <div style={{ ...label("var(--ink-soft)"), marginBottom: "24px" }}>Audit findings</div>
 
           {caseRow.status === "auditing" ? (
             <div style={{ textAlign: "center", paddingTop: "80px", paddingBottom: "80px" }}>
-              <div style={{ ...serif("32px", { fontStyle: "italic", color: "#A89F96" }) }}>
+              <div style={{ ...serif("32px", { fontStyle: "italic", color: "var(--ink-soft)" }) }}>
                 This audit didn&apos;t finish.
               </div>
               <p
                 style={{
-                  ...sans("14px", "#6B635C"),
+                  ...sans("14px", "var(--ink-soft)"),
                   marginTop: "16px",
                   maxWidth: "440px",
                   marginLeft: "auto",
@@ -1537,7 +1527,7 @@ export default function CaseDetailPage({
             expected === 0 && !caseRow.bill_data?.hasEob ? (
               <div
                 style={{
-                  backgroundColor: "var(--ink)",
+                  backgroundColor: "var(--surface-raised)",
                   border: "1px solid rgba(200,169,126,0.4)",
                   borderLeft: "4px solid #C8A97E",
                   padding: "32px",
@@ -1546,7 +1536,7 @@ export default function CaseDetailPage({
                 <div style={{ ...serif("22px", { color: "#C8A97E", fontStyle: "italic" }) }}>
                   Reference data gap.
                 </div>
-                <p style={{ ...sans("13px", "#A89F96"), marginTop: "12px", lineHeight: 1.65 }}>
+                <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "12px", lineHeight: 1.65 }}>
                   Fee schedule lookup returned no matches, the CPT codes on this
                   bill may not be in our reference data. This audit should not be
                   treated as exhaustive until the relevant codes are loaded.
@@ -1555,8 +1545,8 @@ export default function CaseDetailPage({
             ) : (
               <div
                 style={{
-                  backgroundColor: "var(--ink)",
-                  border: "1px solid #242424",
+                  backgroundColor: "var(--surface-raised)",
+                  border: "1px solid var(--line)",
                   padding: "32px",
                   textAlign: "center",
                 }}
@@ -1564,7 +1554,7 @@ export default function CaseDetailPage({
                 <div style={{ ...serif("26px", { color: "#7A9E87", fontStyle: "italic" }) }}>
                   Clean bill.
                 </div>
-                <p style={{ ...sans("13px", "#A89F96"), marginTop: "12px", lineHeight: 1.65 }}>
+                <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "12px", lineHeight: 1.65 }}>
                   Every charge on this bill matched its expected rate, was not
                   duplicated, and did not trigger any NCCI or MUE edits.
                 </p>
@@ -1579,18 +1569,18 @@ export default function CaseDetailPage({
                   gridTemplateColumns: "72px 1fr 100px 100px 120px",
                   gap: "12px",
                   paddingBottom: "12px",
-                  borderBottom: "1px solid #242424",
+                  borderBottom: "1px solid var(--line)",
                 }}
               >
                 {["Code", "Issue", "Billed", "Expected", "Confidence"].map((h) => (
-                  <span key={h} style={{ ...sans("11px", "#6B635C"), letterSpacing: "0.15em", textTransform: "uppercase" }}>
+                  <span key={h} style={{ ...sans("11px", "var(--ink-soft)"), letterSpacing: "0.15em", textTransform: "uppercase" }}>
                     {h}
                   </span>
                 ))}
               </div>
 
               {errors.map((err, i) => (
-                <div key={`${err.cpt_code}-${i}`} style={{ borderBottom: "1px solid #1C1C1C" }}>
+                <div key={`${err.cpt_code}-${i}`} style={{ borderBottom: "1px solid var(--line)" }}>
                   <div
                     style={{
                       display: "grid",
@@ -1601,33 +1591,33 @@ export default function CaseDetailPage({
                       alignItems: "start",
                     }}
                   >
-                    <span style={{ ...sans("12px", "#6B635C"), letterSpacing: "0.04em" }}>
+                    <span style={{ ...sans("12px", "var(--ink-soft)"), letterSpacing: "0.04em" }}>
                       {err.cpt_code}
                     </span>
                     <div>
-                      <div style={{ ...sans("13px", "var(--surface)") }}>
+                      <div style={{ ...sans("13px", "var(--ink)") }}>
                         {errorTypeLabel(err.error_type)}
                         {err.description ? `, ${err.description}` : ""}
                       </div>
                     </div>
-                    <span style={{ ...sans("13px", "#A89F96") }}>
+                    <span style={{ ...sans("13px", "var(--ink-soft)") }}>
                       {formatCurrency(err.billed_amount)}
                     </span>
-                    <span style={{ ...sans("13px", "#A89F96") }}>
+                    <span style={{ ...sans("13px", "var(--ink-soft)") }}>
                       {formatCurrency(err.expected_amount)}
                     </span>
                     <ConfidenceBadge confidence={err.confidence} />
                   </div>
                   <div
                     style={{
-                      backgroundColor: "var(--ink)",
+                      backgroundColor: "var(--surface-raised)",
                       padding: "16px 20px",
                       marginBottom: "0",
                     }}
                   >
                     <div
                       style={{
-                        ...sans("10px", "#6B635C"),
+                        ...sans("10px", "var(--ink-soft)"),
                         letterSpacing: "0.2em",
                         textTransform: "uppercase",
                         marginBottom: "8px",
@@ -1635,10 +1625,10 @@ export default function CaseDetailPage({
                     >
                       Evidence
                     </div>
-                    <p style={{ ...sans("13px", "#A89F96"), lineHeight: 1.65 }}>
+                    <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.65 }}>
                       {err.explanation}
                     </p>
-                    <div style={{ ...sans("11px", "#6B635C"), marginTop: "8px", letterSpacing: "0.05em" }}>
+                    <div style={{ ...sans("11px", "var(--ink-soft)"), marginTop: "8px", letterSpacing: "0.05em" }}>
                       Rule: {err.rule_violated}
                     </div>
                   </div>
@@ -1646,7 +1636,7 @@ export default function CaseDetailPage({
               ))}
 
               <div style={{ paddingTop: "24px", textAlign: "right" }}>
-                <span style={{ ...sans("13px", "#6B635C") }}>Potential savings:</span>
+                <span style={{ ...sans("13px", "var(--ink-soft)") }}>Potential savings:</span>
                 <span
                   style={{
                     fontFamily: "var(--font-fraunces), Georgia, serif",
@@ -1676,12 +1666,12 @@ export default function CaseDetailPage({
           {/* Case meta */}
           <div
             style={{
-              backgroundColor: "var(--ink)",
-              border: "1px solid #242424",
+              backgroundColor: "var(--surface-raised)",
+              border: "1px solid var(--line)",
               padding: "24px",
             }}
           >
-            <div style={{ ...label("#6B635C"), marginBottom: "16px" }}>Case summary</div>
+            <div style={{ ...label("var(--ink-soft)"), marginBottom: "16px" }}>Case summary</div>
             {[
               { k: "Status", v: statusCfg.label },
               { k: "Filed", v: formatDate(caseRow.created_at) },
@@ -1695,11 +1685,11 @@ export default function CaseDetailPage({
                   display: "flex",
                   justifyContent: "space-between",
                   padding: "10px 0",
-                  borderBottom: i < arr.length - 1 ? "1px solid #1C1C1C" : "none",
+                  borderBottom: i < arr.length - 1 ? "1px solid var(--line)" : "none",
                 }}
               >
-                <span style={{ ...sans("12px", "#6B635C") }}>{row.k}</span>
-                <span style={{ ...sans("13px", "#A89F96") }}>{row.v}</span>
+                <span style={{ ...sans("12px", "var(--ink-soft)") }}>{row.k}</span>
+                <span style={{ ...sans("13px", "var(--ink-soft)") }}>{row.v}</span>
               </div>
             ))}
           </div>
@@ -1707,15 +1697,15 @@ export default function CaseDetailPage({
           {/* User notes */}
           {caseRow.bill_data?.userNotes && caseRow.bill_data.userNotes.trim() && (
             <div>
-              <div style={{ ...label("#6B635C"), marginBottom: "12px" }}>Your notes</div>
+              <div style={{ ...label("var(--ink-soft)"), marginBottom: "12px" }}>Your notes</div>
               <div
                 style={{
-                  backgroundColor: "var(--ink)",
-                  border: "1px solid #242424",
+                  backgroundColor: "var(--surface-raised)",
+                  border: "1px solid var(--line)",
                   padding: "16px 20px",
                 }}
               >
-                <p style={{ ...sans("13px", "#A89F96"), lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
+                <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
                   {caseRow.bill_data.userNotes}
                 </p>
               </div>
@@ -1726,12 +1716,12 @@ export default function CaseDetailPage({
           {savings > 0 && (
             <div
               style={{
-                backgroundColor: "var(--ink)",
-                border: "1px solid #242424",
+                backgroundColor: "var(--surface-raised)",
+                border: "1px solid var(--line)",
                 padding: "24px",
               }}
             >
-              <div style={{ ...label("#6B635C"), marginBottom: "12px" }}>Potential savings</div>
+              <div style={{ ...label("var(--ink-soft)"), marginBottom: "12px" }}>Potential savings</div>
               <div
                 style={{
                   fontFamily: "var(--font-fraunces), Georgia, serif",
@@ -1746,7 +1736,7 @@ export default function CaseDetailPage({
               >
                 {formatCurrency(savings)}
               </div>
-              <div style={{ ...sans("12px", "#6B635C"), marginTop: "8px" }}>
+              <div style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "8px" }}>
                 estimated from audit
               </div>
             </div>

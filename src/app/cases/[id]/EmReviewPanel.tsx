@@ -16,13 +16,13 @@ const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties =
   fontOpticalSizing: "auto",
   letterSpacing: "-0.015em",
   fontSize: size,
-  color: "var(--surface)",
+  color: "var(--ink)",
   lineHeight: 1,
   fontWeight: 400,
   ...extra,
 });
 
-const sans = (size: string, color = "#A89F96", extra?: React.CSSProperties): React.CSSProperties => ({
+const sans = (size: string, color = "var(--ink-soft)", extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
@@ -185,8 +185,8 @@ export default function EmReviewPanel({
   return (
     <div
       style={{
-        backgroundColor: "var(--ink)",
-        border: "1px solid #242424",
+        backgroundColor: "var(--surface-raised)",
+        border: "1px solid var(--line)",
         borderLeft: "3px solid #C8A97E",
         padding: "32px",
       }}
@@ -199,7 +199,7 @@ export default function EmReviewPanel({
       </h2>
       <p
         style={{
-          ...sans("14px", "#A89F96"),
+          ...sans("14px", "var(--ink-soft)"),
           marginTop: "16px",
           maxWidth: "640px",
           lineHeight: 1.65,
@@ -225,7 +225,7 @@ export default function EmReviewPanel({
           const questions = questionsByBlock.get(blockName) ?? [];
           return (
             <div key={blockName}>
-              <div style={{ ...label("#6B635C"), marginBottom: "16px" }}>
+              <div style={{ ...label("var(--ink-soft)"), marginBottom: "16px" }}>
                 Block {bi + 1}, {blockName}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
@@ -235,7 +235,7 @@ export default function EmReviewPanel({
                     <div key={q.id}>
                       <div
                         style={{
-                          ...sans("15px", "var(--surface)", {
+                          ...sans("15px", "var(--ink)", {
                             lineHeight: 1.5,
                             fontWeight: 400,
                           }),
@@ -246,7 +246,7 @@ export default function EmReviewPanel({
                       {q.help && (
                         <div
                           style={{
-                            ...sans("12px", "#6B635C", {
+                            ...sans("12px", "var(--ink-soft)", {
                               marginTop: "4px",
                               fontStyle: "italic",
                               lineHeight: 1.5,
@@ -274,12 +274,12 @@ export default function EmReviewPanel({
                               style={{
                                 ...sans(
                                   "13px",
-                                  active ? "var(--ink)" : "#A89F96"
+                                  active ? "var(--ink)" : "var(--ink-soft)"
                                 ),
                                 backgroundColor: active
                                   ? "#C8A97E"
                                   : "transparent",
-                                border: `1px solid ${active ? "#C8A97E" : "#2A2A2A"}`,
+                                border: `1px solid ${active ? "#C8A97E" : "var(--line)"}`,
                                 padding: "10px 16px",
                                 cursor: "pointer",
                                 transition:
@@ -290,13 +290,13 @@ export default function EmReviewPanel({
                               onMouseEnter={(e) => {
                                 if (!active) {
                                   e.currentTarget.style.borderColor = "#4A4A4A";
-                                  e.currentTarget.style.color = "var(--surface)";
+                                  e.currentTarget.style.color = "var(--ink)";
                                 }
                               }}
                               onMouseLeave={(e) => {
                                 if (!active) {
-                                  e.currentTarget.style.borderColor = "#2A2A2A";
-                                  e.currentTarget.style.color = "#A89F96";
+                                  e.currentTarget.style.borderColor = "var(--line)";
+                                  e.currentTarget.style.color = "var(--ink-soft)";
                                 }
                               }}
                             >
@@ -346,10 +346,10 @@ export default function EmReviewPanel({
           style={{
             ...sans(
               "11px",
-              allAnswered && !submitting ? "var(--ink)" : "#6B635C"
+              allAnswered && !submitting ? "var(--ink)" : "var(--ink-soft)"
             ),
             backgroundColor:
-              allAnswered && !submitting ? "#C8A97E" : "#1A1A1A",
+              allAnswered && !submitting ? "#C8A97E" : "var(--surface-raised)",
             padding: "14px 28px",
             border: "none",
             letterSpacing: "0.2em",
@@ -362,7 +362,7 @@ export default function EmReviewPanel({
           {buttonLabel}
         </button>
         {!allAnswered && (
-          <span style={{ ...sans("12px", "#6B635C") }}>
+          <span style={{ ...sans("12px", "var(--ink-soft)") }}>
             Answer all {EM_QUESTIONS.length} questions to continue.
           </span>
         )}

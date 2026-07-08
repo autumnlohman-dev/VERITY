@@ -60,3 +60,59 @@ describe('design token guards', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// ── WCAG AA contrast floor for the token pairs the app uses as text ──────────
+// The paper scheme (--surface page, --ink text) must hold 4.5:1 for every
+// body-text pairing actually in use. Computed from the real values in
+// globals.css so a token tweak that breaks contrast fails here.
+function tokenValues(): Record<string, string> {
+  const css = readFileSync(join(process.cwd(), 'src', 'app', 'globals.css'), 'utf8');
+  const out: Record<string, string> = {};
+  for (const m of css.matchAll(/--([a-z-]+):\s*(#[0-9A-Fa-f]{6})/g)) out[m[1]] = m[2];
+  return out;
+}
+
+function luminance(hex: string): number {
+  const c = [1, 3, 5].map((i) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+
+function contrast(fg: string, bg: string): number {
+  const [l1, l2] = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
+  return (l1 + 0.05) / (l2 + 0.05);
+}
+
+describe('contrast floor (WCAG AA 4.5:1) for token text pairs in use', () => {
+  const t = tokenValues();
+  // [foreground token, background token] — every body-text pairing the paper
+  // scheme uses. urgent-amber is NOT here: it fails 4.5:1 on cream and is
+  // reserved for borders/accents, never small text.
+  const pairs: Array<[string, string]> = [
+    ['ink', 'surface'],
+    ['ink', 'surface-raised'],
+    ['ink-soft', 'surface'],
+    ['ink-soft', 'surface-raised'],
+    ['brand', 'surface'],
+    ['urgent-red', 'surface'],
+    ['urgent-red', 'surface-raised'],
+    ['surface-raised', 'brand'], // button text on brand buttons
+    ['surface-raised', 'urgent-red'], // destructive button text
+  ];
+
+  it.each(pairs)('%s on %s meets 4.5:1', (fg, bg) => {
+    expect(t[fg], `token --${fg} missing from globals.css`).toBeTruthy();
+    expect(t[bg], `token --${bg} missing from globals.css`).toBeTruthy();
+    expect(contrast(t[fg], t[bg])).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('urgent-amber is never used as small text on surface (fails AA); border/accent only', () => {
+    expect(contrast(t['urgent-amber'], t['surface'])).toBeLessThan(4.5); // documents WHY the rule exists
+    const offenders = allUiSource()
+      .filter((f) => /color:\s*["']var\(--urgent-amber\)|label\(["']var\(--urgent-amber\)/.test(f.content))
+      .map((f) => f.path);
+    expect(offenders).toEqual([]);
+  });
+});

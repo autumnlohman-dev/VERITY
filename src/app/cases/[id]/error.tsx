@@ -22,13 +22,13 @@ export default function CaseError({
   }, [error])
 
   return (
-    <div style={{ background: 'var(--ink)', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center', fontFamily: 'var(--font-public-sans), system-ui, sans-serif', color: 'var(--surface)' }}>
+    <div style={{ background: 'var(--surface)', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center', fontFamily: 'var(--font-public-sans), system-ui, sans-serif', color: 'var(--ink)' }}>
       <div style={{ fontFamily: 'var(--font-fraunces), Georgia, serif',
   fontOpticalSizing: 'auto',
   letterSpacing: '-0.015em', fontSize: '40px', lineHeight: 1.1, maxWidth: '460px' }}>
         We couldn&apos;t display this case.
       </div>
-      <p style={{ fontSize: '14px', color: '#A89F96', marginTop: '16px', maxWidth: '420px', lineHeight: 1.65 }}>
+      <p style={{ fontSize: '14px', color: 'var(--ink-soft)', marginTop: '16px', maxWidth: '420px', lineHeight: 1.65 }}>
         Your audit is safe, this is only a display error, and it&apos;s been
         reported. Try again, or head back to your dashboard.
       </p>
@@ -41,7 +41,7 @@ export default function CaseError({
         </button>
         <Link
           href="/dashboard"
-          style={{ fontSize: '11px', color: '#A89F96', padding: '12px 24px', letterSpacing: '0.2em', textTransform: 'uppercase', border: '1px solid #242424', textDecoration: 'none' }}
+          style={{ fontSize: '11px', color: 'var(--ink-soft)', padding: '12px 24px', letterSpacing: '0.2em', textTransform: 'uppercase', border: '1px solid var(--line)', textDecoration: 'none' }}
         >
           Dashboard
         </Link>

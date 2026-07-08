@@ -19,7 +19,7 @@ export default async function GatePage({
     <div
       style={{
         minHeight: "100vh",
-        background: "var(--ink)",
+        background: "var(--surface)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -35,7 +35,7 @@ export default async function GatePage({
             fontSize: "14px",
             letterSpacing: "0.3em",
             textTransform: "uppercase",
-            color: "var(--surface)",
+            color: "var(--ink)",
             fontWeight: 500,
             marginBottom: "12px",
           }}
@@ -49,7 +49,7 @@ export default async function GatePage({
   letterSpacing: "-0.015em",
             fontSize: "30px",
             fontStyle: "italic",
-            color: "#A89F96",
+            color: "var(--ink-soft)",
             lineHeight: 1.2,
             marginBottom: "36px",
           }}
@@ -74,9 +74,9 @@ export default async function GatePage({
             style={{
               width: "100%",
               padding: "14px 16px",
-              background: "#1A1A1A",
-              border: `1px solid ${error ? "#C47C6A" : "#2A2A2A"}`,
-              color: "var(--surface)",
+              background: "var(--surface-raised)",
+              border: `1px solid ${error ? "#C47C6A" : "var(--line)"}`,
+              color: "var(--ink)",
               fontSize: "14px",
               letterSpacing: "0.05em",
               outline: "none",

@@ -92,7 +92,7 @@ export default function LoginPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'var(--ink)',
+      background: 'var(--surface)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -102,27 +102,27 @@ export default function LoginPage() {
         width: '100%',
         maxWidth: '400px',
         padding: '48px',
-        background: '#1A1A1A',
-        border: '1px solid #2A2A2A',
+        background: 'var(--surface-raised)',
+        border: '1px solid var(--line)',
       }}>
         <h1 style={{
           fontFamily: 'var(--font-fraunces, serif)',
           fontOpticalSizing: 'auto' as const,
           letterSpacing: '-0.015em',
           fontSize: '36px',
-          color: 'var(--surface)',
+          color: 'var(--ink)',
           marginBottom: '8px',
           fontWeight: 400
         }}>
           {isSignUp ? 'Create account.' : 'Welcome back.'}
         </h1>
-        <p style={{ color: '#A89F96', fontSize: '14px', marginBottom: '32px' }}>
+        <p style={{ color: 'var(--ink-soft)', fontSize: '14px', marginBottom: '32px' }}>
           {isSignUp ? 'Start your free bill audit.' : `Sign in to your ${BRAND_NAME} account.`}
         </p>
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', color: '#A89F96', fontSize: '12px', marginBottom: '8px', letterSpacing: '0.05em' }}>
+            <label style={{ display: 'block', color: 'var(--ink-soft)', fontSize: '12px', marginBottom: '8px', letterSpacing: '0.05em' }}>
               EMAIL
             </label>
             <input
@@ -133,9 +133,9 @@ export default function LoginPage() {
               style={{
                 width: '100%',
                 padding: '12px',
-                background: 'var(--ink)',
-                border: '1px solid #2A2A2A',
-                color: 'var(--surface)',
+                background: 'var(--surface)',
+                border: '1px solid var(--line)',
+                color: 'var(--ink)',
                 fontSize: '14px',
                 outline: 'none',
                 boxSizing: 'border-box'
@@ -144,7 +144,7 @@ export default function LoginPage() {
           </div>
 
           <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', color: '#A89F96', fontSize: '12px', marginBottom: '8px', letterSpacing: '0.05em' }}>
+            <label style={{ display: 'block', color: 'var(--ink-soft)', fontSize: '12px', marginBottom: '8px', letterSpacing: '0.05em' }}>
               PASSWORD
             </label>
             <input
@@ -155,9 +155,9 @@ export default function LoginPage() {
               style={{
                 width: '100%',
                 padding: '12px',
-                background: 'var(--ink)',
-                border: '1px solid #2A2A2A',
-                color: 'var(--surface)',
+                background: 'var(--surface)',
+                border: '1px solid var(--line)',
+                color: 'var(--ink)',
                 fontSize: '14px',
                 outline: 'none',
                 boxSizing: 'border-box'
@@ -199,7 +199,7 @@ export default function LoginPage() {
             {loading ? 'Please wait...' : isSignUp ? 'Create account' : 'Sign in'}
           </button>
 
-          <p style={{ color: '#A89F96', fontSize: '14px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--ink-soft)', fontSize: '14px', textAlign: 'center' }}>
             {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
             <span
               onClick={() => {
