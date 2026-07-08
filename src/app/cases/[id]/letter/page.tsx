@@ -535,6 +535,59 @@ const SELF_PAY_SUBMISSION_OPTIONS = [
   },
 ];
 
+// ─── Letter generation progress ──────────────────────────────────────────────
+// The Anthropic call takes up to a minute; a silent screen reads as frozen.
+// Rotate through human-readable stages so the wait feels accounted for.
+const GENERATION_STEPS = [
+  "Reviewing your audit findings…",
+  "Drafting your letter…",
+  "Checking citations…",
+];
+
+function GenerationProgress() {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(
+      () => setStep((s) => (s + 1) % GENERATION_STEPS.length),
+      4000
+    );
+    return () => clearInterval(iv);
+  }, []);
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      style={{ display: "flex", flexDirection: "column", alignItems: "center" }}
+    >
+      <style>{`
+        @keyframes spin-ring { to { transform: rotate(360deg); } }
+      `}</style>
+      <div
+        aria-hidden="true"
+        style={{
+          width: "28px",
+          height: "28px",
+          borderRadius: "50%",
+          border: "2px solid rgba(200,169,126,0.25)",
+          borderTopColor: "#C8A97E",
+          animation: "spin-ring 0.9s linear infinite",
+          marginBottom: "24px",
+        }}
+      />
+      <motion.span
+        key={step}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        style={{ ...sans("14px", "#C8A97E"), letterSpacing: "0.05em" }}
+      >
+        {GENERATION_STEPS[step]}
+      </motion.span>
+    </div>
+  );
+}
+
 // ─── Patient info panel ──────────────────────────────────────────────────────
 function PatientInfoPanel({
   caseId,
@@ -1471,7 +1524,7 @@ export default function LetterPage({
               marginBottom: "24px",
             }}
           />
-        ) : (
+        ) : !generating ? (
           <div
             className="dot-pulse"
             style={{
@@ -1482,7 +1535,7 @@ export default function LetterPage({
               marginBottom: "24px",
             }}
           />
-        )}
+        ) : null}
         <div style={{ ...serif("40px", { lineHeight: 1.1 }), maxWidth: "460px" }}>
           {failed ? "We couldn't generate your letter." : "Building your dispute package."}
         </div>
@@ -1494,6 +1547,11 @@ export default function LetterPage({
             ? `${genError} Your purchase is safe — you can retry as many times as you need.`
             : "This takes up to a minute — drafting your insurer-specific letter, regulatory citations, and evidence. This page updates automatically when it's ready."}
         </p>
+        {generating && !failed && (
+          <div style={{ marginTop: "32px" }}>
+            <GenerationProgress />
+          </div>
+        )}
         <div style={{ display: "flex", gap: "12px", marginTop: "32px" }}>
           <button
             onClick={() => void generate()}

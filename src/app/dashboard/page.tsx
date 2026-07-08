@@ -347,11 +347,115 @@ function EmptyState() {
   );
 }
 
+function DeleteConfirmModal({
+  caseRow,
+  deleting,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  caseRow: CaseRow;
+  deleting: boolean;
+  error: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const providerName = caseRow.provider_name?.trim() || "Pending provider";
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-case-title"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 100,
+        backgroundColor: "rgba(0,0,0,0.7)",
+        backdropFilter: "blur(6px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "32px 16px",
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !deleting) onCancel();
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        style={{
+          width: "100%",
+          maxWidth: "440px",
+          backgroundColor: "#111111",
+          border: "1px solid #242424",
+          borderLeft: "4px solid #C47C6A",
+          padding: "32px",
+        }}
+      >
+        <h2 id="delete-case-title" style={{ ...serif("28px", { lineHeight: 1.2 }), margin: 0 }}>
+          Delete this case?
+        </h2>
+        <p style={{ ...sans("13px", "#A89F96"), marginTop: "12px", lineHeight: 1.6 }}>
+          This can&rsquo;t be undone. The case for{" "}
+          <span style={{ color: "#F5F0E8" }}>{providerName}</span>, its audit findings, any
+          dispute letters, and the uploaded documents will be permanently removed.
+        </p>
+        {error && (
+          <p role="alert" style={{ ...sans("12px", "#C47C6A"), marginTop: "12px" }}>
+            {error}
+          </p>
+        )}
+        <div style={{ display: "flex", gap: "12px", marginTop: "28px", justifyContent: "flex-end" }}>
+          <button
+            onClick={onCancel}
+            disabled={deleting}
+            style={{
+              ...sans("11px", "#A89F96"),
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              background: "transparent",
+              border: "1px solid #242424",
+              padding: "10px 20px",
+              cursor: deleting ? "not-allowed" : "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            style={{
+              ...sans("11px", "#0D0D0D"),
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              backgroundColor: "#C47C6A",
+              border: "none",
+              padding: "10px 20px",
+              cursor: deleting ? "wait" : "pointer",
+              opacity: deleting ? 0.6 : 1,
+              fontWeight: 500,
+            }}
+          >
+            {deleting ? "Deleting…" : "Delete case"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [cases, setCases] = useState<CaseRow[]>([]);
+  // Delete flow: which case the confirm modal is open for, whether the DELETE
+  // request is in flight, and the last failure (shown inside the modal).
+  const [confirmDelete, setConfirmDelete] = useState<CaseRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   // Membership entitles every case to letter generation; non-members are
   // entitled per case via dispute_paid. Fetched once to keep row CTAs cheap.
   const [isMember, setIsMember] = useState(false);
@@ -421,6 +525,26 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, [router]);
+
+  async function deleteCase(c: CaseRow) {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/cases/${c.id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDeleteError(json.error ?? "Couldn't delete this case. Please try again.");
+        return;
+      }
+      setCases((prev) => prev.filter((x) => x.id !== c.id));
+      setConfirmDelete(null);
+    } catch {
+      setDeleteError("Couldn't delete this case. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   const totals = cases.reduce(
     (acc, c) => {
@@ -757,12 +881,46 @@ export default function DashboardPage() {
                       {letterCta.label}
                     </Link>
                   )}
+                  <button
+                    onClick={() => {
+                      setDeleteError(null);
+                      setConfirmDelete(c);
+                    }}
+                    aria-label={`Delete case for ${providerName}`}
+                    style={{
+                      ...sans("11px", "#6B635C"),
+                      letterSpacing: "0.05em",
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      cursor: "pointer",
+                      transition: "color 0.2s",
+                      textAlign: "right",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#C47C6A")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#6B635C")}
+                  >
+                    Delete
+                  </button>
                 </div>
               </motion.div>
             );
           })}
         </div>
       </div>
+
+      {confirmDelete && (
+        <DeleteConfirmModal
+          caseRow={confirmDelete}
+          deleting={deleting}
+          error={deleteError}
+          onConfirm={() => void deleteCase(confirmDelete)}
+          onCancel={() => {
+            setConfirmDelete(null);
+            setDeleteError(null);
+          }}
+        />
+      )}
     </Shell>
   );
 }
