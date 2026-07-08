@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isSupportedExt } from '@/lib/extraction'
 import { BILLS_BUCKET, buildBillPath, isUuid } from '@/lib/storage/bills'
+import { checkRateLimit, clientIp } from '@/lib/rateLimit'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -39,6 +40,22 @@ export async function POST(request: Request) {
       prefix = `guest/${guestSessionId}`
     } else {
       return NextResponse.json({ error: 'Missing session' }, { status: 400 })
+    }
+
+    // Throttle URL minting (each mint = a storage write grant). Guests key on
+    // IP — the guestSessionId is client-chosen, so it can't be the limiter.
+    // Signed-in users get a generous ceiling: a full multi-page audit is up to
+    // 20 files (10 pages × 2 slots) plus retries.
+    const rl = await checkRateLimit(
+      user
+        ? { bucket: `upload-url:user:${user.id}`, limit: 120, windowSeconds: 600 }
+        : { bucket: `upload-url:ip:${clientIp(request)}`, limit: 30, windowSeconds: 600 }
+    )
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many uploads in a short period. Please wait a few minutes and try again.' },
+        { status: 429 }
+      )
     }
 
     const path = buildBillPath(prefix, slot, fileName, Date.now())

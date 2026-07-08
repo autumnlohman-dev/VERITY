@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEntitlements } from '@/lib/entitlements'
+import { checkRateLimit } from '@/lib/rateLimit'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -27,6 +28,19 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Please sign in to redeem a promo code.', code: 'auth_required' },
         { status: 401 }
+      )
+    }
+
+    // Throttle code-guessing: 5 attempts per user per hour.
+    const rl = await checkRateLimit({
+      bucket: `promo:${user.id}`,
+      limit: 5,
+      windowSeconds: 3600,
+    })
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many promo attempts. Please wait an hour and try again.' },
+        { status: 429 }
       )
     }
 

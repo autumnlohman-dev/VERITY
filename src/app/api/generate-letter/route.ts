@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { renderEmReviewForPrompt, type EmReview } from '@/lib/emReview'
 import { disputeUnlocked } from '@/lib/entitlements'
 import { boundedMessage, deidentifyFreeText } from '@/lib/ai/phiBoundary'
+import { checkRateLimit } from '@/lib/rateLimit'
 
 // The Anthropic SDK needs the Node runtime (never edge). A full evidentiary
 // letter is ~6000 output tokens (≈90–120s at Sonnet speeds), so the old 60s
@@ -112,6 +113,20 @@ export async function POST(request: Request) {
           code: 'payment_required',
         },
         { status: 402 }
+      )
+    }
+
+    // Throttle AFTER the entitlement check so unpaid probes never consume the
+    // window; this is the most expensive model call in the product (290s cap).
+    const rl = await checkRateLimit({
+      bucket: `letter:${user.id}`,
+      limit: 20,
+      windowSeconds: 3600,
+    })
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many letters generated in a short period. Please wait an hour and try again.' },
+        { status: 429 }
       )
     }
 

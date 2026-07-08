@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import * as Sentry from '@sentry/nextjs'
 import { NextResponse } from 'next/server'
 import { boundedMessage, deidentifyFreeText } from '@/lib/ai/phiBoundary'
+import { checkRateLimit, clientIp } from '@/lib/rateLimit'
 import { createClient } from '@/lib/supabase/server'
 import { cbsSetForCase } from '@/lib/deadlines/forCase'
 import { calculateDeadlines } from '@/lib/deadlines/calculator'
@@ -112,15 +113,33 @@ export async function POST(request: Request) {
     }
     const caseId = typeof body.caseId === 'string' ? body.caseId : null
 
+    // Resolve auth ONCE, before any Anthropic call — the throttle below keys on
+    // it, and the previous shape (auth checked only inside the caseId branch)
+    // let an anonymous no-caseId request reach the model call unmetered.
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    // Throttle EVERY path to the model call, including no-caseId guests: this
+    // route spends Anthropic tokens for anyone who can POST a statement.
+    const rl = await checkRateLimit(
+      user
+        ? { bucket: `copilot:user:${user.id}`, limit: 30, windowSeconds: 600 }
+        : { bucket: `copilot:ip:${clientIp(request)}`, limit: 15, windowSeconds: 600 }
+    )
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests in a short period. Please wait a few minutes and try again.' },
+        { status: 429 }
+      )
+    }
+
     // ── Load this case's context (owner-scoped). Case context is optional: a
     // signed-out guest, or a request with no caseId, still gets general guidance.
     let contextSection = ''
     let caseLoaded = false
     if (caseId) {
-      const supabase = await createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
       if (user) {
         const { data: caseRow } = await supabase
           .from('cases')
