@@ -36,6 +36,20 @@ function extractFirstMatch(text: string, patterns: RegExp[]): string | undefined
   return undefined
 }
 
+// A name captured off a label line can be residue rather than a name — the
+// classic case is "Provider:   NPI: 1234567890" (no provider printed), where
+// the lazy match hands back the literal "NPI". Reject those so downstream
+// surfaces (timeline entity names, letters) never print "Provider: NPI".
+function cleanEntityName(name: string | undefined): string | undefined {
+  if (!name) return undefined
+  const cleaned = name.replace(/\bNPI\b:?\s*$/i, '').replace(/[\s,.:]+$/g, '').trim()
+  if (cleaned.length < 2) return undefined
+  // Residue of the label line itself ("Provider:  NPI" with no name printed)
+  // or explicit non-values — never a real entity name.
+  if (/^(npi|n\/?a|none|unknown|provider|facility|physician|insurance|payer|plan|insured|member|patient)$/i.test(cleaned)) return undefined
+  return cleaned
+}
+
 function extractDate(text: string, labels: string[]): string | undefined {
   for (const label of labels) {
     const re = new RegExp(
@@ -396,7 +410,7 @@ export function extractToCBS(
   // EOBs label the contracted/allowed column variously: "Amount Covered" on
   // many commercial EOBs is the allowed amount after discounts and reductions.
   const totalAllowed = extractDollarAmount(rawText, ['total allowed', 'allowed amount', 'amount covered', 'contracted rate'])
-  const totalPatientResponsibility = extractDollarAmount(rawText, ['patient responsibility', 'your responsibility', 'amount due', 'balance due', 'you owe'])
+  const totalPatientResponsibility = extractDollarAmount(rawText, ['total you owe', 'patient responsibility', 'your responsibility', 'amount due', 'balance due', 'you owe'])
   const totalPaid = extractDollarAmount(rawText, ['amount paid', 'plan paid', 'insurance paid', 'benefit paid'])
 
   // Denial/auth
@@ -433,6 +447,19 @@ export function extractToCBS(
     ? extractEOBLineItems(rawText)
     : [] // Bills get line items from the existing billExtractor
 
+  // The EOB's total patient obligation ("You Owe"). Prefer the transcribed
+  // header total; fall back to summing the per-line patient-responsibility
+  // column when every printed value is line-level. This total is the honest
+  // benchmark the patient_responsibility_mismatch check compares against.
+  let eobPatientRespTotal = totalPatientResponsibility
+  if (docType === 'eob' && eobPatientRespTotal === undefined) {
+    const lineResp = lineItems.filter((l) => typeof l.patientResponsibility === 'number')
+    if (lineResp.length > 0) {
+      eobPatientRespTotal =
+        Math.round(lineResp.reduce((s, l) => s + (l.patientResponsibility ?? 0), 0) * 100) / 100
+    }
+  }
+
   // Derive episodeId from claimNumber or dateOfService
   const serviceEpisodeId = claimNumber || (dateOfService ? `episode_${dateOfService}` : undefined)
 
@@ -443,14 +470,14 @@ export function extractToCBS(
     dateOfService,
     serviceEpisodeId,
     claimNumber,
-    providerName: providerName?.substring(0, 100),
+    providerName: cleanEntityName(providerName)?.substring(0, 100),
     providerNPI,
-    payerName: payerName?.substring(0, 100),
+    payerName: cleanEntityName(payerName)?.substring(0, 100),
     payerMemberId,
     lineItems,
     totalBilled,
     totalAllowed,
-    totalPatientResponsibility,
+    totalPatientResponsibility: docType === 'eob' ? eobPatientRespTotal : totalPatientResponsibility,
     totalPaid,
     adjudicationStatus,
     denialReason: denialReason?.substring(0, 200),
@@ -489,10 +516,17 @@ export function billExtractionToCBS(
       patient_name: string
       account_number: string
     }
+    // The bill's own stated summary figures (vision-transcribed, not computed).
+    // patientResponsibility is the bottom-line the patient is asked to pay —
+    // the number the cross-document comparison holds against the EOB's total.
+    totals?: {
+      billed?: number | null
+      patientResponsibility?: number | null
+    }
   },
   documentId: string
 ): CanonicalBillingSchema {
-  const { lineItems, billMetadata } = extraction
+  const { lineItems, billMetadata, totals } = extraction
 
   const cbsLineItems: CBSLineItem[] = lineItems.map(li => ({
     lineItemId: crypto.randomUUID(),
@@ -506,6 +540,7 @@ export function billExtractionToCBS(
 
   const totalBilled = lineItems.reduce((sum, li) => sum + (li.billed_amount || 0), 0)
   const dateOfService = lineItems[0]?.date_of_service
+  const statedPatientResp = Number(totals?.patientResponsibility)
 
   return {
     sourceDocumentId: documentId,
@@ -518,6 +553,8 @@ export function billExtractionToCBS(
     providerNPI: billMetadata.provider_npi || undefined,
     lineItems: cbsLineItems,
     totalBilled,
+    totalPatientResponsibility:
+      Number.isFinite(statedPatientResp) && statedPatientResp >= 0 ? statedPatientResp : undefined,
     billDate: billMetadata.bill_date || undefined,
     discrepancies: [],
     temporalInconsistencies: [],

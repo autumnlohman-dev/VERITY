@@ -37,13 +37,18 @@ export class EOBExtractionError extends Error {
 
 const EOB_TRANSCRIBE_SYSTEM = `You read an Explanation of Benefits (EOB) / remittance document and output a NORMALIZED transcription. Never invent, round, or omit values.
 
-First, transcribe these labeled header fields, each on its own line, when present:
+First, transcribe these labeled header fields, each on its own line, when present
+(omit a line entirely when the document does not print that field — never leave
+a label with an empty value):
   Claim Number: ...
-  Provider: ...   NPI: ...
+  Provider: ...
+  NPI: ...
   Member ID: [REDACTED]
   Date of Service: MM/DD/YYYY
   Processed/EOB Date: MM/DD/YYYY
   Appeal by: MM/DD/YYYY
+  Total You Owe: ...   (the EOB's total patient responsibility across all claims —
+  the "You Owe" / "Your Total Costs" / "Patient Responsibility" TOTAL, numbers only)
 
 PRIVACY — never transcribe patient identifiers: write the literal text
 [REDACTED] for the Member ID value, and NEVER output the patient's name,

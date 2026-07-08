@@ -20,6 +20,12 @@ export type DiscrepancyType =
   | 'duplicate_charge'
   | 'unauthorized_service'
   | 'balance_billing_violation'
+  // The primary bill-vs-EOB finding: the bill asks the patient to pay more than
+  // the EOB's adjudicated patient responsibility. Compared at the TOTAL level
+  // (bill's stated bottom-line vs EOB's "You Owe"), never from gross line
+  // charges — an itemized line's list price is not the amount billed to the
+  // patient on an adjudicated claim.
+  | 'patient_responsibility_mismatch'
   | 'denied_service_billed'
   | 'denial_without_authorization'
   | 'temporal_inconsistency'

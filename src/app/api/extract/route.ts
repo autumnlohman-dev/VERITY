@@ -150,7 +150,7 @@ export async function POST(request: Request) {
     }
 
     // Vision extraction (proprietary Component I).
-    const { lineItems, provider, dateOfService, lowConfidence, sawContent } =
+    const { lineItems, provider, dateOfService, lowConfidence, sawContent, statedTotalBilled, patientResponsibility } =
       await extractFromBase64(billBase64, ext)
     if (lineItems.length === 0) {
       // Distinguish a readable document with no charge lines from a file we
@@ -183,6 +183,7 @@ export async function POST(request: Request) {
       docIdBase: caseId,
       accountNumber: caseId,
       eob: resolvedEobBase64 ? { base64: resolvedEobBase64, ext: eobExt } : null,
+      billTotals: { statedTotalBilled, patientResponsibility },
       // The patient's note (collected at case creation) drives patient-dispute
       // flagging — ported here from the now-removed /api/audit route.
       userNotes: typeof existingBillData.userNotes === 'string' ? existingBillData.userNotes : undefined,
@@ -239,6 +240,9 @@ export async function POST(request: Request) {
               hasEob: result.hasEob,
               eobError: result.eobError,
               lowConfidence: result.lowConfidence,
+              billPatientResponsibility: result.billPatientResponsibility,
+              eobPatientResponsibility: result.eobPatientResponsibility,
+              suspectedPartialRead: result.suspectedPartialRead,
             },
           })
           .eq('id', duplicate.id)
@@ -272,6 +276,11 @@ export async function POST(request: Request) {
       hasEob: result.hasEob,
       eobError: result.eobError,
       lowConfidence: result.lowConfidence,
+      // The bill's stated bottom line, the EOB's adjudicated obligation, and
+      // the partial-read flag — the case page's honest-numbers inputs.
+      billPatientResponsibility: result.billPatientResponsibility,
+      eobPatientResponsibility: result.eobPatientResponsibility,
+      suspectedPartialRead: result.suspectedPartialRead,
       // One bill/EOB record with page references: the original page files (in
       // merge order) plus the merged artifact when the upload was multi-file.
       ...(bill.pageRefs.length > 0 ? { billPages: bill.pageRefs } : {}),
@@ -309,6 +318,7 @@ export async function POST(request: Request) {
       lowConfidence: result.lowConfidence,
       hasEob: result.hasEob,
       eobError: result.eobError,
+      suspectedPartialRead: result.suspectedPartialRead,
     })
   } catch (error) {
     console.error('Extract/audit error:', error)

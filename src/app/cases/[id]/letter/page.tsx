@@ -21,6 +21,8 @@ import { deadlinesForCase } from "@/lib/deadlines/forCase";
 import { isSelfPay } from "@/lib/insuranceMapping";
 import { filterOutEmErrors, type EmReview } from "@/lib/emReview";
 import type { BillingError } from "@/lib/errorDetection";
+import { letterRecipient, type RecipientSignal } from "@/lib/letters/recipient";
+import { formatCalendarDate } from "@/lib/dates";
 import { MailItPanel, type MailState, type MailAddress } from "@/components/MailItPanel";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
@@ -480,17 +482,10 @@ function MarkdownLetter({ content }: { content: string }) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+// Timezone-safe: date-only strings ("2026-06-28") are calendar dates and must
+// never shift a day for viewers west of Greenwich.
 function formatLongDate(iso: string | null): string {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
-  } catch {
-    return iso;
-  }
+  return formatCalendarDate(iso, { month: "long", day: "numeric", year: "numeric" });
 }
 
 const INSURED_SUBMISSION_OPTIONS = [
@@ -511,6 +506,31 @@ const INSURED_SUBMISSION_OPTIONS = [
     color: "#7A9E87",
     detail:
       "Mail to the claims review address on the back of your insurance card. Use certified mail with return receipt so you have dated proof of delivery.",
+  },
+];
+
+// Insured, but the letter disputes the PROVIDER's bill (e.g. it asks for more
+// than the EOB's adjudicated patient responsibility). Submission must go where
+// the letter is addressed — telling the user to use the insurer portal for a
+// letter addressed to the hospital gets it discarded on arrival.
+const PROVIDER_DISPUTE_SUBMISSION_OPTIONS = [
+  {
+    method: "Send to the provider's billing office",
+    color: "#7A9E87",
+    detail:
+      "Mail this letter to the patient billing / accounts-receivable department shown on your itemized statement. Use certified mail with return receipt for dated proof of delivery — or use “Mail it for me” below to have us print and send it.",
+  },
+  {
+    method: "Send a copy to your insurer",
+    color: "#4A90D9",
+    detail:
+      "Send a courtesy copy to your insurer's member services (address on the back of your insurance card) noting the provider is billing above the adjudicated patient responsibility on your EOB. The plan can pressure an in-network provider to honor its contract.",
+  },
+  {
+    method: "Escalate if unresolved",
+    color: "#C8A97E",
+    detail:
+      "If the provider doesn't correct the bill within 30 days, file a complaint with your state's attorney general / consumer protection office, and at cms.gov/nosurprises (1-800-985-3059) if the care was emergency or out-of-network at an in-network facility.",
   },
 ];
 
@@ -1610,7 +1630,27 @@ export default function LetterPage({
     caseDeadlines.find((d) => d.daysRemaining >= 0) ?? caseDeadlines[0] ?? null;
   const patientInfo = caseRow.patient_info ?? {};
   const patientInfoFilled = Boolean(patientInfo.name?.trim());
-  const submissionOptions = selfPay ? SELF_PAY_SUBMISSION_OPTIONS : INSURED_SUBMISSION_OPTIONS;
+  // Submission instructions must match the letter's recipient (same decision
+  // logic as /api/generate-letter): a provider-billing dispute is submitted to
+  // the provider, an adverse-benefit appeal to the insurer.
+  const recipientSignals: RecipientSignal[] = [
+    ...(((caseRow.bill_data as Record<string, unknown> | null)?.normalizedCbs as
+      | { crossDocumentDiscrepancies?: Array<{ type?: string; estimatedDollarImpact?: number }> }
+      | undefined)?.crossDocumentDiscrepancies ?? []).map((d) => ({
+      type: String(d.type ?? ""),
+      dollarImpact: Number(d.estimatedDollarImpact) || 0,
+    })),
+    ...((caseRow.errors_found as Array<Record<string, unknown>> | null) ?? []).map((e) => ({
+      type: String(e.error_type ?? ""),
+      dollarImpact: Math.max(0, (Number(e.billed_amount) || 0) - (Number(e.expected_amount) || 0)),
+    })),
+  ];
+  const recipient = letterRecipient({ selfPay, findings: recipientSignals });
+  const submissionOptions = selfPay
+    ? SELF_PAY_SUBMISSION_OPTIONS
+    : recipient === "provider"
+    ? PROVIDER_DISPUTE_SUBMISSION_OPTIONS
+    : INSURED_SUBMISSION_OPTIONS;
   const displayContent = substitutePlaceholders(letter.letter_content, patientInfo, {
     provider_name: caseRow.provider_name,
   });
@@ -1825,7 +1865,7 @@ export default function LetterPage({
           ))}
         </div>
         <p style={{ ...sans("12px", "#6B635C"), fontStyle: "italic", marginTop: "24px", lineHeight: 1.65 }}>
-          {selfPay
+          {recipient === "provider"
             ? "Keep copies of everything you send and note the date submitted. Request a written response and an itemized, corrected statement before paying any disputed amount."
             : "Keep copies of everything you send and note the date submitted. Your insurer is required by law to acknowledge receipt within 10 business days and respond within 30."}
         </p>

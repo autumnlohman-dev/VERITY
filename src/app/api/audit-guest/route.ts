@@ -116,7 +116,7 @@ export async function POST(request: Request) {
     }
 
     // Vision extraction (proprietary Component I).
-    const { lineItems, provider, dateOfService, lowConfidence, sawContent } =
+    const { lineItems, provider, dateOfService, lowConfidence, sawContent, statedTotalBilled, patientResponsibility } =
       await extractFromBase64(billBase64, ext)
     if (lineItems.length === 0) {
       // Distinguish a readable document with no charge lines from a file we
@@ -143,6 +143,7 @@ export async function POST(request: Request) {
       lowConfidence,
       docIdBase: 'guest',
       eob: resolvedEobBase64 ? { base64: resolvedEobBase64, ext: eobExt } : null,
+      billTotals: { statedTotalBilled, patientResponsibility },
       supabase,
     })
 
@@ -158,6 +159,9 @@ export async function POST(request: Request) {
       lowConfidence: result.lowConfidence,
       hasEob: result.hasEob,
       eobError: result.eobError,
+      billPatientResponsibility: result.billPatientResponsibility,
+      eobPatientResponsibility: result.eobPatientResponsibility,
+      suspectedPartialRead: result.suspectedPartialRead,
       crossDocumentDiscrepancies: result.normalizedCbs.crossDocumentDiscrepancies,
       timeline: result.normalizedCbs.timeline,
       normalizedCbs: result.normalizedCbs,

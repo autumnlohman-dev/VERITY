@@ -39,11 +39,14 @@ describe('datesMatch', () => {
 });
 
 describe('bill↔EOB pairing across date formats', () => {
-  it('pairs a US-format bill line with an ISO EOB line and flags balance billing', () => {
+  it('pairs a US-format bill line with an ISO EOB line (eobBenchmarked + totals mismatch)', () => {
     // Codeless commercial-EOB shape: pairing must go through the
     // amount + service_date fallback, which the H2 bug defeated.
     // Shared serviceEpisodeId mirrors runFullAudit, which stamps the same
     // episode onto both docs before calling normalizeCBSSet.
+    // (Post gross-charge fix, pairing no longer emits per-line balance-billing
+    // findings — its observable effects are the eobBenchmarked flag + copied
+    // adjudication values, and the total-level PR mismatch when totals exist.)
     const bill: CanonicalBillingSchema = {
       sourceDocumentId: 'doc-bill',
       sourceDocumentType: 'itemized_bill',
@@ -59,6 +62,7 @@ describe('bill↔EOB pairing across date formats', () => {
         },
       ],
       totalBilled: 350,
+      totalPatientResponsibility: 350, // bill asks full gross from the patient
       discrepancies: [],
       temporalInconsistencies: [],
     };
@@ -78,16 +82,27 @@ describe('bill↔EOB pairing across date formats', () => {
         },
       ],
       totalBilled: 350,
+      totalPatientResponsibility: 40, // EOB: patient owes $40
       discrepancies: [],
       temporalInconsistencies: [],
     };
 
     const result = normalizeCBSSet([bill, eob]);
-    const balanceBilling = result.crossDocumentDiscrepancies.filter(
-      (d) => d.type === 'balance_billing_violation'
+    // Pairing succeeded across date formats → the bill line is benchmarked to
+    // the EOB adjudication (this is what the H2 date bug silently defeated).
+    const billDoc = result.documents.find((d) => d.sourceDocumentType === 'itemized_bill')!;
+    expect(billDoc.lineItems[0].eobBenchmarked).toBe(true);
+    expect(billDoc.lineItems[0].allowedAmount).toBe(180);
+    expect(billDoc.lineItems[0].patientResponsibility).toBe(40);
+    // Bill demands $350 from the patient; EOB adjudicated $40 → one total-level
+    // mismatch of $310 (never a per-line gross-charge "balance bill").
+    const mismatches = result.crossDocumentDiscrepancies.filter(
+      (d) => d.type === 'patient_responsibility_mismatch'
     );
-    expect(balanceBilling).toHaveLength(1);
-    // Billed $350 vs $40 patient responsibility → $310 balance bill.
-    expect(balanceBilling[0].estimatedDollarImpact).toBe(310);
+    expect(mismatches).toHaveLength(1);
+    expect(mismatches[0].estimatedDollarImpact).toBe(310);
+    expect(
+      result.crossDocumentDiscrepancies.filter((d) => d.type === 'balance_billing_violation')
+    ).toHaveLength(0);
   });
 });

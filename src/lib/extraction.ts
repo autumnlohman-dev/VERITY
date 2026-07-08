@@ -31,6 +31,13 @@ Rules:
   "COMMERCIAL INSURANCE PAYMENT", "CONTRACTUAL ALLOWANCE ADJUST", "OTHER CREDIT ADJUSTMENT"). Also skip
   subtotals, taxes, and summary/total rows.
 - Capture modifiers attached to a CPT (e.g. 59, 25, XU).
+- In "totals", transcribe the bill's own stated summary figures when printed:
+  "billed" = total charges (the gross sum of services), and
+  "patient_responsibility" = the bottom-line amount the PATIENT is asked to pay
+  after insurance payments and adjustments (labels like "Patient Responsibility",
+  "Amount Due", "Please Pay This Amount", "Patient Balance", "Balance Due").
+  These are different numbers on an insured bill — never substitute one for the
+  other, and use null when the bill does not print the figure.
 - NEVER transcribe patient identifiers into your output: no patient name, no
   member/subscriber ID, no mailing address, no phone, no email, no SSN. These
   fields are not part of the schema below — do not add them anywhere.
@@ -44,7 +51,7 @@ Return ONLY a JSON object, no prose, matching exactly:
       "encounter": string | null, "units": number, "billed_amount": number, "modifiers": string[],
       "field_confidence": "high" | "medium" | "low" }
   ],
-  "totals": { "billed": number | null }
+  "totals": { "billed": number | null, "patient_responsibility": number | null }
 }`
 
 const IMAGE_TYPES: Record<string, 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'> = {
@@ -79,6 +86,14 @@ export type ExtractionResult = {
   // total, or any rows) even if no billable charge lines survived. Lets callers
   // tell an unreadable file apart from a readable document with no charge lines.
   sawContent: boolean
+  // The bill's own stated summary figures, transcribed (not computed):
+  // statedTotalBilled = printed total charges; patientResponsibility = the
+  // bottom-line the patient is asked to pay after insurance. Null when the bill
+  // doesn't print the figure. patientResponsibility is the honest ceiling on
+  // any "potential savings" claim, and statedTotalBilled powers the partial-
+  // read guard (extracted lines summing well below the printed total).
+  statedTotalBilled: number | null
+  patientResponsibility: number | null
 }
 
 export function isSupportedExt(ext: string): boolean {
@@ -175,6 +190,7 @@ export async function extractFromBase64(base64: string, ext: string): Promise<Ex
 
   const provider = typeof parsed.provider === 'string' ? parsed.provider : null
   const totalBilled = Number(parsed.totals?.billed)
+  const patientResp = Number(parsed.totals?.patient_responsibility)
   // The model returned a recognizable billing document even if every row was
   // filtered out — a kind, a provider, a billed total, or at least one raw row.
   const sawContent =
@@ -190,5 +206,7 @@ export async function extractFromBase64(base64: string, ext: string): Promise<Ex
     dateOfService: typeof parsed.date_of_service === 'string' ? parsed.date_of_service : null,
     lowConfidence,
     sawContent,
+    statedTotalBilled: Number.isFinite(totalBilled) && totalBilled > 0 ? totalBilled : null,
+    patientResponsibility: Number.isFinite(patientResp) && patientResp >= 0 ? patientResp : null,
   }
 }

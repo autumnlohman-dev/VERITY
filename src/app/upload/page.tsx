@@ -11,6 +11,7 @@ import { saveGuestClaim } from "@/lib/guestClaim";
 import { AuditProgress } from "@/components/AuditProgress";
 import type { CBSDiscrepancy } from "@/lib/cbs/schema";
 import { MAX_PAGES_PER_DOC, MAX_TOTAL_DOC_BYTES, isMergeableExt } from "@/lib/documents/limits";
+import { MANUAL_REVIEW_ERROR_TYPES } from "@/lib/audit/manualReview";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -213,9 +214,9 @@ type GuestAudit = {
   crossDocumentDiscrepancies?: CBSDiscrepancy[];
 };
 
-// Findings the audit couldn't price (e.g. proprietary facility codes) aren't
-// overcharges — they're flagged for manual review, never summed into recoverable.
-const MANUAL_REVIEW_ERROR_TYPES = new Set(["rate_unavailable", "reference_data_missing"]);
+// Findings the audit couldn't price (e.g. proprietary facility codes) and
+// informational coding observations aren't overcharges — never summed into
+// recoverable. Shared definition with the server pipeline (imported above).
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -977,7 +978,7 @@ function UploadPageInner() {
                     <div style={{ textAlign: "right" }}>
                       {isManualReview ? (
                         <div style={{ ...sans("10px", "#8A7F6E"), letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                          needs review
+                          {e.error_type === "coding_observation" ? "informational" : "needs review"}
                         </div>
                       ) : (
                         <>

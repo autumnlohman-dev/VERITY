@@ -176,6 +176,28 @@ const NO_SURPRISES_REG =
   'No Surprises Act (42 U.S.C. § 300gg-111) — protects against being billed above your plan-determined cost sharing for covered care.'
 const ALLOWED_AMOUNT_REG =
   "Plan allowed-amount obligation — an in-network provider accepts the EOB's allowed amount as payment in full and may bill you only the patient-responsibility shown, not the difference."
+const APPEAL_RIGHTS_REG =
+  'ERISA § 503 / ACA § 2719 (29 U.S.C. § 1133; 42 U.S.C. § 300gg-19) — right to appeal an adverse benefit determination.'
+
+// Emergency-department E&M codes: the only context where the No Surprises Act
+// citation is defensible without knowing network status. A routine in-network
+// adjudicated claim is a contract/adjudication dispute, not an NSA violation.
+const EMERGENCY_EM_CODES = new Set(['99281', '99282', '99283', '99284', '99285'])
+
+// The EOB's total patient obligation: prefer the document's stated total,
+// falling back to the sum of per-line patient responsibility.
+function eobPatientObligation(eob: CanonicalBillingSchema): number | undefined {
+  if (typeof eob.totalPatientResponsibility === 'number') return eob.totalPatientResponsibility
+  const lines = eob.lineItems.filter((l) => typeof l.patientResponsibility === 'number')
+  if (lines.length === 0) return undefined
+  return Math.round(lines.reduce((s, l) => s + (l.patientResponsibility ?? 0), 0) * 100) / 100
+}
+
+function mismatchSeverity(diff: number): CBSDiscrepancy['severity'] {
+  if (diff >= 1000) return 'critical'
+  if (diff >= 100) return 'high'
+  return 'medium'
+}
 
 // ─── Cross-document discrepancy detection ────────────────────────────────────
 
@@ -187,80 +209,133 @@ function detectDiscrepancies(
 ): CBSDiscrepancy[] {
   const discrepancies: CBSDiscrepancy[] = []
 
-  // Bill vs EOB: per-line matching → balance billing / denied-but-billed.
-  // When an EOB is present its allowed amount is the binding benchmark for
-  // matched lines; we deliberately do NOT also run a total-level allowed-vs-
-  // billed comparison (that double-counts the per-line findings) and we mark
-  // matched bill lines `eobBenchmarked` so Medicare CLFS/PFS pricing skips them.
+  // Bill vs EOB. CORE PRINCIPLE: a bill's line-item gross charges are LIST
+  // PRICES, not the amount billed to the patient — on an adjudicated claim the
+  // patient is billed the bottom-line Patient Responsibility AFTER insurance
+  // adjustments and payments. So the PRIMARY finding here is total-level: the
+  // bill's stated patient responsibility vs the EOB's "You Owe". Per-line
+  // gross-charge-vs-patient-share comparisons are never balance billing on an
+  // adjudicated claim (they manufactured false criticals) and are gone.
+  // Per-line matching remains for: marking bill lines `eobBenchmarked` (so CMS
+  // PFS/CLFS pricing defers to the payer's adjudication) and per-line patient-
+  // share checks in the rare case the BILL itself states a per-line share.
   if (bill && eob) {
     const { pairs, unmatchedBill, eobHasAnyCpt } = matchBillToEOB(bill, eob)
+    const deniedContext: string[] = []
 
     for (const { billLine, eobLine } of pairs) {
-      const billed = billLine.billedAmount ?? 0
       const allowed = eobLine.allowedAmount
-      const patientResp = eobLine.patientResponsibility
-      // Bind the bill line to the EOB benchmark so CLFS pricing won't re-flag it.
+      const eobLineResp = eobLine.patientResponsibility
+      // The bill's OWN stated per-line patient share, captured BEFORE the EOB
+      // value is copied onto the line. Most itemized bills print none — then
+      // there is no per-line comparison to make, and we don't infer one.
+      const billStatedShare = billLine.patientResponsibility
+
+      // Bind the bill line to the EOB benchmark so CLFS/PFS pricing won't re-flag it.
       billLine.eobBenchmarked = true
       if (allowed !== undefined) billLine.allowedAmount = allowed
-      if (patientResp !== undefined) billLine.patientResponsibility = patientResp
+      if (eobLineResp !== undefined) billLine.patientResponsibility = eobLineResp
 
       const codeLabel = normCode(billLine.cptCode)
         ? `CPT ${normCode(billLine.cptCode)} — `
         : ''
       const desc = eobLine.description || billLine.description || 'this service'
 
-      // DENIED-BUT-BILLED: EOB shows $0 owed with a denial note, yet the
-      // provider is charging the patient.
-      if (isDeniedLine(eobLine) && (patientResp ?? 0) <= 0 && billed > 0) {
+      // DENIED-BUT-BILLED — only when the BILL states a per-line patient share
+      // above the EOB's $0 adjudication. A gross charge printed on an itemized
+      // line is not evidence the patient is being charged for it; denied lines
+      // without a bill-stated share become context on the total-level finding.
+      if (isDeniedLine(eobLine) && (eobLineResp ?? 0) <= 0) {
         const note = eobLine.noteFlags?.[0]
-        discrepancies.push({
-          discrepancyId: crypto.randomUUID(),
-          type: 'denied_service_billed',
-          severity: 'high',
-          confidenceScore: 0.85,
-          estimatedDollarImpact: Math.round(billed * 100) / 100,
-          documentA: bill.sourceDocumentId,
-          documentB: eob.sourceDocumentId,
-          fieldName: 'patientResponsibility',
-          valueA: `$${billed.toFixed(2)} billed to you`,
-          valueB: '$0.00 patient responsibility (denied)',
-          description:
-            `${codeLabel}${desc}: your EOB adjudicated this line at $0.00 patient responsibility` +
-            (note ? ` — "${note}"` : '') +
-            `, yet the provider is billing you $${billed.toFixed(2)}. A line the plan did not hold you responsible for cannot be billed to you; dispute it or appeal the denial.`,
-          applicableRegulations: [
-            ALLOWED_AMOUNT_REG,
-            'ERISA § 503 / ACA § 2719 (29 U.S.C. § 1133; 42 U.S.C. § 300gg-19) — right to appeal an adverse benefit determination.',
-          ],
-        })
+        if (billStatedShare !== undefined && billStatedShare > BALANCE_BILLING_TOLERANCE) {
+          discrepancies.push({
+            discrepancyId: crypto.randomUUID(),
+            type: 'denied_service_billed',
+            severity: 'high',
+            confidenceScore: 0.85,
+            estimatedDollarImpact: Math.round(billStatedShare * 100) / 100,
+            documentA: bill.sourceDocumentId,
+            documentB: eob.sourceDocumentId,
+            fieldName: 'patientResponsibility',
+            valueA: `$${billStatedShare.toFixed(2)} patient share on bill`,
+            valueB: '$0.00 patient responsibility (denied)',
+            description:
+              `${codeLabel}${desc}: your EOB adjudicated this line at $0.00 patient responsibility` +
+              (note ? ` — "${note}"` : '') +
+              `, yet the bill assigns you a $${billStatedShare.toFixed(2)} share for it. A line the plan did not hold you responsible for cannot be billed to you; dispute it or appeal the denial.`,
+            applicableRegulations: [ALLOWED_AMOUNT_REG, APPEAL_RIGHTS_REG],
+          })
+        } else {
+          deniedContext.push(`${codeLabel}${desc}${note ? ` ("${note}")` : ''}`)
+        }
         continue
       }
 
-      // BALANCE BILLING: the charge to the patient exceeds what the EOB says
-      // they actually owe (patient responsibility, falling back to allowed).
-      const benchmark = patientResp ?? allowed
-      if (benchmark !== undefined && billed > benchmark + BALANCE_BILLING_TOLERANCE) {
-        const over = Math.round((billed - benchmark) * 100) / 100
+      // PER-LINE PATIENT-SHARE MISMATCH — only when the bill itself states a
+      // per-line patient share and it exceeds the EOB's per-line figure.
+      if (
+        billStatedShare !== undefined &&
+        eobLineResp !== undefined &&
+        billStatedShare > eobLineResp + BALANCE_BILLING_TOLERANCE
+      ) {
+        const over = Math.round((billStatedShare - eobLineResp) * 100) / 100
         discrepancies.push({
           discrepancyId: crypto.randomUUID(),
           type: 'balance_billing_violation',
-          severity: 'critical',
-          confidenceScore: 0.9,
+          severity: mismatchSeverity(over),
+          confidenceScore: 0.85,
           estimatedDollarImpact: over,
           documentA: bill.sourceDocumentId,
           documentB: eob.sourceDocumentId,
-          fieldName: 'billedAmount vs patientResponsibility',
-          valueA: `$${billed.toFixed(2)} billed to you`,
-          valueB:
-            `$${benchmark.toFixed(2)} you actually owe` +
-            (allowed !== undefined ? ` (allowed $${allowed.toFixed(2)})` : ''),
+          fieldName: 'patientResponsibility',
+          valueA: `$${billStatedShare.toFixed(2)} patient share on bill`,
+          valueB: `$${eobLineResp.toFixed(2)} patient responsibility per EOB`,
           description:
-            `${codeLabel}${desc}: the provider is billing you $${billed.toFixed(2)}, but your EOB shows you owe only $${benchmark.toFixed(2)}` +
+            `${codeLabel}${desc}: the bill assigns you a $${billStatedShare.toFixed(2)} share for this line, but your EOB adjudicated your responsibility at $${eobLineResp.toFixed(2)}` +
             (allowed !== undefined ? ` against an allowed amount of $${allowed.toFixed(2)}` : '') +
-            `. The EOB itself states that when the amount billed is more than what is allowed, your provider should not bill you for any balance over what is allowed. You owe $${benchmark.toFixed(2)}, not $${billed.toFixed(2)} — a balance bill of $${over.toFixed(2)}.`,
-          applicableRegulations: [NO_SURPRISES_REG, ALLOWED_AMOUNT_REG],
+            `. You owe the EOB amount; the $${over.toFixed(2)} above it should be written off.`,
+          applicableRegulations: [ALLOWED_AMOUNT_REG],
         })
       }
+    }
+
+    // ── PRIMARY CHECK: total patient responsibility, bill vs EOB ────────────
+    // The one comparison that respects how adjudicated claims work: what the
+    // bill asks the patient to pay vs what the payer says the patient owes.
+    const billPatientResp = bill.totalPatientResponsibility
+    const eobPatientResp = eobPatientObligation(eob)
+    if (
+      billPatientResp !== undefined &&
+      eobPatientResp !== undefined &&
+      billPatientResp > eobPatientResp + BALANCE_BILLING_TOLERANCE
+    ) {
+      const diff = Math.round((billPatientResp - eobPatientResp) * 100) / 100
+      // NSA is cited only where the context supports it (emergency care);
+      // otherwise this is a plan-adjudication dispute, not an NSA violation.
+      const hasEmergencyContext = bill.lineItems.some((l) =>
+        EMERGENCY_EM_CODES.has(normCode(l.cptCode))
+      )
+      const deniedNote =
+        deniedContext.length > 0
+          ? ` Note: the EOB shows ${deniedContext.length} line${deniedContext.length === 1 ? '' : 's'} adjudicated at $0.00 patient responsibility (${deniedContext.slice(0, 3).join('; ')}) — verify none of them are folded into the amount you are asked to pay.`
+          : ''
+      discrepancies.push({
+        discrepancyId: crypto.randomUUID(),
+        type: 'patient_responsibility_mismatch',
+        severity: mismatchSeverity(diff),
+        confidenceScore: 0.9,
+        estimatedDollarImpact: diff,
+        documentA: bill.sourceDocumentId,
+        documentB: eob.sourceDocumentId,
+        fieldName: 'totalPatientResponsibility',
+        valueA: `$${billPatientResp.toFixed(2)} patient responsibility per bill`,
+        valueB: `$${eobPatientResp.toFixed(2)} you owe per EOB`,
+        description:
+          `The bill asks you to pay $${billPatientResp.toFixed(2)}, but your insurer's adjudication of this claim (your EOB) puts your total responsibility at $${eobPatientResp.toFixed(2)} — a difference of $${diff.toFixed(2)}. Your obligation is the EOB amount; request the provider reconcile the bill to the adjudication and write off the $${diff.toFixed(2)} difference.${deniedNote}`,
+        applicableRegulations: hasEmergencyContext
+          ? [ALLOWED_AMOUNT_REG, NO_SURPRISES_REG, APPEAL_RIGHTS_REG]
+          : [ALLOWED_AMOUNT_REG, APPEAL_RIGHTS_REG],
+      })
     }
 
     // Only treat a bill code as "not adjudicated" when the EOB genuinely lists
@@ -411,6 +486,10 @@ function buildTimelineFromDocs(
         (f.type === 'service_before_authorization' && type === 'authorization') ||
         (f.type === 'collection_before_notice_period' && type === 'collection')
       )
+      // A 0/undefined amount is a missing figure, not a $0.00 event — omit it
+      // rather than render placeholder dollars. Entity names are shown only
+      // when a real name was extracted (never residue like "NPI").
+      const entityName = (doc.providerName || doc.payerName || '').trim() || undefined
       events.push({
         eventId: crypto.randomUUID(),
         date,
@@ -419,19 +498,23 @@ function buildTimelineFromDocs(
         description,
         sourceDocument: doc.sourceDocumentId,
         sourceDocumentType: doc.sourceDocumentType,
-        financialAmount: amount,
-        entityName: doc.providerName || doc.payerName,
+        financialAmount: typeof amount === 'number' && amount > 0 ? amount : undefined,
+        entityName,
         hasInconsistency: !!flag,
         inconsistencyDescription: flag?.description,
       })
     }
 
+    // Dollar clauses render only when the figure exists — "Bill issued for
+    // $0.00" / "allowed $0.00" were placeholder artifacts, not data.
+    const money = (n: number | undefined) =>
+      typeof n === 'number' && n > 0 ? `$${n.toFixed(2)}` : null
     if (doc.authorizationDate) addEvent(doc.authorizationDate, 'authorization', 'Prior Authorization', `Authorization ${doc.authorizationStatus || 'status unknown'}${doc.authorizationNumber ? ` (#${doc.authorizationNumber})` : ''}`)
-    if (doc.dateOfService) addEvent(doc.dateOfService, 'service', `Service at ${doc.providerName || 'Provider'}`, `Medical service rendered`, doc.totalBilled)
-    if (doc.billDate) addEvent(doc.billDate, 'billing', `Bill from ${doc.providerName || 'Provider'}`, `Bill issued for $${(doc.totalBilled || 0).toFixed(2)}`, doc.totalBilled)
-    if (doc.eobDate) addEvent(doc.eobDate, 'adjudication', `${doc.payerName || 'Insurer'} processed claim`, `Adjudication: ${doc.adjudicationStatus || 'unknown'} — allowed $${(doc.totalAllowed || 0).toFixed(2)}`, doc.totalAllowed)
+    if (doc.dateOfService) addEvent(doc.dateOfService, 'service', doc.providerName ? `Service at ${doc.providerName}` : 'Medical service', `Medical service rendered`, doc.totalBilled)
+    if (doc.billDate) addEvent(doc.billDate, 'billing', doc.providerName ? `Bill from ${doc.providerName}` : 'Bill issued', money(doc.totalBilled) ? `Bill issued for ${money(doc.totalBilled)}` : 'Bill issued', doc.totalBilled)
+    if (doc.eobDate) addEvent(doc.eobDate, 'adjudication', `${doc.payerName || 'Insurer'} processed claim`, `Adjudication: ${doc.adjudicationStatus || 'unknown'}${money(doc.totalAllowed) ? ` — allowed ${money(doc.totalAllowed)}` : ''}`, doc.totalAllowed)
     if (doc.denialDate) addEvent(doc.denialDate, 'denial', 'Claim Denied', doc.denialReason || `Denial code: ${doc.denialCode || 'unknown'}`)
-    if (doc.collectionDate) addEvent(doc.collectionDate, 'collection', 'Collection Notice', `Collection activity for $${(doc.totalBalance || doc.totalBilled || 0).toFixed(2)}`, doc.totalBalance)
+    if (doc.collectionDate) addEvent(doc.collectionDate, 'collection', 'Collection Notice', money(doc.totalBalance || doc.totalBilled) ? `Collection activity for ${money(doc.totalBalance || doc.totalBilled)}` : 'Collection activity', doc.totalBalance)
 
     // Appeal deadline as future event
     if (doc.appealDeadline) {

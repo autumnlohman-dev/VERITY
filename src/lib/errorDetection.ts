@@ -24,6 +24,11 @@ export interface LineItem {
    *  charges by encounter. Scopes duplicate detection so the same code recurring
    *  in different encounters isn't flagged as a duplicate. */
   encounter?: string
+  /** Set by runFullAudit when this line matched a line the patient's EOB
+   *  adjudicated. The payer has already repriced the line and set the patient's
+   *  share: CMS benchmark overcharges are suppressed for it, and NCCI/MUE
+   *  findings demote to informational coding observations. */
+  eobAdjudicated?: boolean
 }
 
 export type ErrorType =
@@ -35,6 +40,10 @@ export type ErrorType =
   | 'patient_disputed'
   | 'rate_unavailable'
   | 'reference_data_missing'
+  // Informational only: a coding pattern (NCCI pair / MUE units) the payer's
+  // own adjudication already accepted. Never in letters, never in dollar
+  // totals — kept visible in the audit UI pending expert policy review.
+  | 'coding_observation'
 export type Confidence = 'HIGH' | 'MEDIUM' | 'LOW'
 
 export interface BillingError {
@@ -94,6 +103,10 @@ function checkOvercharge(
     // these codes but are paid under OPPS, not the professional fee schedule, so
     // a PFS comparison would manufacture large false overcharges.
     if (EM_CPT_CODES.has(code)) continue
+    // EOB-adjudicated lines: the plan's allowed amount is the pricing reference,
+    // not the CMS benchmark — the payer already repriced the line and the
+    // patient's share is set. No overcharge finding, no demanded adjustment.
+    if (item.eobAdjudicated) continue
     const row = feeSchedule.get(code)
     if (!row) continue
 
@@ -119,6 +132,8 @@ function checkOvercharge(
       ? 'Medicare Clinical Laboratory Fee Schedule (Social Security Act § 1833(h), 42 U.S.C. § 1395l(h); 42 CFR Part 414, Subpart G) — charges materially above the CLFS allowed amount for the same lab HCPCS/CPT code.'
       : 'Medicare Physician Fee Schedule (42 CFR § 414) — charges materially above the PFS allowed amount for the same CPT code and locality.'
 
+    // Benchmark findings are a request for justification, never an owed
+    // amount: a CMS rate is a reference point, not this patient's contract.
     errors.push({
       cpt_code: code,
       description: item.description ?? row.description ?? '',
@@ -126,7 +141,7 @@ function checkOvercharge(
       billed_amount: billed,
       expected_amount: expectedTotal,
       confidence,
-      explanation: `Provider billed $${billed.toFixed(2)} for CPT ${code}, which is ${((ratio - 1) * 100).toFixed(0)}% above the ${scheduleName} allowed amount of $${expectedTotal.toFixed(2)}. Overcharge of $${overcharge.toFixed(2)}.`,
+      explanation: `Provider billed $${billed.toFixed(2)} for CPT ${code}, which is ${((ratio - 1) * 100).toFixed(0)}% above the ${scheduleName} benchmark of $${expectedTotal.toFixed(2)} (a difference of $${overcharge.toFixed(2)}). This benchmark comparison supports requesting that the provider justify the charge or reprice it; it does not by itself establish an amount owed.`,
       rule_violated: ruleViolated
     })
   }
@@ -177,6 +192,26 @@ function checkUnbundling(
       const expected = effectiveAllowedAmount(feeSchedule.get(col1))
       const billedPair = Number(item1.billed_amount) + Number(item2.billed_amount)
 
+      // When the payer's own adjudication accepted BOTH lines of the pair,
+      // asserting unbundling contradicts the EOB — the claim was processed
+      // through the payer's edits and the patient's share is set. Demote to an
+      // informational coding observation (visible in the audit UI, excluded
+      // from letters and dollar totals) pending expert policy review.
+      if (item1.eobAdjudicated && item2.eobAdjudicated) {
+        errors.push({
+          cpt_code: col2,
+          description: bundledItem.description ?? '',
+          error_type: 'coding_observation',
+          billed_amount: Number(bundledItem.billed_amount),
+          expected_amount: Number(bundledItem.billed_amount),
+          confidence: 'LOW',
+          explanation: `Coding observation: NCCI edits bundle CPT ${col2} with CPT ${col1}, but your insurer adjudicated both lines separately on this claim, so this does not affect what you owe. Noted for reference only.`,
+          rule_violated:
+            'NCCI Procedure-to-Procedure (PTP) edits — informational; superseded by the payer\'s adjudication of this claim.'
+        })
+        continue
+      }
+
       const overrideNote = modifierOverridable
         ? 'A modifier (59, XE, XS, XP, or XU) can justify separate reporting, but none was applied.'
         : 'This edit has modifier indicator 0 — no modifier may override it; the codes cannot be billed separately.'
@@ -188,7 +223,7 @@ function checkUnbundling(
         billed_amount: Number(bundledItem.billed_amount),
         expected_amount: Number(expected),
         confidence: 'HIGH',
-        explanation: `CPT ${col2} was billed separately on ${date} alongside CPT ${col1}. NCCI PTP edits bundle these codes: the column 2 code is a component of the column 1 code and is not separately reportable. ${overrideNote} Combined charges of $${billedPair.toFixed(2)} should collapse to the single primary procedure.`,
+        explanation: `CPT ${col2} was billed separately on ${date} alongside CPT ${col1}. NCCI PTP edits bundle these codes: the column 2 code is a component of the column 1 code and is not separately reportable. ${overrideNote} Combined charges of $${billedPair.toFixed(2)} warrant justification for separate reporting or collapse to the single primary procedure.`,
         rule_violated:
           'NCCI Procedure-to-Procedure (PTP) edits — CMS National Correct Coding Initiative Policy Manual, Chapter I.'
       })
@@ -265,6 +300,23 @@ function checkMue(
     const expected = unitPrice * mue.max_units
     const excessUnits = item.units - mue.max_units
 
+    // Payer adjudicated this line with these units — the MUE flag contradicts
+    // the adjudication. Demote to an informational coding observation.
+    if (item.eobAdjudicated) {
+      errors.push({
+        cpt_code: code,
+        description: item.description ?? '',
+        error_type: 'coding_observation',
+        billed_amount: Number(item.billed_amount),
+        expected_amount: Number(item.billed_amount),
+        confidence: 'LOW',
+        explanation: `Coding observation: ${item.units} units of CPT ${code} exceed the CMS Medically Unlikely Edit reference limit of ${mue.max_units}, but your insurer adjudicated this line as billed, so this does not affect what you owe. Noted for reference only.`,
+        rule_violated:
+          'CMS Medically Unlikely Edits (MUE) — informational; superseded by the payer\'s adjudication of this claim.'
+      })
+      continue
+    }
+
     errors.push({
       cpt_code: code,
       description: item.description ?? '',
@@ -287,6 +339,8 @@ function checkRateUnavailable(
   const errors: BillingError[] = []
   for (const item of items) {
     const code = normalizeCode(item.cpt_code)
+    // An EOB-adjudicated line needs no CMS rate — the payer priced it.
+    if (item.eobAdjudicated) continue
     const row = feeSchedule.get(code)
     if (row && effectiveAllowedAmount(row) > 0) continue
 
@@ -473,4 +527,42 @@ export async function runAudit(
     ...checkCoverage(normalized, insuranceType),
     ...checkRateUnavailable(normalized, feeSchedule)
   ]
+}
+
+// ─── One finding per line ──────────────────────────────────────────────────────
+// A single CPT line must appear in at most ONE finding — 85025 flagged as
+// overcharge + unbundling + balance billing triple-counts one charge. Precedence
+// (strongest evidence wins): patient-reported dispute, then coding rules
+// (unbundling / MUE / duplicate), then coverage rules, then the CMS benchmark
+// note, then informational/manual-review flags. Blank-code lines dedupe by
+// description so distinct uncoded lines are never collapsed together.
+const ERROR_TYPE_PRECEDENCE: Record<ErrorType, number> = {
+  patient_disputed: 0,
+  unbundling: 1,
+  mue: 1,
+  duplicate: 1,
+  coverage: 2,
+  overcharge: 3,
+  coding_observation: 4,
+  rate_unavailable: 5,
+  reference_data_missing: 6,
+}
+
+export function dedupeErrorsByLine(errors: BillingError[]): BillingError[] {
+  const best = new Map<string, BillingError>()
+  const order: string[] = []
+  for (const e of errors) {
+    const code = normalizeCode(e.cpt_code)
+    const key = code ? `code:${code}` : `desc:${(e.description ?? '').trim().toLowerCase()}`
+    const current = best.get(key)
+    if (!current) {
+      best.set(key, e)
+      order.push(key)
+      continue
+    }
+    const rank = ERROR_TYPE_PRECEDENCE[e.error_type] ?? 9
+    const currentRank = ERROR_TYPE_PRECEDENCE[current.error_type] ?? 9
+    if (rank < currentRank) best.set(key, e)
+  }
+  return order.map((k) => best.get(k)!)
 }

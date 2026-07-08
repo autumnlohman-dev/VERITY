@@ -2,6 +2,7 @@
 
 import React from 'react'
 import type { TimelineEvent } from '@/lib/cbs/schema'
+import { formatCalendarDate } from '@/lib/dates'
 
 const sans = (size: string, color = '#A89F96', extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: 'var(--font-dm-sans), system-ui, sans-serif',
@@ -121,7 +122,7 @@ export function FinancialTimeline({ events, totalDocuments, totalInconsistencies
                         : event.daysUntil === 0
                         ? 'TODAY'
                         : `in ${event.daysUntil}d`
-                      : new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                      : formatCalendarDate(event.date)
                     }
                   </span>
                 </div>

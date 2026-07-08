@@ -6,6 +6,8 @@ import { renderEmReviewForPrompt, type EmReview } from '@/lib/emReview'
 import { disputeUnlocked } from '@/lib/entitlements'
 import { boundedMessage, deidentifyFreeText } from '@/lib/ai/phiBoundary'
 import { checkRateLimit } from '@/lib/rateLimit'
+import { letterRecipient } from '@/lib/letters/recipient'
+import { reconcileLetterNumbers } from '@/lib/letters/reconcile'
 
 // The Anthropic SDK needs the Node runtime (never edge). A full evidentiary
 // letter is ~6000 output tokens (≈90–120s at Sonnet speeds), so the old 60s
@@ -86,10 +88,11 @@ export async function POST(request: Request) {
     }
 
     // Manual-review flags (unpriced lines, the internal reference-data notice)
-    // are diagnostics for the patient, NOT disputes. They never belong in a
-    // letter — a claims reviewer reading "our audit reference tables were
-    // unavailable" learns only that the audit had nothing to say.
-    const MANUAL_REVIEW_TYPES = new Set(['rate_unavailable', 'reference_data_missing'])
+    // and coding observations (NCCI/MUE patterns the payer's own adjudication
+    // accepted) are diagnostics for the patient, NOT disputes. They never
+    // belong in a letter — a claims reviewer reading "our audit reference
+    // tables were unavailable" learns only that the audit had nothing to say.
+    const MANUAL_REVIEW_TYPES = new Set(['rate_unavailable', 'reference_data_missing', 'coding_observation'])
     const disputableErrors = safeErrors.filter((e) => !MANUAL_REVIEW_TYPES.has(e.error_type))
 
     // Verify this case belongs to the user.
@@ -179,6 +182,56 @@ export async function POST(request: Request) {
       )
     }
 
+    // ── Number reconciliation — fail loudly, never a silently wrong letter ───
+    // The letter states ONE consistent set of figures. Assemble the per-finding
+    // correction amounts and verify they reconcile (sum ≤ what the patient is
+    // asked to pay; PR-mismatch equals bill PR − EOB PR) BEFORE spending the
+    // model call. A failure here is our bug, not the patient's — 500, loudly.
+    const numOrNull = (v: unknown): number | null =>
+      typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null
+    const billPatientResp = numOrNull(billDataObj.billPatientResponsibility)
+    const eobPatientResp = numOrNull(billDataObj.eobPatientResponsibility)
+    const findingAmounts = [
+      ...crossDocFindings.map((d) => ({ type: d.finding_type, amount: d.estimated_dollar_impact })),
+      ...disputableErrors.map((e) => ({
+        type: e.error_type,
+        amount: Math.max(0, e.billed_amount - e.expected_amount),
+      })),
+    ]
+    const recon = reconcileLetterNumbers({
+      totalBilled: safeCaseData.amount_billed,
+      billPatientResponsibility: billPatientResp,
+      eobPatientResponsibility: eobPatientResp,
+      findings: findingAmounts,
+    })
+    if (!recon.ok) {
+      console.error(`generate-letter[${caseId}]: number reconciliation FAILED:`, recon.problems)
+      Sentry.captureMessage('Letter number reconciliation failed', {
+        level: 'error',
+        tags: { route: 'generate-letter', stage: 'reconcile' },
+        extra: { caseId, problems: recon.problems },
+      })
+      return NextResponse.json(
+        {
+          error:
+            'The audit numbers for this case do not reconcile, so a letter was not generated. Re-run the audit with your bill and EOB; if this persists, contact support.',
+          code: 'letter_numbers_inconsistent',
+        },
+        { status: 500 }
+      )
+    }
+    const demandedTotalStr = `$${recon.demandedTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+    // ── Recipient must match content ─────────────────────────────────────────
+    // Provider-billing disputes go to the provider's billing office; adverse-
+    // benefit content is an insurer appeal. Decided by where the dollars point
+    // (shared logic with the letter page's submission instructions).
+    const selfPayPatient = /self|uninsured/i.test(safeCaseData.insurance_type || '')
+    const recipient = letterRecipient({
+      selfPay: selfPayPatient,
+      findings: findingAmounts.map((f) => ({ type: f.type, dollarImpact: f.amount })),
+    })
+
     const rawUserNotes: string = (
       (caseData && typeof caseData.userNotes === 'string' && caseData.userNotes) ||
       (caseRecord.bill_data && typeof caseRecord.bill_data.userNotes === 'string'
@@ -218,14 +271,21 @@ E&M DISPUTE GUIDANCE:
 - If the outcome is 'confirmed', request that the charge be adjusted to the E&M level supported by the visit's complexity and time.`
         : ''
 
-    // Self-pay letters address the provider's billing office and omit insurer
-    // fields; insured letters address the payer.
-    const isSelfPay = /self|uninsured/i.test(safeCaseData.insurance_type || '')
+    const isSelfPay = selfPayPatient
     // The prose count must match the itemized list EXACTLY (a real letter said
     // "ten (10)" for an 11-error bill). Inject the authoritative counts.
     const errorCount = disputableErrors.length
     const findingCount = crossDocFindings.length
     const totalFindings = errorCount + findingCount
+    // NSA is cited only when a finding actually carries it — a routine
+    // in-network adjudication dispute is not a No Surprises Act violation.
+    const hasNsaBasis =
+      crossDocFindings.some((d) => d.applicable_regulations.some((r) => /no surprises/i.test(r))) ||
+      disputableErrors.some((e) => /no surprises/i.test(e.rule_violated))
+    const addressee =
+      recipient === 'provider'
+        ? "the provider's patient billing / accounts-receivable department"
+        : "the insurance company's claims review / appeals department"
 
     // Generate the dispute letter with Claude
     const message = await boundedMessage('letter-generation', 'deidentified', {
@@ -249,22 +309,28 @@ Always include specific CPT codes, dollar amounts, and regulatory citations.`,
 
 Provider: ${safeCaseData.provider_name}
 Insurance Type: ${safeCaseData.insurance_type}
-Total Billed: $${safeCaseData.amount_billed}
-Expected Amount: $${safeCaseData.amount_expected}
 Date of Service: ${safeCaseData.date_of_service || 'See attached bill'}
+
+AUTHORITATIVE NUMBERS — the letter must use EXACTLY these figures and no others. Total gross charges on the bill are LIST PRICES before insurance adjustments; the amount in dispute is never the gross charges:
+- Total billed (gross charges, for context only): $${safeCaseData.amount_billed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+${billPatientResp !== null ? `- Patient responsibility stated on the bill: $${billPatientResp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+${eobPatientResp !== null ? `- Patient responsibility per the EOB adjudication ("You Owe"): $${eobPatientResp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+- TOTAL CORRECTION REQUESTED: ${demandedTotalStr}
+
+End the findings section with a summary table listing each finding and its correction amount; the table's rows MUST sum to exactly ${demandedTotalStr}, and the letter must contain the exact line "TOTAL CORRECTION REQUESTED: ${demandedTotalStr}". Never state any other total, never present a gross charge as an amount the patient was billed, and never claim a correction larger than the patient's responsibility.
 
 This dispute rests on exactly ${totalFindings} ${totalFindings === 1 ? 'finding' : 'findings'}: ${findingCount} cross-document ${findingCount === 1 ? 'finding' : 'findings'} established by comparing the bill against the patient's own Explanation of Benefits, and ${errorCount} coding/billing ${errorCount === 1 ? 'error' : 'errors'} from the audit. When you state the number of findings anywhere in the letter, use exactly ${totalFindings} — do not recount, round, or summarize to a different figure. Write a clearly formatted section for EVERY finding; do not omit, merge, or stop early.
 ${
   findingCount > 0
     ? `
-CROSS-DOCUMENT FINDINGS — LEAD WITH THESE. They are the primary grounds of the dispute: each is proven by the payer's own adjudication of this claim (the patient's EOB), not by an estimate. For each one: state the specific dollar amounts from the description (what was billed vs. what the EOB says the patient owes), state the exact overbilled difference, and cite the applicable_regulations verbatim. Where a finding shows the EOB's patient responsibility, state plainly that the patient's obligation is that EOB amount and demand the balance be written off:
+CROSS-DOCUMENT FINDINGS — LEAD WITH THESE. They are the primary grounds of the dispute: each is proven by the payer's own adjudication of this claim (the patient's EOB), not by an estimate. For each one: state the specific dollar amounts from the description, state the exact difference, and reference each entry of applicable_regulations introduced as "Applicable authority: …". These authority texts are paraphrased summaries of the law — NEVER present them as quotations, never wrap them in quotation marks, and never label anything "cited verbatim". Where a finding shows the EOB's patient responsibility, state plainly that the patient's obligation is that EOB amount and request the difference be written off:
 ${JSON.stringify(crossDocFindings, null, 2)}
 `
     : ''
 }${
   errorCount > 0
     ? `
-CODING/BILLING ERRORS FROM THE AUDIT (present these after the cross-document findings):
+CODING/BILLING ERRORS FROM THE AUDIT (present these after the cross-document findings). Reference each error's "rule_violated" text introduced as "Applicable authority: …" without altering its substance — in particular, do NOT relabel a Clinical Laboratory Fee Schedule citation as the Physician Fee Schedule (or vice versa). CMS-benchmark (fee schedule) findings are requests for justification or repricing — phrase them as such, never as an amount the provider owes:
 ${JSON.stringify(disputableErrors, null, 2)}`
     : ''
 }${userNotesSection}${emReviewSection}
@@ -278,10 +344,10 @@ SENDER BLOCK — begin the letter with exactly these placeholder tokens, each on
 The ONLY bracketed placeholders allowed anywhere in the letter are: [PATIENT NAME], [ADDRESS], [PHONE], [EMAIL], [ACCOUNT NUMBER]${isSelfPay ? '' : ', [MEMBER ID]'}. Represent the patient's full mailing address with the single token [ADDRESS] — never split it into separate street / city / state / ZIP lines, and never add a "[City, State, ZIP]" line. Reference the account number as [ACCOUNT NUMBER] where appropriate.${isSelfPay ? ' This is a SELF-PAY / uninsured patient: do NOT include a Member ID line or any insurer/member-portal references.' : ''}
 
 The letter should:
-1. Be addressed to ${isSelfPay ? "the provider's patient billing / accounts-receivable department" : "the insurance company's claims review department"}
-2. State each finding with its specific legal basis: for cross-document findings cite the "applicable_regulations" texts verbatim; for audit errors cite the EXACT "rule_violated" text provided verbatim — in particular, do NOT relabel a Clinical Laboratory Fee Schedule citation as the Physician Fee Schedule (or vice versa)
-3. Request correction of each finding with the correct amount — for balance-billing findings, demand the balance above the EOB's stated patient responsibility be written off
-4. Reference ${isSelfPay ? "the No Surprises Act good-faith-estimate protections and the Hospital Price Transparency Rule" : "the No Surprises Act and applicable patient rights"}
+1. Be addressed to ${addressee}${recipient === 'provider' && !isSelfPay ? ' (this is a dispute of the PROVIDER\'s bill against the insurer\'s adjudication — do not frame it as an insurance appeal, and do not tell the reader to use an insurer portal)' : ''}${recipient === 'insurer' ? ' (this is an appeal of the insurer\'s adjudication — frame requests to the plan, not the provider)' : ''}
+2. State each finding with its specific legal basis using the "Applicable authority: …" convention described above
+3. Request correction of each finding with its exact amount from the findings data — for patient-responsibility and balance-billing findings, request the difference above the EOB's stated patient responsibility be written off; for benchmark findings, request justification or repricing
+4. Reference ${isSelfPay ? 'the No Surprises Act good-faith-estimate protections and the Hospital Price Transparency Rule' : hasNsaBasis ? 'the No Surprises Act and applicable patient rights' : "the patient's plan-adjudication and appeal rights (do NOT cite the No Surprises Act — no finding in this case supports it)"}
 5. Include a professional closing requesting a corrected statement within 30 days`
       }]
     }, { timeoutMs: 290_000 })
@@ -294,6 +360,31 @@ The letter should:
       })
       return NextResponse.json(
         { error: 'Letter generation returned no content. Please try again.' },
+        { status: 502 }
+      )
+    }
+
+    // ── Post-generation consistency check — no silently wrong letters ────────
+    // The letter must carry the exact reconciled total, and must not label
+    // paraphrased authorities as verbatim quotes. Comma-insensitive so a
+    // formatting difference isn't a false failure.
+    const normalizedLetter = letterContent.replace(/,/g, '')
+    const problems: string[] = []
+    if (!normalizedLetter.includes(`TOTAL CORRECTION REQUESTED: ${demandedTotalStr.replace(/,/g, '')}`)) {
+      problems.push(`missing exact total line "TOTAL CORRECTION REQUESTED: ${demandedTotalStr}"`)
+    }
+    if (/cited verbatim/i.test(letterContent)) {
+      problems.push('labels a paraphrased authority as "cited verbatim"')
+    }
+    if (problems.length > 0) {
+      console.error(`generate-letter[${caseId}]: generated letter failed consistency check:`, problems)
+      Sentry.captureMessage('Generated letter failed consistency check', {
+        level: 'error',
+        tags: { route: 'generate-letter', stage: 'consistency' },
+        extra: { caseId, problems },
+      })
+      return NextResponse.json(
+        { error: 'The generated letter failed an internal consistency check and was not saved. Please try again.' },
         { status: 502 }
       )
     }

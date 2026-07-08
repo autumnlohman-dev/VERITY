@@ -3,6 +3,7 @@ import type { NormalizedCBSSet, TimelineEvent, CBSDiscrepancy } from "./cbs/sche
 import type { DeadlineResult, UrgencyLevel } from "./deadlines/calculator";
 import type { BillingError } from "./errorDetection";
 import { MANUAL_REVIEW_ERROR_TYPES } from "./audit/manualReview";
+import { formatCalendarDate } from "./dates";
 
 type Block =
   | { kind: "h1" | "h2" | "h3"; text: string }
@@ -368,15 +369,10 @@ function fmtMoney(n: number | null | undefined): string {
   return (v < 0 ? "-$" : "$") + abs;
 }
 
+// Timezone-safe: document dates are calendar dates and must not render a day
+// early for viewers west of Greenwich (Jun 28 EOB date showing "Jun 27").
 function fmtDateISO(s: string | null | undefined): string {
-  if (!s) return "—";
-  try {
-    const d = new Date(s);
-    if (isNaN(d.getTime())) return s;
-    return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-  } catch {
-    return s;
-  }
+  return formatCalendarDate(s, { year: "numeric", month: "short", day: "numeric" });
 }
 
 function errorTypeLabel(type: string): string {
@@ -389,6 +385,7 @@ function errorTypeLabel(type: string): string {
     case "patient_disputed": return "Patient-disputed charge";
     case "rate_unavailable": return "Manual review — no CMS rate";
     case "reference_data_missing": return "Reference data unavailable";
+    case "coding_observation": return "Coding observation — informational";
     default: return type.replace(/_/g, " ");
   }
 }

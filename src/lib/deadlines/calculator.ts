@@ -248,35 +248,42 @@ export function calculateDeadlines(
       })
     }
 
-    // Balance billing: check for NSA violation discrepancy
-    const hasBalanceBillingViolation = cbsSet.crossDocumentDiscrepancies.some(
-      d => d.type === 'balance_billing_violation'
-    )
-    if (hasBalanceBillingViolation && doc.billDate) {
-      const rule = DEADLINE_RULES.find(r => r.ruleId === 'nsa_balance_billing')!
-      const content = resolveRule(rule, selfPay)
-      const dedupeKey = `nsa_${doc.billDate}`
-      if (!seen.has(dedupeKey)) {
-        seen.add(dedupeKey)
-        const deadlineDate = addDays(doc.billDate, rule.daysFromTrigger)
-        const daysRemaining = daysUntilDate(deadlineDate)
-        results.push({
-          deadlineId: crypto.randomUUID(),
-          deadlineType: content.deadlineType,
-          description: content.description,
-          triggerDate: doc.billDate,
-          deadlineDate,
-          daysRemaining,
-          urgencyLevel: classifyUrgency(daysRemaining),
-          actionRequired: content.actionRequired,
-          escalationPath: content.escalationPath,
-          applicableRegulation: content.federalBasis,
-          estimatedRecovery: cbsSet.crossDocumentDiscrepancies
-            .filter(d => d.type === 'balance_billing_violation')
-            .reduce((sum, d) => sum + d.estimatedDollarImpact, 0),
-        })
-      }
-    }
+  }
+
+  // ── NSA balance-billing card — at most ONE per case ──────────────────────────
+  // Insured patients only (self-pay gets the GFE/PPDR variant through the rules
+  // loop above — emitting both was a guaranteed duplicate), and only when a
+  // finding actually supports the NSA: a per-line balance-billing violation, or
+  // a patient-responsibility mismatch whose regulations cite the NSA (the
+  // normalizer attaches it only with emergency context). Hoisted out of the
+  // per-document loop, which stamped one card per document carrying a billDate.
+  const nsaQualifying = cbsSet.crossDocumentDiscrepancies.filter(
+    (d) =>
+      d.type === 'balance_billing_violation' ||
+      (d.type === 'patient_responsibility_mismatch' &&
+        (d.applicableRegulations ?? []).some((r) => /no surprises/i.test(r)))
+  )
+  const billDoc = cbsSet.documents.find(
+    (d) => d.sourceDocumentType === 'itemized_bill' && d.billDate
+  )
+  if (!selfPay && nsaQualifying.length > 0 && billDoc?.billDate) {
+    const rule = DEADLINE_RULES.find((r) => r.ruleId === 'nsa_balance_billing')!
+    const content = resolveRule(rule, selfPay)
+    const deadlineDate = addDays(billDoc.billDate, rule.daysFromTrigger)
+    const daysRemaining = daysUntilDate(deadlineDate)
+    results.push({
+      deadlineId: crypto.randomUUID(),
+      deadlineType: content.deadlineType,
+      description: content.description,
+      triggerDate: billDoc.billDate,
+      deadlineDate,
+      daysRemaining,
+      urgencyLevel: classifyUrgency(daysRemaining),
+      actionRequired: content.actionRequired,
+      escalationPath: content.escalationPath,
+      applicableRegulation: content.federalBasis,
+      estimatedRecovery: nsaQualifying.reduce((sum, d) => sum + d.estimatedDollarImpact, 0),
+    })
   }
 
   // Sort: missed first, then by days remaining ascending

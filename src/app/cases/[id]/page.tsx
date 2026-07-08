@@ -25,6 +25,8 @@ import { OutcomePredictionPanel, AdvocacyWorkflowPanel } from "@/components/Advo
 import { generateEvidentiaryPackage } from "@/lib/letterPdf";
 import { applyLetterSubstitutions, evidentiaryPackageFilename, todayLongDate } from "@/lib/letterFields";
 import { disputeUnlocked } from "@/lib/entitlements";
+import { MANUAL_REVIEW_ERROR_TYPES } from "@/lib/audit/manualReview";
+import { formatCalendarDate } from "@/lib/dates";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -131,6 +133,12 @@ interface BillData {
   // than silently degrading to a bill-only result.
   hasEob?: boolean;
   eobError?: boolean;
+  // Honest-numbers inputs persisted by /api/extract: the bill's stated bottom
+  // line (savings cap), the EOB's adjudicated obligation (the real "amount
+  // expected"), and the partial-read warning flag.
+  billPatientResponsibility?: number | null;
+  eobPatientResponsibility?: number | null;
+  suspectedPartialRead?: boolean;
   // Persisted questionnaire state so completed panels survive a refresh and
   // hydrate from the DB instead of re-prompting (see /api/case-state).
   fhs_inputs?: FHSUserInputs;
@@ -238,13 +246,11 @@ function formatCurrency(n: number | null | undefined): string {
   return `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// Timezone-safe: document dates are calendar dates ("2026-06-28") and must not
+// render a day early for viewers west of Greenwich; full timestamps still
+// parse natively.
 function formatDate(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  } catch {
-    return iso;
-  }
+  return formatCalendarDate(iso);
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -266,6 +272,7 @@ function errorTypeLabel(type: string): string {
     case "patient_disputed": return "Patient Dispute";
     case "rate_unavailable": return "Manual Review — No CMS Rate";
     case "reference_data_missing": return "Audit Reference Data Unavailable";
+    case "coding_observation": return "Coding Observation — Informational";
     default: return type;
   }
 }
@@ -621,11 +628,7 @@ export default function CaseDetailPage({
   // cross-document findings. Manual-review flags (rate_unavailable,
   // reference_data_missing) are review aids, not errors — the headline count
   // must never say "2 errors found" about two internal notices.
-  const disputableErrors = errors.filter(
-    (e) =>
-      e.error_type !== "rate_unavailable" &&
-      e.error_type !== "reference_data_missing"
-  );
+  const disputableErrors = errors.filter((e) => !MANUAL_REVIEW_ERROR_TYPES.has(e.error_type));
 
   // The E&M complexity review should be offered whenever an E&M visit code
   // (99201–99215 / 99281–99285) appears on the bill — even when it produced no
@@ -757,15 +760,27 @@ export default function CaseDetailPage({
 
   const billed = Number(caseRow.amount_billed ?? 0);
   // Headline savings folds in the EOB-evidenced cross-document dollars at risk
-  // (max, not sum — never claim the same dollar twice), so a case can no longer
-  // show "$0.00 potential savings" beside a $237.99 balance-billing finding.
-  // Recomputed here (not just read from the row) so cases persisted under the
-  // old formula display correctly too.
-  const savings = Math.max(
+  // (recomputed here, not just read from the row, so cases persisted under an
+  // old formula display correctly too) — then HARD-CAPPED at the bill's stated
+  // patient responsibility: "potential savings" can never exceed the amount
+  // the patient is actually being asked to pay.
+  const billPatientResp = Number(caseRow.bill_data?.billPatientResponsibility);
+  const rawSavings = Math.max(
     Number(caseRow.potential_savings ?? 0),
     Math.min(billed, Number(cbsSet?.totalDollarAtRisk ?? 0))
   );
-  const expected = Math.max(0, billed - savings);
+  const savings =
+    Number.isFinite(billPatientResp) && billPatientResp >= 0
+      ? Math.min(rawSavings, billPatientResp)
+      : rawSavings;
+  // "Amount expected" = what the patient should actually pay. With a readable
+  // EOB that is the payer's adjudicated obligation — never a benchmark-derived
+  // estimate off gross charges.
+  const eobPatientResp = Number(caseRow.bill_data?.eobPatientResponsibility);
+  const expected =
+    caseRow.bill_data?.hasEob && Number.isFinite(eobPatientResp) && eobPatientResp >= 0
+      ? eobPatientResp
+      : Math.max(0, billed - savings);
   const significantCrossDoc = (cbsSet?.crossDocumentDiscrepancies ?? []).filter(
     (d) =>
       Number(d.estimatedDollarImpact || 0) > 0 ||
@@ -1164,6 +1179,31 @@ export default function CaseDetailPage({
                 <DeadlineTracker deadlines={deadlines} />
               )}
 
+              {/* Suspected partial read: extracted lines sum materially below the
+                  bill's own printed total — findings may be incomplete. Loud, never
+                  silent success. */}
+              {caseRow.bill_data?.suspectedPartialRead && (
+                <div
+                  style={{
+                    marginBottom: "48px",
+                    backgroundColor: "rgba(196,124,106,0.08)",
+                    border: "1px solid rgba(196,124,106,0.4)",
+                    borderLeft: "3px solid #C47C6A",
+                    padding: "16px 20px",
+                  }}
+                >
+                  <div style={{ ...label("#C47C6A"), marginBottom: "6px" }}>
+                    Possible incomplete read
+                  </div>
+                  <p style={{ ...sans("13px", "#A89F96"), lineHeight: 1.6 }}>
+                    The charge lines we extracted add up to noticeably less than the total
+                    printed on your bill — some pages or rows may not have been read. These
+                    findings may be incomplete: re-upload all pages of the itemized bill
+                    (clear photos or a PDF) and re-run the audit before relying on the numbers.
+                  </p>
+                </div>
+              )}
+
               {/* EOB couldn't be read — say so instead of silently degrading to
                   a bill-only audit (the cross-document section just won't render). */}
               {caseRow.bill_data?.eobError && (
@@ -1328,7 +1368,7 @@ export default function CaseDetailPage({
               </button>
             </div>
           ) : errors.length === 0 ? (
-            expected === 0 ? (
+            expected === 0 && !caseRow.bill_data?.hasEob ? (
               <div
                 style={{
                   backgroundColor: "#111111",
