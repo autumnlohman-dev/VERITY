@@ -201,7 +201,7 @@ export function FHSIntakeForm({ onSubmit, initial }: IntakeFormProps) {
 
   return (
     <div style={{ border: '1px solid var(--line)', padding: '28px', marginBottom: '32px', backgroundColor: 'var(--surface-raised)' }}>
-      <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '6px' }}>
+      <div style={{ ...sans('11px', 'var(--brand)'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '6px' }}>
         3 quick questions
       </div>
       <div style={{ ...sans('16px', 'var(--ink)'), marginBottom: '24px' }}>
@@ -233,7 +233,7 @@ export function FHSIntakeForm({ onSubmit, initial }: IntakeFormProps) {
           })}
           style={{
             ...sans('12px', 'var(--ink)'),
-            backgroundColor: '#C8A97E',
+            backgroundColor: 'var(--brand-fill)',
             border: 'none',
             padding: '14px 32px',
             cursor: 'pointer',

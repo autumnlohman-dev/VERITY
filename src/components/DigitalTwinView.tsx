@@ -28,10 +28,10 @@ export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
   return (
     <div style={{ border: '1px solid var(--line)', backgroundColor: 'var(--surface-raised)', padding: '32px', marginBottom: '48px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-        <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.25em', textTransform: 'uppercase' }}>
+        <div style={{ ...sans('11px', 'var(--brand)'), letterSpacing: '0.25em', textTransform: 'uppercase' }}>
           Your Complete Billing Picture
         </div>
-        <Link href="/copilot" style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.1em', textTransform: 'uppercase', textDecoration: 'none' }}>
+        <Link href="/copilot" style={{ ...sans('11px', 'var(--brand)'), letterSpacing: '0.1em', textTransform: 'uppercase', textDecoration: 'none' }}>
           On a call? Open the Copilot →
         </Link>
       </div>
@@ -86,7 +86,7 @@ export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
             <div key={i} style={{ borderLeft: '3px solid #C8A97E', backgroundColor: 'rgba(200,169,126,0.05)', padding: '12px 16px', marginBottom: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
                 <span style={{ ...sans('13px', 'var(--ink)') }}>{e.description}</span>
-                <span style={{ ...sans('12px', '#C8A97E'), fontWeight: 600 }}>
+                <span style={{ ...sans('12px', 'var(--brand)'), fontWeight: 600 }}>
                   {Math.round(e.probability * 100)}% likely{e.estimatedAmount ? ` · ~$${e.estimatedAmount.toLocaleString()}` : ''}
                 </span>
               </div>

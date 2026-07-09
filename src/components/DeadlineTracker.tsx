@@ -109,7 +109,7 @@ export function DeadlineTracker({ deadlines }: DeadlineTrackerProps) {
             <div style={{ ...sans('13px', 'var(--ink-soft)'), marginBottom: '10px' }}>{dl.description}</div>
 
             <div style={{ ...sans('13px', 'var(--ink)'), marginBottom: '8px' }}>
-              <span style={{ ...sans('10px', '#C8A97E'), letterSpacing: '0.15em', textTransform: 'uppercase', marginRight: '8px' }}>Action:</span>
+              <span style={{ ...sans('10px', 'var(--brand)'), letterSpacing: '0.15em', textTransform: 'uppercase', marginRight: '8px' }}>Action:</span>
               {dl.actionRequired}
             </div>
 

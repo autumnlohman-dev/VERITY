@@ -33,7 +33,7 @@ const sans = (size: string, color = "#5F5648", extra?: React.CSSProperties): Rea
   ...extra,
 });
 
-const label = (color = "#C8A97E"): React.CSSProperties => ({
+const label = (color = "var(--brand)"): React.CSSProperties => ({
   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
@@ -100,7 +100,7 @@ function Nav() {
         <span
           style={{
             ...sans("11px", "#221C14"),
-            backgroundColor: "#C8A97E",
+            backgroundColor: "var(--brand-fill)",
             padding: "12px 24px",
             letterSpacing: "0.2em",
             textTransform: "uppercase",
@@ -475,7 +475,7 @@ function DropZone({
               {pf.status === "error" && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onRetry(pf.id); }}
-                  style={{ ...iconBtn, ...sans("11px", "#C8A97E"), letterSpacing: "0.08em", textTransform: "uppercase" }}
+                  style={{ ...iconBtn, ...sans("11px", "var(--brand)"), letterSpacing: "0.08em", textTransform: "uppercase" }}
                 >
                   Retry
                 </button>
@@ -512,7 +512,7 @@ function DropZone({
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "12px" }}>
             <button
               onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
-              style={{ ...iconBtn, ...sans("11px", "#C8A97E"), letterSpacing: "0.12em", textTransform: "uppercase", padding: 0 }}
+              style={{ ...iconBtn, ...sans("11px", "var(--brand)"), letterSpacing: "0.12em", textTransform: "uppercase", padding: 0 }}
             >
               + Add pages
             </button>
@@ -528,7 +528,7 @@ function DropZone({
           <Upload size={28} color="#CFC6B4" style={{ margin: "0 auto 12px", display: "block" }} />
           <div style={{ ...serif("20px", { color: "#8A7F6E", lineHeight: 1.2 }) }}>
             {zonelabel}
-            {required && <span style={{ color: "#C8A97E", marginLeft: "4px" }}>*</span>}
+            {required && <span style={{ color: "var(--brand)", marginLeft: "4px" }}>*</span>}
           </div>
           <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "4px" }}>
             {sublabel}
@@ -922,7 +922,7 @@ function UploadPageInner() {
           </h1>
           {hasErrors ? (
             <p style={{ ...sans("16px", "#5F5648") }}>
-              <span style={{ ...serif("34px", { color: "#C8A97E", fontStyle: "italic" }) }}>
+              <span style={{ ...serif("34px", { color: "var(--brand)", fontStyle: "italic" }) }}>
                 ${Math.round(r.potentialSavings).toLocaleString()}
               </span>{" "}
               in potential overcharges on a ${Math.round(r.totalBilled).toLocaleString()} bill.
@@ -964,7 +964,7 @@ function UploadPageInner() {
                         </div>
                       ) : (
                         <>
-                          <div style={{ ...serif("22px", { color: "#C8A97E" }) }}>
+                          <div style={{ ...serif("22px", { color: "var(--brand)" }) }}>
                             ${Math.round(Math.max(0, e.billed_amount - e.expected_amount)).toLocaleString()}
                           </div>
                           <div style={{ ...sans("10px", "#8A7F6E"), letterSpacing: "0.1em", textTransform: "uppercase" }}>recoverable</div>
@@ -1036,7 +1036,7 @@ function UploadPageInner() {
             </p>
             <div className="r-cta" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <Link href="/login" style={{ textDecoration: "none" }}>
-                <span style={{ ...sans("11px", "#221C14"), backgroundColor: "#C8A97E", padding: "16px 32px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
+                <span style={{ ...sans("11px", "#221C14"), backgroundColor: "var(--brand-fill)", padding: "16px 32px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
                   Create free account →
                 </span>
               </Link>
@@ -1511,7 +1511,7 @@ function UploadPageInner() {
                   <div
                     style={{
                       display: "inline-block",
-                      backgroundColor: "#C8A97E",
+                      backgroundColor: "var(--brand-fill)",
                       color: "#221C14",
                       fontSize: "10px",
                       letterSpacing: "0.15em",

@@ -207,7 +207,7 @@ export default function LoginPage() {
                 setError('')
                 setNotice('')
               }}
-              style={{ color: '#C8A97E', cursor: 'pointer' }}
+              style={{ color: 'var(--brand)', cursor: 'pointer' }}
             >
               {isSignUp ? 'Sign in' : 'Sign up free'}
             </span>

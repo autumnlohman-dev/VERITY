@@ -506,13 +506,23 @@ function buildTimelineFromDocs(
     }
 
     // Dollar clauses render only when the figure exists — "Bill issued for
-    // $0.00" / "allowed $0.00" were placeholder artifacts, not data.
+    // $0.00" / "allowed $0.00" were placeholder artifacts, not data. Formatted
+    // with thousands separators (the raw toFixed rendered "$20905.00").
     const money = (n: number | undefined) =>
-      typeof n === 'number' && n > 0 ? `$${n.toFixed(2)}` : null
-    if (doc.authorizationDate) addEvent(doc.authorizationDate, 'authorization', 'Prior Authorization', `Authorization ${doc.authorizationStatus || 'status unknown'}${doc.authorizationNumber ? ` (#${doc.authorizationNumber})` : ''}`)
+      typeof n === 'number' && n > 0
+        ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : null
+    // Placeholder-valued events are suppressed entirely: an authorization with
+    // no status and no number, or an adjudication with no status and no allowed
+    // amount, says nothing a person can use.
+    if (doc.authorizationDate && (doc.authorizationStatus || doc.authorizationNumber)) {
+      addEvent(doc.authorizationDate, 'authorization', 'Prior Authorization', `Authorization ${doc.authorizationStatus || 'on file'}${doc.authorizationNumber ? ` (#${doc.authorizationNumber})` : ''}`)
+    }
     if (doc.dateOfService) addEvent(doc.dateOfService, 'service', doc.providerName ? `Service at ${doc.providerName}` : 'Medical service', `Medical service rendered`, doc.totalBilled)
     if (doc.billDate) addEvent(doc.billDate, 'billing', doc.providerName ? `Bill from ${doc.providerName}` : 'Bill issued', money(doc.totalBilled) ? `Bill issued for ${money(doc.totalBilled)}` : 'Bill issued', doc.totalBilled)
-    if (doc.eobDate) addEvent(doc.eobDate, 'adjudication', `${doc.payerName || 'Insurer'} processed claim`, `Adjudication: ${doc.adjudicationStatus || 'unknown'}${money(doc.totalAllowed) ? `, allowed ${money(doc.totalAllowed)}` : ''}`, doc.totalAllowed)
+    if (doc.eobDate && (doc.adjudicationStatus || money(doc.totalAllowed))) {
+      addEvent(doc.eobDate, 'adjudication', `${doc.payerName || 'Insurer'} processed claim`, `Your insurance processed the claim${doc.adjudicationStatus ? `: ${doc.adjudicationStatus}` : ''}${money(doc.totalAllowed) ? `, allowed ${money(doc.totalAllowed)}` : ''}`, doc.totalAllowed)
+    }
     if (doc.denialDate) addEvent(doc.denialDate, 'denial', 'Claim Denied', doc.denialReason || `Denial code: ${doc.denialCode || 'unknown'}`)
     if (doc.collectionDate) addEvent(doc.collectionDate, 'collection', 'Collection Notice', money(doc.totalBalance || doc.totalBilled) ? `Collection activity for ${money(doc.totalBalance || doc.totalBilled)}` : 'Collection activity', doc.totalBalance)
 
@@ -524,7 +534,7 @@ function buildTimelineFromDocs(
         eventId: crypto.randomUUID(),
         date: doc.appealDeadline,
         eventType: 'deadline',
-        title: days < 0 ? '⚠️ Appeal Deadline PASSED' : `Appeal Deadline${days <= 7 ? ': URGENT' : ''}`,
+        title: days < 0 ? 'Appeal deadline passed' : `Appeal Deadline${days <= 7 ? ': URGENT' : ''}`,
         description: days < 0
           ? `Appeal deadline was ${Math.abs(days)} days ago. Contact an attorney or patient advocate immediately.`
           : `${days} days remaining to file your appeal.`,

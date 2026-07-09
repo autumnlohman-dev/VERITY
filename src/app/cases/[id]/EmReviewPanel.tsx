@@ -29,7 +29,7 @@ const sans = (size: string, color = "var(--ink-soft)", extra?: React.CSSProperti
   ...extra,
 });
 
-const label = (color = "#C8A97E"): React.CSSProperties => ({
+const label = (color = "var(--brand)"): React.CSSProperties => ({
   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",

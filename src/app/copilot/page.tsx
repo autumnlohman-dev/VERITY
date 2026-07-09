@@ -136,7 +136,7 @@ function generateGuidance(statement: string): GuidanceCard[] {
 
 const KIND_STYLE: Record<GuidanceCard['kind'], { border: string; label: string; color: string }> = {
   response: { border: '#7A9E87', label: 'SAY THIS', color: '#7A9E87' },
-  citation: { border: '#C8A97E', label: 'YOUR RIGHT', color: '#C8A97E' },
+  citation: { border: '#C8A97E', label: 'YOUR RIGHT', color: 'var(--brand)' },
   escalation: { border: '#C47C6A', label: 'ESCALATE', color: '#C47C6A' },
   documentation: { border: 'var(--brand)', label: 'DOCUMENT', color: 'var(--brand)' },
   warning: { border: '#C83C3C', label: 'CAUTION', color: '#C83C3C' },
@@ -262,7 +262,7 @@ export default function CopilotPage() {
               maxWidth: '560px',
             }}
           >
-            <div style={{ ...sans('10px', '#C8A97E'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '6px' }}>
+            <div style={{ ...sans('10px', 'var(--brand)'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '6px' }}>
               Advising on your case
             </div>
             <div style={{ ...sans('14px', 'var(--ink)') }}>{caseContext.providerName}</div>
@@ -352,7 +352,7 @@ export default function CopilotPage() {
         />
         <button
           onClick={submit}
-          style={{ ...sans('12px', 'var(--ink)'), backgroundColor: '#C8A97E', border: 'none', padding: '14px 28px', cursor: 'pointer', letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600 }}
+          style={{ ...sans('12px', 'var(--ink)'), backgroundColor: 'var(--brand-fill)', border: 'none', padding: '14px 28px', cursor: 'pointer', letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600 }}
         >
           Guide me
         </button>

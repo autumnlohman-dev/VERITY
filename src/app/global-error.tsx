@@ -60,7 +60,7 @@ export default function GlobalError({
             style={{
               fontSize: '11px',
               color: 'var(--ink)',
-              backgroundColor: '#C8A97E',
+              backgroundColor: 'var(--brand-fill)',
               padding: '12px 24px',
               letterSpacing: '0.2em',
               textTransform: 'uppercase',

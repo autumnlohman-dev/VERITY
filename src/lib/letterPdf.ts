@@ -479,7 +479,9 @@ function sectionTitle(env: Env, kicker: string, title: string, subtitle?: string
   env.y += 8;
   env.doc.setFont("helvetica", "bold");
   env.doc.setFontSize(10);
-  env.doc.setTextColor(...ACCENT);
+  // Gold as TEXT fails contrast in the printed artifact; kickers are ink with
+  // letterspacing. Gold survives only in the drawn rule lines below.
+  env.doc.setTextColor(...INK);
   env.doc.text(kicker.toUpperCase(), env.marginX, env.y, { charSpace: 1.5 });
   env.y += 10;
   env.doc.setDrawColor(...ACCENT);
@@ -567,7 +569,7 @@ function renderCover(env: Env, input: EvidentiaryPackageInput, sections: string[
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.setTextColor(...ACCENT);
+  doc.setTextColor(...INK);
   doc.text(`${BRAND_NAME.toUpperCase()} · MEDICAL BILL ADVOCACY`, env.marginX, env.y, { charSpace: 1.5 });
   env.y += 40;
 
@@ -650,7 +652,7 @@ function renderCover(env: Env, input: EvidentiaryPackageInput, sections: string[
   // Contents.
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
-  doc.setTextColor(...ACCENT);
+  doc.setTextColor(...INK);
   doc.text("CONTENTS", env.marginX, env.y, { charSpace: 1.5 });
   env.y += 16;
   doc.setFontSize(11);

@@ -35,7 +35,7 @@ export default function CaseError({
       <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
         <button
           onClick={() => reset()}
-          style={{ fontSize: '11px', color: 'var(--ink)', backgroundColor: '#C8A97E', padding: '12px 24px', letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 500, border: 'none', cursor: 'pointer' }}
+          style={{ fontSize: '11px', color: 'var(--ink)', backgroundColor: 'var(--brand-fill)', padding: '12px 24px', letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 500, border: 'none', cursor: 'pointer' }}
         >
           Try again
         </button>

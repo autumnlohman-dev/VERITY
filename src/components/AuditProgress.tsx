@@ -87,7 +87,7 @@ export function AuditProgress({
                 textTransform: "uppercase",
                 fontWeight: 500,
               }),
-              backgroundColor: "#C8A97E",
+              backgroundColor: "var(--brand-fill)",
               border: "none",
               padding: "14px 28px",
               cursor: "pointer",

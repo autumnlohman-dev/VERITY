@@ -60,7 +60,7 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
   if (submitted && outcome) {
     const statusLabels: Record<string, { label: string; color: string }> = {
       won: { label: 'Won, Full Amount', color: '#7A9E87' },
-      partial: { label: 'Partial Win', color: '#C8A97E' },
+      partial: { label: 'Partial Win', color: 'var(--brand)' },
       lost: { label: 'Dispute Lost', color: '#C47C6A' },
       abandoned: { label: 'Abandoned', color: 'var(--ink-soft)' },
       in_progress: { label: 'In Progress', color: 'var(--brand)' },
@@ -92,7 +92,7 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
 
   return (
     <div style={{ border: '1px solid var(--line)', padding: '20px', marginTop: '24px', backgroundColor: 'var(--surface-raised)' }}>
-      <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '8px' }}>
+      <div style={{ ...sans('11px', 'var(--brand)'), letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: '8px' }}>
         How did your dispute go?
       </div>
       <div style={{ ...sans('13px', 'var(--ink-soft)'), marginBottom: '16px' }}>
@@ -133,7 +133,7 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
           onClick={handleSubmit}
           style={{
             ...sans('12px', 'var(--ink)'),
-            backgroundColor: '#C8A97E',
+            backgroundColor: 'var(--brand-fill)',
             border: 'none',
             padding: '12px 28px',
             cursor: 'pointer',

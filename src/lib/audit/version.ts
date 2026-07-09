@@ -14,10 +14,14 @@
 //     rows persisted under the pre-overhaul per-line gross-charge comparison.
 //   2: cross-document honesty overhaul (patient_responsibility_mismatch,
 //     adjudication-aware CMS suppression, per-line dedup, savings cap).
+//   3: plain-language finding text (em/en dashes removed from all generated
+//     descriptions, placeholder timeline events suppressed, thousands
+//     separators in timeline amounts). Numbers unchanged; the bump exists so
+//     pre-sweep persisted strings regenerate clean through recompute-on-view.
 //
 // Dependency-free on purpose: imported by client pages, API routes, and tests.
 
-export const AUDIT_LOGIC_VERSION = 2
+export const AUDIT_LOGIC_VERSION = 3
 
 /** The version a stored bill_data was computed under (1 = pre-stamp legacy). */
 export function auditVersionOf(billData: Record<string, unknown> | null | undefined): number {

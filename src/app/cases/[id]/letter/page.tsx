@@ -45,7 +45,7 @@ const sans = (size: string, color = "var(--ink-soft)", extra?: React.CSSProperti
   ...extra,
 });
 
-const label = (color = "#C8A97E"): React.CSSProperties => ({
+const label = (color = "var(--brand)"): React.CSSProperties => ({
   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
@@ -180,7 +180,7 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
     const token = m[0];
     if (token.startsWith("**") || token.startsWith("__")) {
       parts.push(
-        <strong key={`${keyPrefix}-b-${key++}`} style={{ color: "var(--surface-raised)", fontWeight: 600 }}>
+        <strong key={`${keyPrefix}-b-${key++}`} style={{ color: "var(--ink)", fontWeight: 600 }}>
           {token.slice(2, -2)}
         </strong>
       );
@@ -328,7 +328,7 @@ function MarkdownLetter({ content }: { content: string }) {
       style={{
         fontFamily: "var(--font-public-sans), system-ui, sans-serif",
         fontSize: "14px",
-        color: "#2A2520",
+        color: "var(--ink)",
         lineHeight: 1.8,
       }}
     >
@@ -341,7 +341,7 @@ function MarkdownLetter({ content }: { content: string }) {
                 style={{
                   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                   fontSize: "20px",
-                  color: "var(--surface-raised)",
+                  color: "var(--ink)",
                   fontWeight: 600,
                   margin: "24px 0 12px",
                   lineHeight: 1.3,
@@ -357,7 +357,7 @@ function MarkdownLetter({ content }: { content: string }) {
                 style={{
                   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                   fontSize: "17px",
-                  color: "var(--surface-raised)",
+                  color: "var(--ink)",
                   fontWeight: 600,
                   margin: "20px 0 10px",
                   lineHeight: 1.3,
@@ -373,7 +373,7 @@ function MarkdownLetter({ content }: { content: string }) {
                 style={{
                   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                   fontSize: "14px",
-                  color: "var(--surface-raised)",
+                  color: "var(--ink)",
                   fontWeight: 600,
                   textTransform: "uppercase",
                   letterSpacing: "0.08em",
@@ -444,7 +444,7 @@ function MarkdownLetter({ content }: { content: string }) {
                           textAlign: "left",
                           borderBottom: "2px solid #D8D2C8",
                           padding: "6px 10px",
-                          color: "var(--surface-raised)",
+                          color: "var(--ink)",
                           fontWeight: 600,
                         }}
                       >
@@ -463,7 +463,7 @@ function MarkdownLetter({ content }: { content: string }) {
                             borderBottom: "1px solid #ECE8E1",
                             padding: "6px 10px",
                             verticalAlign: "top",
-                            color: "#2A2520",
+                            color: "var(--ink)",
                           }}
                         >
                           {renderInline(cell, `td-${idx}-${ri}-${ci}`)}
@@ -507,7 +507,7 @@ const INSURED_SUBMISSION_OPTIONS = [
   },
   {
     method: "Send by fax",
-    color: "#C8A97E",
+    color: "var(--brand)",
     detail:
       "Fax this letter to your insurer's claims review line (printed on your insurance card). Include a cover sheet referencing your member ID and claim number. Keep the fax confirmation as proof of delivery.",
   },
@@ -538,7 +538,7 @@ const PROVIDER_DISPUTE_SUBMISSION_OPTIONS = [
   },
   {
     method: "Escalate if unresolved",
-    color: "#C8A97E",
+    color: "var(--brand)",
     detail:
       "If the provider doesn't correct the bill within 30 days, file a complaint with your state's attorney general / consumer protection office, and at cms.gov/nosurprises (1-800-985-3059) if the care was emergency or out-of-network at an in-network facility.",
   },
@@ -559,7 +559,7 @@ const SELF_PAY_SUBMISSION_OPTIONS = [
   },
   {
     method: "Request itemization and a self-pay discount",
-    color: "#C8A97E",
+    color: "var(--brand)",
     detail:
       "Ask the billing office in writing for a fully itemized statement and their self-pay / prompt-pay discount and financial-assistance policy before paying any disputed amount.",
   },
@@ -740,7 +740,7 @@ function PatientInfoPanel({
           <button
             onClick={() => setOpen(true)}
             style={{
-              ...sans("11px", "#C8A97E"),
+              ...sans("11px", "var(--brand)"),
               letterSpacing: "0.15em",
               textTransform: "uppercase",
               background: "transparent",
@@ -813,7 +813,7 @@ function PatientInfoPanel({
                 ...sans("11px", "var(--ink)"),
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
-                backgroundColor: "#C8A97E",
+                backgroundColor: "var(--brand-fill)",
                 border: "none",
                 padding: "10px 20px",
                 cursor: saving ? "wait" : "pointer",
@@ -989,7 +989,7 @@ function MissingFieldsModal({
               ...sans("11px", "var(--ink)"),
               letterSpacing: "0.2em",
               textTransform: "uppercase",
-              backgroundColor: "#C8A97E",
+              backgroundColor: "var(--brand-fill)",
               border: "none",
               padding: "10px 20px",
               cursor: allFilled ? "pointer" : "not-allowed",
@@ -1073,7 +1073,7 @@ function LetterPaywall({
         <>
           <div
             className="dot-pulse"
-            style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#C8A97E", marginBottom: "24px" }}
+            style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "var(--brand-fill)", marginBottom: "24px" }}
           />
           <div style={{ ...serif("40px", { lineHeight: 1.1, maxWidth: "460px" }) }}>
             Confirming your payment.
@@ -1085,7 +1085,7 @@ function LetterPaywall({
             onClick={onRefresh}
             style={{
               ...sans("11px", "var(--ink)"),
-              backgroundColor: "#C8A97E",
+              backgroundColor: "var(--brand-fill)",
               padding: "12px 24px",
               letterSpacing: "0.2em",
               textTransform: "uppercase",
@@ -1114,7 +1114,7 @@ function LetterPaywall({
               onClick={() => startSingleDisputeCheckout(caseId)}
               style={{
                 ...sans("11px", "var(--ink)"),
-                backgroundColor: "#C8A97E",
+                backgroundColor: "var(--brand-fill)",
                 padding: "16px 32px",
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
@@ -1128,7 +1128,7 @@ function LetterPaywall({
             <button
               onClick={() => startMembershipCheckout("monthly")}
               style={{
-                ...sans("11px", "#C8A97E"),
+                ...sans("11px", "var(--brand)"),
                 background: "transparent",
                 border: "1px solid #C8A97E",
                 padding: "16px 32px",
@@ -1191,7 +1191,7 @@ function LetterPaywall({
                     disabled={promoSubmitting || !promoCode.trim()}
                     style={{
                       ...sans("11px", "var(--ink)"),
-                      backgroundColor: "#C8A97E",
+                      backgroundColor: "var(--brand-fill)",
                       border: "none",
                       padding: "12px 20px",
                       letterSpacing: "0.15em",
@@ -1469,7 +1469,7 @@ export default function LetterPage({
             width: "10px",
             height: "10px",
             borderRadius: "50%",
-            backgroundColor: "#C8A97E",
+            backgroundColor: "var(--brand-fill)",
             marginBottom: "24px",
           }}
         />
@@ -1500,7 +1500,7 @@ export default function LetterPage({
         </p>
         <Link
           href={`/cases/${id}`}
-          style={{ ...sans("12px", "#C8A97E"), textDecoration: "none", marginTop: "32px", letterSpacing: "0.1em" }}
+          style={{ ...sans("12px", "var(--brand)"), textDecoration: "none", marginTop: "32px", letterSpacing: "0.1em" }}
         >
           ← Back to case
         </Link>
@@ -1560,7 +1560,7 @@ export default function LetterPage({
               width: "10px",
               height: "10px",
               borderRadius: "50%",
-              backgroundColor: "#C8A97E",
+              backgroundColor: "var(--brand-fill)",
               marginBottom: "24px",
             }}
           />
@@ -1587,7 +1587,7 @@ export default function LetterPage({
             disabled={generating}
             style={{
               ...sans("11px", "var(--ink)"),
-              backgroundColor: "#C8A97E",
+              backgroundColor: "var(--brand-fill)",
               padding: "12px 24px",
               letterSpacing: "0.2em",
               textTransform: "uppercase",
@@ -1602,7 +1602,7 @@ export default function LetterPage({
           <Link href={`/cases/${id}`} style={{ textDecoration: "none" }}>
             <span
               style={{
-                ...sans("11px", "#C8A97E"),
+                ...sans("11px", "var(--brand)"),
                 border: "1px solid #C8A97E",
                 padding: "12px 24px",
                 letterSpacing: "0.2em",
@@ -1768,7 +1768,7 @@ export default function LetterPage({
               ...sans("11px", "var(--ink)"),
               letterSpacing: "0.15em",
               textTransform: "uppercase",
-              backgroundColor: "#C8A97E",
+              backgroundColor: "var(--brand-fill)",
               border: "none",
               padding: "8px 16px",
               cursor: letterStale ? "not-allowed" : "pointer",
@@ -1793,7 +1793,7 @@ export default function LetterPage({
         >
           <span style={{ ...sans("13px", "var(--ink-soft)") }}>
             {topDeadline.deadlineType}:{" "}
-            <span style={{ color: "#C8A97E", fontWeight: 600 }}>
+            <span style={{ color: "var(--brand)", fontWeight: 600 }}>
               {formatLongDate(topDeadline.deadlineDate)}
             </span>
             {" · "}
@@ -2015,7 +2015,7 @@ export default function LetterPage({
           <span
             style={{
               ...sans("11px", "var(--ink)"),
-              backgroundColor: "#C8A97E",
+              backgroundColor: "var(--brand-fill)",
               padding: "16px 32px",
               letterSpacing: "0.2em",
               textTransform: "uppercase",

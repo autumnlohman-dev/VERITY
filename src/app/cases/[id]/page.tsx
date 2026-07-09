@@ -26,6 +26,8 @@ import { generateEvidentiaryPackage } from "@/lib/letterPdf";
 import { applyLetterSubstitutions, evidentiaryPackageFilename, todayLongDate } from "@/lib/letterFields";
 import { disputeUnlocked } from "@/lib/entitlements";
 import { userFacingErrorCount } from "@/lib/audit/errorCount";
+import { MANUAL_REVIEW_ERROR_TYPES } from "@/lib/audit/manualReview";
+import { EM_QUESTIONS } from "@/lib/emReview";
 import { formatCalendarDate } from "@/lib/dates";
 import { classifyAuditFreshness, staleBannerFor, type StaleBanner } from "@/lib/audit/version";
 import { auditSnapshotFingerprint, isLetterStale } from "@/lib/letters/staleness";
@@ -50,7 +52,7 @@ const sans = (size: string, color = "var(--ink-soft)", extra?: React.CSSProperti
   ...extra,
 });
 
-const label = (color = "#C8A97E"): React.CSSProperties => ({
+const label = (color = "var(--brand)"): React.CSSProperties => ({
   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
@@ -98,7 +100,7 @@ function Nav() {
         ))}
       </div>
       <Link href="/upload" style={{ textDecoration: "none" }}>
-        <span style={{ ...sans("11px", "var(--ink)"), backgroundColor: "#C8A97E", padding: "12px 24px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
+        <span style={{ ...sans("11px", "var(--ink)"), backgroundColor: "var(--brand-fill)", padding: "12px 24px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
           Upload my bill free →
         </span>
       </Link>
@@ -163,6 +165,88 @@ interface CaseRow {
   mail_test_mode?: boolean | null;
   mail_certified?: boolean | null;
   mail_expected_delivery?: string | null;
+  mailed_at?: string | null;
+}
+
+// Cross-document discrepancy card, shared by accordions a and c.
+function CrossDocCard({ d }: { d: NormalizedCBSSet["crossDocumentDiscrepancies"][number] }) {
+  const sevHigh = d.severity === "critical" || d.severity === "high";
+  const sev = sevHigh ? "#C47C6A" : "var(--ink-soft)";
+  return (
+    <div
+      style={{
+        backgroundColor: "var(--surface)",
+        border: "1px solid var(--line)",
+        borderLeft: `3px solid ${sevHigh ? "#C47C6A" : "var(--line)"}`,
+        padding: "20px 24px",
+        marginBottom: "12px",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "16px", flexWrap: "wrap" }}>
+        <div style={{ ...serif("20px", { color: "var(--ink)", lineHeight: 1.2 }), textTransform: "capitalize" }}>
+          {d.type.replace(/_/g, " ")}
+        </div>
+        {d.estimatedDollarImpact > 0 && (
+          <div className="figure" style={{ ...sans("18px", "var(--ink)") }}>
+            {formatCurrency(d.estimatedDollarImpact)}
+          </div>
+        )}
+      </div>
+      <div style={{ ...sans("10px", sev), letterSpacing: "0.15em", textTransform: "uppercase", marginTop: "4px" }}>
+        {d.severity} · {Math.round(d.confidenceScore * 100)}% confidence
+      </div>
+      <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "10px", lineHeight: 1.65 }}>
+        {d.description}
+      </p>
+      {d.applicableRegulations.length > 0 && (
+        <div style={{ ...sans("11px", "var(--ink-soft)"), marginTop: "10px", lineHeight: 1.55 }}>
+          {d.applicableRegulations.map((reg, ri) => (
+            <div key={ri} style={{ marginTop: ri === 0 ? 0 : "4px" }}>· {reg}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Accordion (B2): native <details>, collapsed by default. The summary is
+// always a plain-language sentence stating the section's conclusion, derived
+// from case data. `urgent` renders the amber BORDER (never amber text) and is
+// paired with defaultOpen so progressive disclosure never hides urgency.
+function Accordion({
+  summary,
+  defaultOpen,
+  urgent,
+  children,
+}: {
+  summary: string;
+  defaultOpen?: boolean;
+  urgent?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details
+      open={defaultOpen}
+      style={{
+        backgroundColor: "var(--surface-raised)",
+        border: "1px solid var(--line)",
+        borderLeft: urgent ? "3px solid var(--urgent-amber)" : "1px solid var(--line)",
+        marginBottom: "12px",
+      }}
+    >
+      <summary
+        style={{
+          ...sans("14px", "var(--ink)"),
+          padding: "16px 20px",
+          cursor: "pointer",
+          lineHeight: 1.5,
+        }}
+      >
+        {summary}
+      </summary>
+      <div style={{ padding: "4px 20px 20px" }}>{children}</div>
+    </details>
+  );
 }
 
 interface LetterRow {
@@ -213,7 +297,7 @@ const CONFIDENCE_STYLE: Record<string, React.CSSProperties> = {
     backgroundColor: "rgba(196,124,106,0.08)",
   },
   MEDIUM: {
-    color: "#C8A97E",
+    color: "var(--brand)",
     borderColor: "rgba(200,169,126,0.4)",
     backgroundColor: "rgba(200,169,126,0.08)",
   },
@@ -287,6 +371,10 @@ function Shell({ children }: { children: React.ReactNode }) {
       <style>{`
         @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
         .dot-pulse { animation: pulse-dot 1.5s ease-in-out infinite; }
+        @media (max-width: 520px) {
+          .evidence-strip { flex-direction: column; }
+          .evidence-divider { width: 100% !important; height: 1px !important; }
+        }
       `}</style>
       <Nav />
       {children}
@@ -313,7 +401,7 @@ function LoadingState() {
             width: "10px",
             height: "10px",
             borderRadius: "50%",
-            backgroundColor: "#C8A97E",
+            backgroundColor: "var(--brand-fill)",
             marginBottom: "24px",
           }}
         />
@@ -345,7 +433,7 @@ function NotFoundState({ message }: { message: string }) {
         </p>
         <Link
           href="/dashboard"
-          style={{ ...sans("12px", "#C8A97E"), textDecoration: "none", marginTop: "32px", letterSpacing: "0.1em" }}
+          style={{ ...sans("12px", "var(--brand)"), textDecoration: "none", marginTop: "32px", letterSpacing: "0.1em" }}
         >
           Return to dashboard →
         </Link>
@@ -498,6 +586,11 @@ export default function CaseDetailPage({
   // Set when this case's stored audit predates the current logic version and
   // couldn't be (fully) brought current on load — drives the staleness banner.
   const [staleAudit, setStaleAudit] = useState<StaleBanner | null>(null);
+  // Delete flow (inside the Case details accordion): inline confirm, then
+  // DELETE via the same API the dashboard uses.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -880,6 +973,80 @@ export default function CaseDetailPage({
   const findingsCount = userFacingErrorCount(errors, cbsSet?.crossDocumentDiscrepancies);
   const statusCfg = STATUS_DISPLAY[caseRow.status] ?? { label: caseRow.status };
 
+  // ── Accordion groupings (B2): each summary sentence derives from these ──
+  const crossDocs = cbsSet?.crossDocumentDiscrepancies ?? [];
+  const significantCrossDocs = crossDocs.filter(
+    (d) =>
+      Number(d.estimatedDollarImpact || 0) > 0 ||
+      d.severity === "critical" ||
+      d.severity === "high"
+  );
+  const lowConfCrossDocs = crossDocs.filter((d) => !significantCrossDocs.includes(d));
+  const observations = errors.filter((e) => e.error_type === "coding_observation");
+  const manualFlags = errors.filter(
+    (e) => MANUAL_REVIEW_ERROR_TYPES.has(e.error_type) && e.error_type !== "coding_observation"
+  );
+  const disputableErrors = errors.filter((e) => !MANUAL_REVIEW_ERROR_TYPES.has(e.error_type));
+  const soonestDeadline =
+    deadlines.length > 0
+      ? [...deadlines].sort((a, b) => a.daysRemaining - b.daysRemaining)[0]
+      : null;
+  const deadlineUrgent = !!soonestDeadline && soonestDeadline.daysRemaining <= 14;
+
+  const cents = (n: number) =>
+    `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // Evidence strip figures (B1): persisted totals only; the strip is omitted
+  // entirely when either is missing — never blanks.
+  const evidence =
+    Number.isFinite(billPatientResp) &&
+    billPatientResp > 0 &&
+    Number.isFinite(eobPatientResp) &&
+    eobPatientResp >= 0
+      ? { billAsks: billPatientResp, insuranceSays: eobPatientResp }
+      : null;
+
+  // ── Verdict (B1): one sentence answering "what's going on with my bill" ──
+  const hasEob = !!caseRow.bill_data?.hasEob;
+  const cleanBill =
+    caseRow.status !== "auditing" && findingsCount === 0 && savings <= 0;
+  const verdictSentence: React.ReactNode =
+    caseRow.status === "auditing" ? (
+      <>This audit didn&apos;t finish. Re-run it to get your findings.</>
+    ) : cleanBill ? (
+      hasEob ? (
+        <>We checked this bill against your insurance&apos;s numbers and found nothing to dispute.</>
+      ) : (
+        <>We checked this bill against published billing rules and found nothing to dispute.</>
+      )
+    ) : savings > 0 && hasEob ? (
+      <>
+        {providerName} is charging you <span className="figure">{formatCurrency(savings)}</span>{" "}
+        more than your insurance says you owe.
+      </>
+    ) : savings > 0 ? (
+      <>
+        We found <span className="figure">{formatCurrency(savings)}</span> in likely errors on
+        your {providerName} bill.
+      </>
+    ) : (
+      <>
+        We flagged {findingsCount === 1 ? "one item" : `${findingsCount} items`} to review on
+        your {providerName} bill.
+      </>
+    );
+
+  // The ONE action, from case state. Mail status wins over everything.
+  const letterHref = `/cases/${caseRow.id}/letter`;
+  const mailedFlag = !!caseRow.lob_letter_id;
+  const replyDue = (() => {
+    const base = caseRow.mailed_at ?? caseRow.mail_expected_delivery;
+    if (!base) return null;
+    const d = new Date(base);
+    if (isNaN(d.getTime())) return null;
+    d.setDate(d.getDate() + 30); // the letter requests correction within 30 days
+    return formatCalendarDate(d.toISOString().slice(0, 10));
+  })();
+
   // Stale letter: the audit was recomputed/re-run after generation, so the
   // letter's numbers no longer match this page. The package generator refuses
   // it here (it renders client-side; the mail endpoint enforces the same
@@ -900,6 +1067,25 @@ export default function CaseDetailPage({
   // Generate the full Evidentiary Package PDF client-side from the data already
   // loaded on this page: the dispute letter, plus the CBS timeline, deadlines,
   // and itemized audit findings that the letter page does not have on hand.
+  const handleDeleteCase = async () => {
+    if (deleting || !caseRow) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/cases/${caseRow.id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setDeleteError(json.error ?? "Couldn't delete this case. Please try again.");
+        return;
+      }
+      window.location.href = "/dashboard";
+    } catch {
+      setDeleteError("Couldn't delete this case. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleDownloadPackage = () => {
     if (!letter || letterStale) return;
     const caseShortId = caseRow.id.slice(0, 8).toUpperCase();
@@ -964,7 +1150,7 @@ export default function CaseDetailPage({
         <Link
           href={`/copilot?caseId=${caseRow.id}`}
           style={{
-            ...sans("10px", "#C8A97E"),
+            ...sans("10px", "var(--brand)"),
             textDecoration: "none",
             letterSpacing: "0.2em",
             textTransform: "uppercase",
@@ -978,7 +1164,7 @@ export default function CaseDetailPage({
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = "transparent";
-            e.currentTarget.style.color = "#C8A97E";
+            e.currentTarget.style.color = "var(--brand)";
           }}
         >
           Live Copilot →
@@ -993,7 +1179,7 @@ export default function CaseDetailPage({
               border: "1px solid rgba(200,169,126,0.4)",
               borderLeft: "3px solid #C8A97E",
               padding: "14px 20px",
-              ...sans("13px", "#C8A97E"),
+              ...sans("13px", "var(--brand)"),
             }}
           >
             This bill is already in your dashboard, showing your existing audit
@@ -1042,267 +1228,571 @@ export default function CaseDetailPage({
         </div>
       )}
 
-      {/* Header */}
+      {/* Verdict header (B1): the dashboard's centered composition. Status
+          chips, tier, and the stat row live in the Case details accordion. */}
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
+        initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
         style={{
-          paddingLeft: "64px",
-          paddingRight: "64px",
-          paddingTop: "24px",
-          paddingBottom: "40px",
+          paddingLeft: "clamp(20px, 6vw, 64px)",
+          paddingRight: "clamp(20px, 6vw, 64px)",
+          paddingTop: "32px",
+          paddingBottom: "48px",
           borderBottom: "1px solid var(--line)",
         }}
       >
-        <h1 style={{ ...serif("48px", { lineHeight: 1.05 }) }}>{providerName}</h1>
-        <div style={{ ...sans("14px", "var(--ink-soft)"), marginTop: "8px" }}>
-          {insurer} · Filed {formatDate(caseRow.created_at)}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px", marginTop: "16px" }}>
-          <StatusPill status={caseRow.status} />
-          {tierLabel && (
+        <div style={{ maxWidth: "640px", margin: "0 auto", textAlign: "center" }}>
+          <div style={{ ...label("var(--ink-soft)"), marginBottom: "20px" }}>Your case</div>
+          <h1 style={{ ...serif("clamp(22px, 3vw, 30px)", { lineHeight: 1.35 }) }}>
+            {verdictSentence}
+          </h1>
+
+          {/* Evidence strip: the two figures, side by side. */}
+          {evidence && (
             <div
+              className="evidence-strip"
               style={{
-                ...sans("10px", "var(--ink-soft)"),
-                letterSpacing: "0.15em",
-                textTransform: "uppercase",
+                margin: "32px auto 0",
+                maxWidth: "460px",
                 border: "1px solid var(--line)",
-                padding: "2px 8px",
-                display: "inline-block",
+                display: "flex",
+                backgroundColor: "var(--surface-raised)",
               }}
             >
-              {tierLabel}
-            </div>
-          )}
-        </div>
-
-        {/* Stats */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1px 1fr 1px 1fr",
-            marginTop: "32px",
-            maxWidth: "720px",
-          }}
-        >
-          {[
-            { value: formatCurrency(billed), sublabel: "amount billed", color: "var(--ink)" },
-            null,
-            { value: formatCurrency(expected), sublabel: "amount expected", color: "var(--ink)" },
-            null,
-            {
-              value: formatCurrency(savings),
-              sublabel: "potential savings",
-              color: savings > 0 ? "#7A9E87" : "var(--ink-soft)",
-            },
-          ].map((item, i) =>
-            item === null ? (
-              <div
-                key={i}
-                style={{ width: "1px", backgroundColor: "var(--line)", alignSelf: "stretch", margin: "0 24px" }}
-              />
-            ) : (
-              <div key={i}>
-                <div
-                  style={{
-                    fontFamily: "var(--font-lora), Georgia, serif",
-  
-  letterSpacing: "-0.015em",
-                    fontSize: "36px",
-                    color: item.color,
-                    lineHeight: 1,
-                    fontWeight: 400,
-                  }}
-                >
-                  {item.value}
+              <div style={{ flex: 1, padding: "18px 16px" }}>
+                <div style={{ ...label("var(--ink-soft)"), fontSize: "10px", marginBottom: "8px" }}>
+                  The bill asks
                 </div>
-                <div style={{ ...sans("11px", "var(--ink-soft)"), marginTop: "6px" }}>{item.sublabel}</div>
+                <div className="figure" style={{ ...sans("19px", "var(--ink)") }}>
+                  {cents(evidence.billAsks)}
+                </div>
               </div>
-            )
-          )}
-        </div>
-
-        {/* Letter CTA */}
-        {letter ? (
-          <div
-            style={{
-              backgroundColor: "var(--surface-raised)",
-              borderLeft: "4px solid #C8A97E",
-              padding: "20px 24px",
-              marginTop: "32px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-            }}
-          >
-            <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
-              {letterStale ? "Your letter is out of date." : "Your Evidentiary Package is ready."}
-            </div>
-            <p style={{ ...sans("13px", "var(--ink-soft)") }}>
-              {letterStale
-                ? "Your audit was updated after this letter was created, the numbers no longer match. Regenerate the letter to re-enable download and mailing."
-                : "A complete, ready-to-send PDF: cover sheet, dispute letter, chronological timeline, financial calculation worksheet, regulatory citation appendix, and a deadline summary."}
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
-              {!letterStale && (
-                <button
-                  onClick={handleDownloadPackage}
-                  style={{
-                    ...sans("10px", "var(--ink)"),
-                    backgroundColor: "#C8A97E",
-                    padding: "10px 20px",
-                    letterSpacing: "0.2em",
-                    textTransform: "uppercase",
-                    display: "inline-block",
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  Download Evidentiary Package ↓
-                </button>
-              )}
-              <Link href={`/cases/${caseRow.id}/letter`} style={{ textDecoration: "none" }}>
-                <span
-                  style={{
-                    ...sans("10px", letterStale ? "var(--ink)" : "#C8A97E"),
-                    backgroundColor: letterStale ? "#C8A97E" : "transparent",
-                    border: letterStale ? "none" : "1px solid rgba(200,169,126,0.4)",
-                    padding: "10px 20px",
-                    letterSpacing: "0.2em",
-                    textTransform: "uppercase",
-                    fontWeight: letterStale ? 500 : undefined,
-                    display: "inline-block",
-                  }}
-                >
-                  {letterStale ? "Regenerate letter →" : "View dispute letter →"}
-                </span>
-              </Link>
-            </div>
-            {caseRow.lob_letter_id && (
               <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  marginTop: "4px",
-                  flexWrap: "wrap",
-                }}
-              >
-                <span
-                  style={{
-                    display: "inline-block",
-                    width: "6px",
-                    height: "6px",
-                    borderRadius: "50%",
-                    backgroundColor: caseRow.mail_test_mode ? "#C8A97E" : "#7A9E87",
-                  }}
-                />
-                <span style={{ ...sans("12px", caseRow.mail_test_mode ? "#C8A97E" : "#7A9E87") }}>
-                  {caseRow.mail_test_mode
-                    ? "Mailed in TEST MODE, no physical letter sent"
-                    : caseRow.mail_certified
-                    ? "Letter mailed (certified)"
-                    : "Letter mailed"}
-                </span>
+                className="evidence-divider"
+                style={{ width: "1px", backgroundColor: "var(--line)", alignSelf: "stretch" }}
+              />
+              <div style={{ flex: 1, padding: "18px 16px" }}>
+                <div style={{ ...label("var(--ink-soft)"), fontSize: "10px", marginBottom: "8px" }}>
+                  Your insurance says
+                </div>
+                <div className="figure" style={{ ...sans("19px", "var(--brand)") }}>
+                  {cents(evidence.insuranceSays)}
+                </div>
               </div>
-            )}
-          </div>
-        ) : caseRow.status === "error_found" ? (
+            </div>
+          )}
+
+          {/* The ONE action, from case state (B1/B5). */}
           <div
             style={{
-              backgroundColor: "var(--surface-raised)",
-              borderLeft: "4px solid #C8A97E",
-              padding: "20px 24px",
               marginTop: "32px",
               display: "flex",
-              flexDirection: "column",
-              gap: "12px",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: "16px",
+              flexWrap: "wrap",
             }}
           >
-            <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
-              {findingsCount} {findingsCount === 1 ? "error" : "errors"} found.
-            </div>
-            <p style={{ ...sans("13px", "var(--ink-soft)") }}>
-              {unlocked
-                ? "Your dispute package is unlocked. Generate your insurer-ready letter, regulatory citations, chronological timeline, and evidence included."
-                : "Turn these findings into a ready-to-send dispute package: an insurer-specific letter, regulatory citations, and a step-by-step submission guide."}
-            </p>
-            <Link href={`/cases/${caseRow.id}/letter`} style={{ textDecoration: "none" }}>
-              <span
+            {caseRow.status === "auditing" ? (
+              <button
+                onClick={() => rerunInputRef.current?.click()}
+                disabled={rerunning}
                 style={{
-                  ...sans("10px", "var(--ink)"),
-                  backgroundColor: "#C8A97E",
-                  padding: "12px 24px",
+                  ...sans("11px", "var(--ink)"),
+                  backgroundColor: "var(--brand-fill)",
+                  border: "none",
+                  padding: "14px 28px",
                   letterSpacing: "0.2em",
                   textTransform: "uppercase",
                   fontWeight: 500,
-                  display: "inline-block",
+                  cursor: rerunning ? "wait" : "pointer",
+                  opacity: rerunning ? 0.6 : 1,
                 }}
               >
-                {unlocked ? "Generate my dispute letter →" : "Get your dispute package →"}
-              </span>
-            </Link>
+                {rerunning ? "Re-running audit…" : "Re-run audit"}
+              </button>
+            ) : mailedFlag ? (
+              <Link href={letterHref} style={{ ...sans("14px", "var(--ink)"), textDecoration: "none" }}>
+                {replyDue ? `Waiting for the reply, due ${replyDue}` : "Waiting for the reply"} →
+              </Link>
+            ) : letter && letterStale ? (
+              <Link href={letterHref} style={{ textDecoration: "none" }}>
+                <span
+                  style={{
+                    ...sans("11px", "var(--ink)"),
+                    backgroundColor: "var(--brand-fill)",
+                    padding: "14px 28px",
+                    letterSpacing: "0.2em",
+                    textTransform: "uppercase",
+                    fontWeight: 500,
+                    display: "inline-block",
+                  }}
+                >
+                  Regenerate letter
+                </span>
+              </Link>
+            ) : letter ? (
+              <Link href={letterHref} style={{ textDecoration: "none" }}>
+                <span
+                  style={{
+                    ...sans("11px", "var(--ink)"),
+                    backgroundColor: "var(--brand-fill)",
+                    padding: "14px 28px",
+                    letterSpacing: "0.2em",
+                    textTransform: "uppercase",
+                    fontWeight: 500,
+                    display: "inline-block",
+                  }}
+                >
+                  Send your letter
+                </span>
+              </Link>
+            ) : caseRow.status === "error_found" ? (
+              <Link href={letterHref} style={{ textDecoration: "none" }}>
+                <span
+                  style={{
+                    ...sans("11px", "var(--ink)"),
+                    backgroundColor: "var(--brand-fill)",
+                    padding: "14px 28px",
+                    letterSpacing: "0.2em",
+                    textTransform: "uppercase",
+                    fontWeight: 500,
+                    display: "inline-block",
+                  }}
+                >
+                  {unlocked ? "Review your letter" : "Get your dispute package"}
+                </span>
+              </Link>
+            ) : null}
           </div>
-        ) : caseRow.status === "no_errors" ? (
-          <div
-            style={{
-              backgroundColor: "var(--surface-raised)",
-              borderLeft: "4px solid #7A9E87",
-              padding: "20px 24px",
-              marginTop: "32px",
-            }}
-          >
-            <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
-              No errors found.
-            </div>
-            <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "8px" }}>
-              We audited every charge against the Medicare Physician Fee Schedule,
-              NCCI edits, and MUE limits. This bill is clean.
+          {caseRow.status === "auditing" && rerunError && (
+            <p style={{ ...sans("13px", "var(--urgent-red)"), marginTop: "12px" }}>{rerunError}</p>
+          )}
+
+          {/* B5: the evidentiary package lives under the action, quietly. */}
+          {letter && !letterStale && (
+            <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "16px" }}>
+              Your letter asks them to correct it.{" "}
+              <Link href={letterHref} style={{ color: "var(--brand)", textDecoration: "none" }}>
+                Read it first
+              </Link>
+              {" · "}
+              <button
+                onClick={handleDownloadPackage}
+                style={{
+                  ...sans("13px", "var(--brand)"),
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                }}
+              >
+                Download the full package
+              </button>
             </p>
-          </div>
-        ) : (
+          )}
+          {mailedFlag && (
+            <p style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "12px" }}>
+              {caseRow.mail_test_mode
+                ? "Mailed in TEST MODE, no physical letter sent"
+                : caseRow.mail_certified
+                ? "Letter mailed (certified)"
+                : "Letter mailed"}
+            </p>
+          )}
+        </div>
+
+      </motion.div>
+
+      {/* Body (B2): one centered column of descriptive accordions, fixed
+          order. Every summary is a data-derived sentence, never a category
+          name. Everything demoted from the old header/sidebar lives in h. */}
+      <div
+        style={{
+          maxWidth: "760px",
+          margin: "0 auto",
+          paddingLeft: "clamp(20px, 6vw, 64px)",
+          paddingRight: "clamp(20px, 6vw, 64px)",
+          paddingTop: "40px",
+          paddingBottom: "96px",
+        }}
+      >
+        {/* Loud notices stay above the fold — never inside a disclosure. */}
+        {caseRow.bill_data?.suspectedPartialRead && (
           <div
             style={{
-              backgroundColor: "var(--surface-raised)",
-              borderLeft: "4px solid var(--brand)",
-              padding: "20px 24px",
-              marginTop: "32px",
+              marginBottom: "24px",
+              backgroundColor: "rgba(196,124,106,0.08)",
+              border: "1px solid rgba(196,124,106,0.4)",
+              borderLeft: "3px solid #C47C6A",
+              padding: "16px 20px",
             }}
           >
-            <div style={{ ...serif("22px", { lineHeight: 1.2 }) }}>
-              {statusCfg.label}.
+            <div style={{ ...label("#C47C6A"), marginBottom: "6px" }}>
+              Possible incomplete read
             </div>
-            <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "8px" }}>
-              We&apos;re reviewing your bill now. Check back shortly.
+            <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.6 }}>
+              The charge lines we extracted add up to noticeably less than the total
+              printed on your bill, some pages or rows may not have been read. These
+              findings may be incomplete: re-upload all pages of the itemized bill
+              (clear photos or a PDF) and re-run the audit before relying on the numbers.
             </p>
           </div>
         )}
-      </motion.div>
+        {caseRow.bill_data?.eobError && (
+          <div
+            style={{
+              marginBottom: "24px",
+              backgroundColor: "var(--surface-raised)",
+              border: "1px solid var(--line)",
+              borderLeft: "3px solid var(--urgent-amber)",
+              padding: "16px 20px",
+            }}
+          >
+            <div style={{ ...label("var(--ink-soft)"), marginBottom: "6px" }}>EOB notice</div>
+            <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.6 }}>
+              We couldn&apos;t read your EOB, so this audit was completed using your bill
+              only. Re-upload a clearer EOB (PDF or photo) to add the bill-vs-EOB cross-check.
+            </p>
+          </div>
+        )}
+        {caseRow.status !== "auditing" &&
+          errors.length === 0 &&
+          expected === 0 &&
+          !caseRow.bill_data?.hasEob && (
+            <div
+              style={{
+                marginBottom: "24px",
+                backgroundColor: "var(--surface-raised)",
+                border: "1px solid var(--line)",
+                borderLeft: "3px solid var(--urgent-amber)",
+                padding: "16px 20px",
+              }}
+            >
+              <div style={{ ...label("var(--ink-soft)"), marginBottom: "6px" }}>
+                Reference data gap
+              </div>
+              <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.6 }}>
+                Fee schedule lookup returned no matches, the CPT codes on this bill may
+                not be in our reference data. This audit should not be treated as
+                exhaustive until the relevant codes are loaded.
+              </p>
+            </div>
+          )}
 
-      {/* Body */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "2fr 1fr",
-          gap: "48px",
-          paddingLeft: "64px",
-          paddingRight: "64px",
-          paddingTop: "48px",
-          paddingBottom: "96px",
-          alignItems: "start",
-        }}
-      >
-        {/* Left: Errors */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
-        >
-          {/* ── VERITY v2: FHS intake → score, deadlines, timeline ── */}
+        {/* a. Why you owe the EOB number, not the bill number. */}
+        {significantCrossDocs.length > 0 && (
+          <Accordion
+            summary={
+              evidence
+                ? `Why you owe ${cents(evidence.insuranceSays)}, not ${cents(evidence.billAsks)}.`
+                : significantCrossDocs.length === 1
+                ? "1 difference between your bill and your insurance's numbers."
+                : `${significantCrossDocs.length} differences between your bill and your insurance's numbers.`
+            }
+          >
+            {significantCrossDocs.map((d) => (
+              <CrossDocCard key={d.discrepancyId} d={d} />
+            ))}
+          </Accordion>
+        )}
+
+        {/* b. Charges that look high, with the justification ask. */}
+        {(disputableErrors.length > 0 || manualFlags.length > 0) && (
+          <Accordion
+            summary={
+              disputableErrors.length === 0
+                ? manualFlags.length === 1
+                  ? "1 charge needs a manual rate check."
+                  : `${manualFlags.length} charges need a manual rate check.`
+                : `${
+                    disputableErrors.length === 1
+                      ? "1 charge looks"
+                      : `${disputableErrors.length} charges look`
+                  } high compared to Medicare rates. ${
+                    letter
+                      ? `Your letter asks the hospital to justify ${disputableErrors.length === 1 ? "it" : "them"}.`
+                      : `Your letter will ask the hospital to justify ${disputableErrors.length === 1 ? "it" : "them"}.`
+                  }`
+            }
+          >
+            {disputableErrors.length > 0 && (
+              /* The table scrolls inside its own container on narrow screens;
+                 the page never scrolls horizontally. */
+              <div style={{ overflowX: "auto" }}>
+              <div style={{ minWidth: "460px" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "72px 1fr 90px 90px 100px",
+                    gap: "12px",
+                    paddingBottom: "12px",
+                    borderBottom: "1px solid var(--line)",
+                  }}
+                >
+                  {["Code", "Issue", "Billed", "Expected", "Confidence"].map((h) => (
+                    <span
+                      key={h}
+                      style={{ ...sans("11px", "var(--ink-soft)"), letterSpacing: "0.15em", textTransform: "uppercase" }}
+                    >
+                      {h}
+                    </span>
+                  ))}
+                </div>
+                {disputableErrors.map((err, i) => (
+                  <div key={`${err.cpt_code}-${i}`} style={{ borderBottom: "1px solid var(--line)" }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "72px 1fr 90px 90px 100px",
+                        gap: "12px",
+                        paddingTop: "16px",
+                        paddingBottom: "8px",
+                        alignItems: "start",
+                      }}
+                    >
+                      <span className="figure" style={{ ...sans("12px", "var(--ink-soft)") }}>
+                        {err.cpt_code}
+                      </span>
+                      <div style={{ ...sans("13px", "var(--ink)") }}>
+                        {errorTypeLabel(err.error_type)}
+                        {err.description ? `, ${err.description}` : ""}
+                      </div>
+                      <span className="figure" style={{ ...sans("13px", "var(--ink-soft)") }}>
+                        {formatCurrency(err.billed_amount)}
+                      </span>
+                      <span className="figure" style={{ ...sans("13px", "var(--ink-soft)") }}>
+                        {formatCurrency(err.expected_amount)}
+                      </span>
+                      <ConfidenceBadge confidence={err.confidence} />
+                    </div>
+                    <div style={{ backgroundColor: "var(--surface)", padding: "16px 20px" }}>
+                      <div
+                        style={{
+                          ...sans("10px", "var(--ink-soft)"),
+                          letterSpacing: "0.2em",
+                          textTransform: "uppercase",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Evidence
+                      </div>
+                      <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.65 }}>
+                        {err.explanation}
+                      </p>
+                      <div style={{ ...sans("11px", "var(--ink-soft)"), marginTop: "8px", letterSpacing: "0.05em" }}>
+                        Rule: {err.rule_violated}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {savings > 0 && (
+                  <div style={{ paddingTop: "20px", textAlign: "right" }}>
+                    <span style={{ ...sans("13px", "var(--ink-soft)") }}>Potential savings:</span>
+                    <span className="figure" style={{ ...sans("18px", "var(--brand)"), marginLeft: "12px" }}>
+                      {formatCurrency(savings)}
+                    </span>
+                  </div>
+                )}
+              </div>
+              </div>
+            )}
+            {manualFlags.length > 0 && (
+              <div style={{ marginTop: disputableErrors.length > 0 ? "20px" : 0 }}>
+                <div style={{ ...sans("11px", "var(--ink-soft)"), letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: "8px" }}>
+                  Also flagged for our manual review
+                </div>
+                {manualFlags.map((err, i) => (
+                  <p key={i} style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.6, marginBottom: "8px" }}>
+                    {err.cpt_code ? <span className="figure">{err.cpt_code}</span> : null}
+                    {err.cpt_code ? ": " : ""}
+                    {err.explanation || err.description || errorTypeLabel(err.error_type)}
+                  </p>
+                ))}
+              </div>
+            )}
+          </Accordion>
+        )}
+
+        {/* c. Low-confidence line mismatches. */}
+        {lowConfCrossDocs.length > 0 && (
+          <Accordion
+            summary={`${
+              lowConfCrossDocs.length === 1 ? "1 charge" : `${lowConfCrossDocs.length} charges`
+            } we couldn't match line-by-line. Probably formatting, worth a glance.`}
+          >
+            {lowConfCrossDocs.map((d) => (
+              <CrossDocCard key={d.discrepancyId} d={d} />
+            ))}
+          </Accordion>
+        )}
+
+        {/* d. Coding observations that don't change what you owe. */}
+        {observations.length > 0 && (
+          <Accordion
+            summary={`${observations.length} coding observation${
+              observations.length === 1 ? "" : "s"
+            } that ${observations.length === 1 ? "doesn't" : "don't"} change what you owe.`}
+          >
+            {observations.map((err, i) => (
+              <div key={i} style={{ padding: "10px 0", borderBottom: "1px solid var(--line)" }}>
+                <div style={{ ...sans("13px", "var(--ink)") }}>
+                  {err.cpt_code ? <span className="figure">{err.cpt_code}</span> : null}
+                  {err.cpt_code ? ": " : ""}
+                  {err.description || errorTypeLabel(err.error_type)}
+                </div>
+                {err.explanation && (
+                  <p style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "6px", lineHeight: 1.6 }}>
+                    {err.explanation}
+                  </p>
+                )}
+              </div>
+            ))}
+          </Accordion>
+        )}
+
+        {/* e. The E&M questionnaire (unchanged inside). */}
+        {hasEmFlag(emFlagSource) && (
+          <Accordion
+            summary={
+              caseRow.bill_data?.em_review
+                ? "Your visit review is done. Here's what it means for your case."
+                : `Answer ${EM_QUESTIONS.length} quick questions about your visit (2 minutes). It could strengthen your case.`
+            }
+          >
+            {caseRow.bill_data?.em_review ? (
+              <EmOutcomeCallout review={caseRow.bill_data.em_review} />
+            ) : (
+              <EmReviewPanel
+                caseId={caseRow.id}
+                flaggedCodes={getEmFlaggedCodes(emFlagSource)}
+                errors={errors}
+                caseData={{
+                  provider_name: caseRow.provider_name ?? "Provider on file",
+                  insurance_type: caseRow.insurance_type ?? "",
+                  amount_billed: Number(caseRow.amount_billed ?? 0),
+                  amount_expected: Number(caseRow.amount_expected ?? 0),
+                  date_of_service: caseRow.bill_data?.date_of_service ?? undefined,
+                  userNotes: caseRow.bill_data?.userNotes ?? undefined,
+                }}
+                onComplete={() => {
+                  // Reload case state so the outcome callout renders and any
+                  // newly-generated letter CTA appears.
+                  if (typeof window !== "undefined") window.location.reload();
+                }}
+              />
+            )}
+          </Accordion>
+        )}
+
+        {/* f. Deadlines. Urgency is never hidden: within 14 days this renders
+            OPEN with the amber border. */}
+        {soonestDeadline && (
+          <Accordion
+            defaultOpen={deadlineUrgent}
+            urgent={deadlineUrgent}
+            summary={
+              soonestDeadline.daysRemaining < 0
+                ? `A deadline passed ${Math.abs(soonestDeadline.daysRemaining)} days ago. Read this.`
+                : `Your deadline: dispute by ${formatCalendarDate(soonestDeadline.deadlineDate)} (${
+                    soonestDeadline.daysRemaining
+                  } ${soonestDeadline.daysRemaining === 1 ? "day" : "days"} away).`
+            }
+          >
+            <DeadlineTracker deadlines={deadlines} />
+          </Accordion>
+        )}
+
+        {/* g. The timeline. */}
+        {cbsSet && (cbsSet.timeline?.length ?? 0) > 0 && (
+          <Accordion summary="What happened and when.">
+            <FinancialTimeline
+              events={cbsSet.timeline}
+              totalDocuments={cbsSet.documents?.length ?? 0}
+              totalInconsistencies={(cbsSet.documents ?? []).reduce(
+                (sum, d) => sum + (d.temporalInconsistencies?.length ?? 0),
+                0
+              )}
+            />
+          </Accordion>
+        )}
+
+        {/* h. Case details: everything demoted from the old header/sidebar. */}
+        <Accordion summary="Case details.">
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px", flexWrap: "wrap" }}>
+            <StatusPill status={caseRow.status} />
+            {tierLabel && (
+              <span
+                style={{
+                  ...sans("10px", "var(--ink-soft)"),
+                  letterSpacing: "0.15em",
+                  textTransform: "uppercase",
+                  border: "1px solid var(--line)",
+                  padding: "2px 8px",
+                }}
+              >
+                {tierLabel}
+              </span>
+            )}
+          </div>
+
+          {/* The stat row, demoted from the old header. */}
+          <div style={{ display: "flex", gap: "32px", flexWrap: "wrap", marginBottom: "20px" }}>
+            {[
+              { value: formatCurrency(billed), sublabel: "amount billed" },
+              { value: formatCurrency(expected), sublabel: "amount expected" },
+              { value: formatCurrency(savings), sublabel: "potential savings" },
+            ].map((item) => (
+              <div key={item.sublabel}>
+                <div className="figure" style={{ ...sans("20px", "var(--ink)") }}>{item.value}</div>
+                <div style={{ ...sans("11px", "var(--ink-soft)"), marginTop: "4px" }}>{item.sublabel}</div>
+              </div>
+            ))}
+          </div>
+
+          {[
+            { k: "Status", v: statusCfg.label },
+            { k: "Filed", v: formatDate(caseRow.created_at) },
+            { k: "Insurance", v: insurer },
+            { k: "Tier", v: tierLabel ?? "-" },
+            { k: "Errors", v: String(findingsCount) },
+            {
+              k: "Audit version",
+              v: staleAudit ? "Update available (see banner above)" : "Current",
+            },
+          ].map((row, i, arr) => (
+            <div
+              key={row.k}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                padding: "10px 0",
+                borderBottom: i < arr.length - 1 ? "1px solid var(--line)" : "none",
+              }}
+            >
+              <span style={{ ...sans("12px", "var(--ink-soft)") }}>{row.k}</span>
+              <span style={{ ...sans("13px", "var(--ink)") }}>{row.v}</span>
+            </div>
+          ))}
+
+          {caseRow.bill_data?.userNotes && caseRow.bill_data.userNotes.trim() && (
+            <div style={{ marginTop: "24px" }}>
+              <div style={{ ...sans("11px", "var(--ink-soft)"), letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: "8px" }}>
+                Your notes
+              </div>
+              <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
+                {caseRow.bill_data.userNotes}
+              </p>
+            </div>
+          )}
+
+          {/* Advocacy tools (demote-never-destroy: previously top-of-page). */}
           {(errors.length > 0 || (cbsSet && (cbsSet.totalDiscrepancies ?? 0) > 0)) && (
-            <>
-              {/* Financial Harm Score, saved score (with edit) or the form */}
+            <div style={{ marginTop: "32px" }}>
+              <div style={{ ...sans("11px", "var(--ink-soft)"), letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: "16px" }}>
+                More tools
+              </div>
               {fhs && !editingFhs ? (
                 <>
                   <FinancialHarmScoreDisplay fhs={fhs} />
@@ -1320,19 +1810,13 @@ export default function CaseDetailPage({
                       marginBottom: "32px",
                     }}
                   >
-                    ✎ Edit answers
+                    Edit answers
                   </button>
                 </>
               ) : (
                 <FHSIntakeForm initial={fhsInputs} onSubmit={handleFHSIntake} />
               )}
-
-              {/* v8: Outcome Prediction (Component O) */}
-              {fhs && predictions.length > 0 && (
-                <OutcomePredictionPanel predictions={predictions} />
-              )}
-
-              {/* v8: Autonomous Advocacy Agent (Component N) */}
+              {fhs && predictions.length > 0 && <OutcomePredictionPanel predictions={predictions} />}
               {fhs && (
                 <AdvocacyWorkflowPanel
                   workflow={workflow}
@@ -1340,416 +1824,85 @@ export default function CaseDetailPage({
                   onActionUpdate={handleActionUpdate}
                 />
               )}
-
-              {/* Deadline Tracker */}
-              {deadlines.length > 0 && (
-                <DeadlineTracker deadlines={deadlines} />
-              )}
-
-              {/* Suspected partial read: extracted lines sum materially below the
-                  bill's own printed total, findings may be incomplete. Loud, never
-                  silent success. */}
-              {caseRow.bill_data?.suspectedPartialRead && (
-                <div
-                  style={{
-                    marginBottom: "48px",
-                    backgroundColor: "rgba(196,124,106,0.08)",
-                    border: "1px solid rgba(196,124,106,0.4)",
-                    borderLeft: "3px solid #C47C6A",
-                    padding: "16px 20px",
-                  }}
-                >
-                  <div style={{ ...label("#C47C6A"), marginBottom: "6px" }}>
-                    Possible incomplete read
-                  </div>
-                  <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.6 }}>
-                    The charge lines we extracted add up to noticeably less than the total
-                    printed on your bill, some pages or rows may not have been read. These
-                    findings may be incomplete: re-upload all pages of the itemized bill
-                    (clear photos or a PDF) and re-run the audit before relying on the numbers.
-                  </p>
-                </div>
-              )}
-
-              {/* EOB couldn't be read, say so instead of silently degrading to
-                  a bill-only audit (the cross-document section just won't render). */}
-              {caseRow.bill_data?.eobError && (
-                <div
-                  style={{
-                    marginBottom: "48px",
-                    backgroundColor: "#1A1206",
-                    border: "1px solid #3A2E1A",
-                    borderLeft: "3px solid #C8A97E",
-                    padding: "16px 20px",
-                  }}
-                >
-                  <div style={{ ...label("#C8A97E"), marginBottom: "6px" }}>EOB notice</div>
-                  <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.6 }}>
-                    We couldn&apos;t read your EOB, so this audit was completed using your bill
-                    only. Re-upload a clearer EOB (PDF or photo) to add the bill-vs-EOB cross-check.
-                  </p>
-                </div>
-              )}
-
-              {/* Cross-document discrepancies (bill vs. EOB) */}
-              {cbsSet && (cbsSet.crossDocumentDiscrepancies?.length ?? 0) > 0 && (
-                <div style={{ marginBottom: "48px" }}>
-                  <div style={{ ...label("var(--ink-soft)"), marginBottom: "16px" }}>
-                    Cross-document findings · bill vs. EOB
-                  </div>
-                  {cbsSet.crossDocumentDiscrepancies.map((d) => {
-                    const sev =
-                      d.severity === "critical" || d.severity === "high" ? "#C47C6A" : "#C8A97E";
-                    return (
-                      <div
-                        key={d.discrepancyId}
-                        style={{
-                          backgroundColor: "var(--surface-raised)",
-                          border: "1px solid var(--line)",
-                          borderLeft: `3px solid ${sev}`,
-                          padding: "20px 24px",
-                          marginBottom: "12px",
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "16px", flexWrap: "wrap" }}>
-                          <div style={{ ...serif("20px", { color: sev, lineHeight: 1.2 }), textTransform: "capitalize" }}>
-                            {d.type.replace(/_/g, " ")}
-                          </div>
-                          {d.estimatedDollarImpact > 0 && (
-                            <div style={{ ...serif("22px", { color: sev }) }}>
-                              {formatCurrency(d.estimatedDollarImpact)}
-                            </div>
-                          )}
-                        </div>
-                        <div style={{ ...sans("10px", sev), letterSpacing: "0.15em", textTransform: "uppercase", marginTop: "4px" }}>
-                          {d.severity} · {Math.round(d.confidenceScore * 100)}% confidence
-                        </div>
-                        <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "10px", lineHeight: 1.65 }}>
-                          {d.description}
-                        </p>
-                        {d.applicableRegulations.length > 0 && (
-                          <div style={{ ...sans("11px", "var(--ink-soft)"), marginTop: "10px", lineHeight: 1.55 }}>
-                            {d.applicableRegulations.map((reg, ri) => (
-                              <div key={ri} style={{ marginTop: ri === 0 ? 0 : "4px" }}>· {reg}</div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Financial Timeline (only when we have dated events) */}
-              {cbsSet && (cbsSet.timeline?.length ?? 0) > 0 && (
-                <FinancialTimeline
-                  events={cbsSet.timeline}
-                  totalDocuments={cbsSet.documents?.length ?? 0}
-                  totalInconsistencies={(cbsSet.documents ?? []).reduce(
-                    (sum, d) => sum + (d.temporalInconsistencies?.length ?? 0), 0
-                  )}
+              {fhsInputs && (
+                <OutcomeFollowUp
+                  outcomeId={outcomeId}
+                  dollarAmountDisputed={fhs?.totalDollarAtRisk || savings}
                 />
               )}
-            </>
+            </div>
           )}
 
-          {/* E&M review: questionnaire if unanswered, outcome callout if answered */}
-          {hasEmFlag(emFlagSource) &&
-            (caseRow.bill_data?.em_review ? (
-              <EmOutcomeCallout review={caseRow.bill_data.em_review} />
+          {/* Delete this case. */}
+          <div style={{ marginTop: "32px", borderTop: "1px solid var(--line)", paddingTop: "20px" }}>
+            {confirmingDelete ? (
+              <div>
+                <p style={{ ...sans("13px", "var(--ink)"), lineHeight: 1.6 }}>
+                  Delete this case? This can&apos;t be undone. The audit findings, any
+                  dispute letters, and the uploaded documents will be permanently removed.
+                </p>
+                {deleteError && (
+                  <p role="alert" style={{ ...sans("12px", "var(--urgent-red)"), marginTop: "8px" }}>
+                    {deleteError}
+                  </p>
+                )}
+                <div style={{ display: "flex", gap: "12px", marginTop: "12px" }}>
+                  <button
+                    onClick={() => void handleDeleteCase()}
+                    disabled={deleting}
+                    style={{
+                      ...sans("11px", "var(--surface-raised)"),
+                      backgroundColor: "var(--urgent-red)",
+                      border: "none",
+                      padding: "10px 20px",
+                      letterSpacing: "0.15em",
+                      textTransform: "uppercase",
+                      fontWeight: 500,
+                      cursor: deleting ? "wait" : "pointer",
+                      opacity: deleting ? 0.6 : 1,
+                    }}
+                  >
+                    {deleting ? "Deleting…" : "Delete case"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setConfirmingDelete(false);
+                      setDeleteError(null);
+                    }}
+                    disabled={deleting}
+                    style={{
+                      ...sans("11px", "var(--ink-soft)"),
+                      background: "transparent",
+                      border: "1px solid var(--line)",
+                      padding: "10px 20px",
+                      letterSpacing: "0.15em",
+                      textTransform: "uppercase",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
             ) : (
-              <div style={{ marginBottom: "48px" }}>
-                <EmReviewPanel
-                  caseId={caseRow.id}
-                  flaggedCodes={getEmFlaggedCodes(emFlagSource)}
-                  errors={errors}
-                  caseData={{
-                    provider_name: caseRow.provider_name ?? "Provider on file",
-                    insurance_type: caseRow.insurance_type ?? "",
-                    amount_billed: Number(caseRow.amount_billed ?? 0),
-                    amount_expected: Number(caseRow.amount_expected ?? 0),
-                    date_of_service:
-                      caseRow.bill_data?.date_of_service ?? undefined,
-                    userNotes: caseRow.bill_data?.userNotes ?? undefined,
-                  }}
-                  onComplete={() => {
-                    // Reload case state so the outcome callout renders and any
-                    // newly-generated letter CTA appears.
-                    if (typeof window !== "undefined") window.location.reload();
-                  }}
-                />
-              </div>
-            ))}
-
-          <div style={{ ...label("var(--ink-soft)"), marginBottom: "24px" }}>Audit findings</div>
-
-          {caseRow.status === "auditing" ? (
-            <div style={{ textAlign: "center", paddingTop: "80px", paddingBottom: "80px" }}>
-              <div style={{ ...serif("32px", { fontStyle: "italic", color: "var(--ink-soft)" }) }}>
-                This audit didn&apos;t finish.
-              </div>
-              <p
-                style={{
-                  ...sans("14px", "var(--ink-soft)"),
-                  marginTop: "16px",
-                  maxWidth: "440px",
-                  marginLeft: "auto",
-                  marginRight: "auto",
-                  lineHeight: 1.6,
-                }}
-              >
-                We saved your case but the bill audit didn&apos;t complete. Re-run it
-                with your bill to get your findings now.
-              </p>
-              {rerunError && (
-                <p style={{ ...sans("13px", "#C47C6A"), marginTop: "12px" }}>{rerunError}</p>
-              )}
               <button
-                onClick={() => rerunInputRef.current?.click()}
-                disabled={rerunning}
+                onClick={() => setConfirmingDelete(true)}
                 style={{
-                  ...sans("11px", "var(--ink)"),
-                  backgroundColor: "#C8A97E",
+                  ...sans("12px", "var(--ink-soft)"),
+                  background: "none",
                   border: "none",
-                  padding: "14px 28px",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  fontWeight: 500,
-                  cursor: rerunning ? "wait" : "pointer",
-                  opacity: rerunning ? 0.6 : 1,
-                  marginTop: "24px",
+                  padding: 0,
+                  cursor: "pointer",
+                  transition: "color 0.2s",
                 }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--urgent-red)")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ink-soft)")}
               >
-                {rerunning ? "Re-running audit…" : "Re-run audit"}
+                Delete this case
               </button>
-            </div>
-          ) : errors.length === 0 ? (
-            expected === 0 && !caseRow.bill_data?.hasEob ? (
-              <div
-                style={{
-                  backgroundColor: "var(--surface-raised)",
-                  border: "1px solid rgba(200,169,126,0.4)",
-                  borderLeft: "4px solid #C8A97E",
-                  padding: "32px",
-                }}
-              >
-                <div style={{ ...serif("22px", { color: "#C8A97E", fontStyle: "italic" }) }}>
-                  Reference data gap.
-                </div>
-                <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "12px", lineHeight: 1.65 }}>
-                  Fee schedule lookup returned no matches, the CPT codes on this
-                  bill may not be in our reference data. This audit should not be
-                  treated as exhaustive until the relevant codes are loaded.
-                </p>
-              </div>
-            ) : (
-              <div
-                style={{
-                  backgroundColor: "var(--surface-raised)",
-                  border: "1px solid var(--line)",
-                  padding: "32px",
-                  textAlign: "center",
-                }}
-              >
-                <div style={{ ...serif("26px", { color: "#7A9E87", fontStyle: "italic" }) }}>
-                  Clean bill.
-                </div>
-                <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "12px", lineHeight: 1.65 }}>
-                  Every charge on this bill matched its expected rate, was not
-                  duplicated, and did not trigger any NCCI or MUE edits.
-                </p>
-              </div>
-            )
-          ) : (
-            <div>
-              {/* Header */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "72px 1fr 100px 100px 120px",
-                  gap: "12px",
-                  paddingBottom: "12px",
-                  borderBottom: "1px solid var(--line)",
-                }}
-              >
-                {["Code", "Issue", "Billed", "Expected", "Confidence"].map((h) => (
-                  <span key={h} style={{ ...sans("11px", "var(--ink-soft)"), letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                    {h}
-                  </span>
-                ))}
-              </div>
-
-              {errors.map((err, i) => (
-                <div key={`${err.cpt_code}-${i}`} style={{ borderBottom: "1px solid var(--line)" }}>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "72px 1fr 100px 100px 120px",
-                      gap: "12px",
-                      paddingTop: "16px",
-                      paddingBottom: "8px",
-                      alignItems: "start",
-                    }}
-                  >
-                    <span style={{ ...sans("12px", "var(--ink-soft)"), letterSpacing: "0.04em" }}>
-                      {err.cpt_code}
-                    </span>
-                    <div>
-                      <div style={{ ...sans("13px", "var(--ink)") }}>
-                        {errorTypeLabel(err.error_type)}
-                        {err.description ? `, ${err.description}` : ""}
-                      </div>
-                    </div>
-                    <span style={{ ...sans("13px", "var(--ink-soft)") }}>
-                      {formatCurrency(err.billed_amount)}
-                    </span>
-                    <span style={{ ...sans("13px", "var(--ink-soft)") }}>
-                      {formatCurrency(err.expected_amount)}
-                    </span>
-                    <ConfidenceBadge confidence={err.confidence} />
-                  </div>
-                  <div
-                    style={{
-                      backgroundColor: "var(--surface-raised)",
-                      padding: "16px 20px",
-                      marginBottom: "0",
-                    }}
-                  >
-                    <div
-                      style={{
-                        ...sans("10px", "var(--ink-soft)"),
-                        letterSpacing: "0.2em",
-                        textTransform: "uppercase",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      Evidence
-                    </div>
-                    <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.65 }}>
-                      {err.explanation}
-                    </p>
-                    <div style={{ ...sans("11px", "var(--ink-soft)"), marginTop: "8px", letterSpacing: "0.05em" }}>
-                      Rule: {err.rule_violated}
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              <div style={{ paddingTop: "24px", textAlign: "right" }}>
-                <span style={{ ...sans("13px", "var(--ink-soft)") }}>Potential savings:</span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-lora), Georgia, serif",
-  
-  letterSpacing: "-0.015em",
-                    fontSize: "28px",
-                    color: "#7A9E87",
-                    fontWeight: 400,
-                    lineHeight: 1,
-                    marginLeft: "16px",
-                  }}
-                >
-                  {formatCurrency(savings)}
-                </span>
-              </div>
-            </div>
-          )}
-        </motion.div>
-
-        {/* Right: Side panels */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.2 }}
-          style={{ display: "flex", flexDirection: "column", gap: "40px" }}
-        >
-          {/* Case meta */}
-          <div
-            style={{
-              backgroundColor: "var(--surface-raised)",
-              border: "1px solid var(--line)",
-              padding: "24px",
-            }}
-          >
-            <div style={{ ...label("var(--ink-soft)"), marginBottom: "16px" }}>Case summary</div>
-            {[
-              { k: "Status", v: statusCfg.label },
-              { k: "Filed", v: formatDate(caseRow.created_at) },
-              { k: "Insurance", v: insurer },
-              { k: "Tier", v: tierLabel ?? "-" },
-              { k: "Errors", v: String(findingsCount) },
-            ].map((row, i, arr) => (
-              <div
-                key={row.k}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "10px 0",
-                  borderBottom: i < arr.length - 1 ? "1px solid var(--line)" : "none",
-                }}
-              >
-                <span style={{ ...sans("12px", "var(--ink-soft)") }}>{row.k}</span>
-                <span style={{ ...sans("13px", "var(--ink-soft)") }}>{row.v}</span>
-              </div>
-            ))}
+            )}
           </div>
-
-          {/* User notes */}
-          {caseRow.bill_data?.userNotes && caseRow.bill_data.userNotes.trim() && (
-            <div>
-              <div style={{ ...label("var(--ink-soft)"), marginBottom: "12px" }}>Your notes</div>
-              <div
-                style={{
-                  backgroundColor: "var(--surface-raised)",
-                  border: "1px solid var(--line)",
-                  padding: "16px 20px",
-                }}
-              >
-                <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
-                  {caseRow.bill_data.userNotes}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Potential savings highlight */}
-          {savings > 0 && (
-            <div
-              style={{
-                backgroundColor: "var(--surface-raised)",
-                border: "1px solid var(--line)",
-                padding: "24px",
-              }}
-            >
-              <div style={{ ...label("var(--ink-soft)"), marginBottom: "12px" }}>Potential savings</div>
-              <div
-                style={{
-                  fontFamily: "var(--font-lora), Georgia, serif",
-  
-  letterSpacing: "-0.015em",
-                  fontSize: "44px",
-                  color: "#7A9E87",
-                  fontStyle: "italic",
-                  fontWeight: 400,
-                  lineHeight: 1,
-                }}
-              >
-                {formatCurrency(savings)}
-              </div>
-              <div style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "8px" }}>
-                estimated from audit
-              </div>
-            </div>
-          )}
-
-          {/* Outcome follow-up (tracks dispute resolution for ML training) */}
-          {fhsInputs && (
-            <OutcomeFollowUp
-              outcomeId={outcomeId}
-              dollarAmountDisputed={fhs?.totalDollarAtRisk || savings}
-            />
-          )}
-        </motion.div>
+        </Accordion>
       </div>
     </Shell>
   );

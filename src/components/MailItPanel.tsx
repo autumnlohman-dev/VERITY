@@ -188,7 +188,7 @@ export function MailItPanel({
             <span
               style={{
                 ...sans("10px", "var(--ink)", { letterSpacing: "0.15em", textTransform: "uppercase", fontWeight: 600 }),
-                backgroundColor: "#C8A97E",
+                backgroundColor: "var(--brand-fill)",
                 padding: "3px 10px",
               }}
             >

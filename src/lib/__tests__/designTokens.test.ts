@@ -116,6 +116,29 @@ describe('contrast floor (WCAG AA 4.5:1) for token text pairs in use', () => {
     expect(contrast(t[fg], t[bg])).toBeGreaterThanOrEqual(4.5);
   });
 
+  // The white letter sheet is a surface too (the rendered dispute letter and
+  // the printed PDF): every text color permitted inside it must pass on white.
+  const WHITE = '#FFFFFF';
+  const letterSheetTextTokens: string[] = ['ink', 'ink-soft', 'brand'];
+  it.each(letterSheetTextTokens)('%s on the white letter sheet meets 4.5:1', (fg) => {
+    expect(t[fg], `token --${fg} missing from globals.css`).toBeTruthy();
+    expect(contrast(t[fg], WHITE)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('brand-fill never appears as a text color anywhere', () => {
+    // Fill color only. As text it is unreadable on every light surface.
+    expect(contrast(t['brand-fill'], t['surface'])).toBeLessThan(4.5);
+    expect(contrast(t['brand-fill'], WHITE)).toBeLessThan(4.5);
+    const offenders = allUiSource()
+      .filter((f) =>
+        /(?<!background)(?<!\w)color:\s*["']var\(--brand-fill\)|,\s*["']var\(--brand-fill\)["']\s*\)|style\.color\s*=\s*["']var\(--brand-fill\)/.test(
+          f.content
+        )
+      )
+      .map((f) => f.path);
+    expect(offenders).toEqual([]);
+  });
+
   it('urgent-amber is never used as small text on surface (fails AA); border/accent only', () => {
     expect(contrast(t['urgent-amber'], t['surface'])).toBeLessThan(4.5); // documents WHY the rule exists
     const offenders = allUiSource()

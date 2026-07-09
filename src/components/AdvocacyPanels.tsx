@@ -35,7 +35,7 @@ export function OutcomePredictionPanel({ predictions }: { predictions: Financial
 
   return (
     <div style={{ border: '1px solid var(--line)', backgroundColor: 'var(--surface-raised)', padding: '28px', marginBottom: '32px' }}>
-      <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '16px' }}>
+      <div style={{ ...sans('11px', 'var(--brand)'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '16px' }}>
         Outcome Prediction
       </div>
       <div className="r-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '20px' }}>
@@ -51,7 +51,7 @@ export function OutcomePredictionPanel({ predictions }: { predictions: Financial
         </div>
         <div>
           <div style={{ ...sans('11px', 'var(--ink-soft)'), marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Settlement range</div>
-          <div style={{ ...serif('34px'), color: '#C8A97E' }}>${floor.toLocaleString()}-${ceiling.toLocaleString()}</div>
+          <div style={{ ...serif('34px'), color: 'var(--brand)' }}>${floor.toLocaleString()}-${ceiling.toLocaleString()}</div>
           <div style={{ ...sans('11px', 'var(--ink-soft)'), marginTop: '4px' }}>statistically likely band</div>
         </div>
       </div>
@@ -108,7 +108,7 @@ export function AdvocacyWorkflowPanel({
   if (!workflow.consumerAuthorized) {
     return (
       <div style={{ border: '1px solid #C8A97E', backgroundColor: 'rgba(200,169,126,0.06)', padding: '28px', marginBottom: '32px' }}>
-        <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '10px' }}>
+        <div style={{ ...sans('11px', 'var(--brand)'), letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: '10px' }}>
           Autonomous Advocacy, Ready
         </div>
         <div style={{ ...serif('22px'), marginBottom: '10px' }}>
@@ -122,7 +122,7 @@ export function AdvocacyWorkflowPanel({
         </div>
         <button
           onClick={onAuthorize}
-          style={{ ...sans('12px', 'var(--ink)'), backgroundColor: '#C8A97E', border: 'none', padding: '14px 32px', cursor: 'pointer', letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600 }}
+          style={{ ...sans('12px', 'var(--ink)'), backgroundColor: 'var(--brand-fill)', border: 'none', padding: '14px 32px', cursor: 'pointer', letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 600 }}
         >
           Authorize &amp; start my advocacy plan →
         </button>
@@ -135,7 +135,7 @@ export function AdvocacyWorkflowPanel({
   return (
     <div style={{ border: '1px solid var(--line)', backgroundColor: 'var(--surface-raised)', padding: '28px', marginBottom: '32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '8px' }}>
-        <div style={{ ...sans('11px', '#C8A97E'), letterSpacing: '0.25em', textTransform: 'uppercase' }}>
+        <div style={{ ...sans('11px', 'var(--brand)'), letterSpacing: '0.25em', textTransform: 'uppercase' }}>
           Active Advocacy Workflow
         </div>
         <span style={{ ...sans('11px', workflow.status === 'active' ? '#7A9E87' : 'var(--ink-soft)'), letterSpacing: '0.15em', textTransform: 'uppercase', fontWeight: 600 }}>
@@ -173,7 +173,7 @@ export function AdvocacyWorkflowPanel({
               </div>
               {isCurrent && a.status === 'planned' && (
                 <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
-                  <button onClick={() => onActionUpdate(a.actionId, 'sent')} style={{ ...sans('11px', 'var(--ink)'), backgroundColor: '#C8A97E', border: 'none', padding: '8px 16px', cursor: 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>
+                  <button onClick={() => onActionUpdate(a.actionId, 'sent')} style={{ ...sans('11px', 'var(--ink)'), backgroundColor: 'var(--brand-fill)', border: 'none', padding: '8px 16px', cursor: 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600 }}>
                     Mark sent
                   </button>
                   <button onClick={() => onActionUpdate(a.actionId, 'skipped')} style={{ ...sans('11px', 'var(--ink-soft)'), backgroundColor: 'transparent', border: '1px solid var(--line)', padding: '8px 16px', cursor: 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
