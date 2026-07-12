@@ -1,14 +1,17 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
+import { BRAND_NAME } from "@/lib/brand";
 import { motion } from "framer-motion";
 
 const CONTACT_HREF = "mailto:support@clearclaim.co?subject=Verity%20for%20Health%20Plans%20%26%20Employers";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-cormorant), Georgia, serif",
+  fontFamily: "var(--font-lora), Georgia, serif",
+
+  letterSpacing: "-0.015em",
   fontSize: size,
   color: "#221C14",
   lineHeight: 1,
@@ -17,14 +20,14 @@ const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties =
 });
 
 const sans = (size: string, color = "#5F5648", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
   ...extra,
 });
 
 const label = (color = "#C8A97E"): React.CSSProperties => ({
-  fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
+  fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
   textTransform: "uppercase" as const,
@@ -33,13 +36,6 @@ const label = (color = "#C8A97E"): React.CSSProperties => ({
 
 // ─── Nav (copied from landing page) ──────────────────────────────────────────
 function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
     <nav
       style={{
@@ -48,9 +44,8 @@ function Nav() {
         left: 0,
         right: 0,
         zIndex: 50,
-        backgroundColor: scrolled ? "rgba(235,229,217,0.85)" : "transparent",
-        backdropFilter: scrolled ? "blur(12px)" : "none",
-        transition: "background-color 0.4s, backdrop-filter 0.4s",
+        backgroundColor: "var(--surface)",
+        borderBottom: "1px solid var(--line)",
         padding: "20px 64px",
         display: "flex",
         justifyContent: "space-between",
@@ -58,13 +53,8 @@ function Nav() {
       }}
     >
       <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: "8px" }}>
-        <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-          <span style={{ ...sans("15px", "#221C14"), letterSpacing: "0.42em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.42em", lineHeight: 1 }}>
-            Verity™
-          </span>
-          <span style={{ ...sans("8px", "#8A7F6E"), letterSpacing: "0.18em", textTransform: "uppercase", paddingLeft: "0.42em", lineHeight: 1 }}>
-            Med Claim
-          </span>
+        <span style={{ ...sans("15px", "#221C14"), letterSpacing: "0.42em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.42em", lineHeight: 1 }}>
+          {BRAND_NAME}
         </span>
       </Link>
       <div className="hidden md:flex" style={{ gap: "40px" }}>
@@ -108,8 +98,7 @@ function Footer() {
       }}
     >
       <div>
-        <div style={{ ...sans("12px", "#221C14"), letterSpacing: "0.34em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.34em", lineHeight: 1 }}>Verity™</div>
-        <div style={{ ...sans("8px", "#8A7F6E"), letterSpacing: "0.2em", textTransform: "uppercase", paddingLeft: "0.34em", marginTop: "5px", marginBottom: "16px" }}>Med Claim</div>
+        <div style={{ ...sans("12px", "#221C14"), letterSpacing: "0.34em", textTransform: "uppercase", fontWeight: 300, paddingLeft: "0.34em", lineHeight: 1, marginBottom: "16px" }}>{BRAND_NAME}</div>
         <div style={{ ...sans("11px", "#8A7F6E"), maxWidth: "260px", lineHeight: 1.6 }}>
           Verity is an administrative advocacy service. We are not a law firm and do not provide legal advice.
         </div>
@@ -140,7 +129,7 @@ function Footer() {
           <Link href="/privacy" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Privacy</Link>
           <Link href="/terms" style={{ ...sans("11px", "#8A7F6E"), textDecoration: "none" }}>Terms</Link>
         </div>
-        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity™ audit method, scoring models, and datasets are proprietary and confidential. Patent Pending — 41 claims, 13 independent claim categories.</div>
+        <div style={{ ...sans("10.5px", "#8A7F6E"), lineHeight: 1.6, maxWidth: "240px" }}>The Verity™ audit method, scoring models, and datasets are proprietary and confidential. Patent Pending, 41 claims, 13 independent claim categories.</div>
       </div>
     </footer>
   );
@@ -193,7 +182,7 @@ export default function ForPlansClient() {
   };
 
   return (
-    <div className="page-root" style={{ background: "#EBE5D9", minHeight: "100vh" }}>
+    <div className="page-root" style={{ background: "var(--surface)", minHeight: "100vh" }}>
       <Nav />
 
       {/* ── Hero ── */}
@@ -206,7 +195,8 @@ export default function ForPlansClient() {
           <div style={{ ...label(), marginBottom: "32px" }}>For Health Plans &amp; Employers</div>
           <h1
             style={{
-              fontFamily: "var(--font-cormorant), Georgia, serif",
+              fontFamily: "var(--font-lora), Georgia, serif",
+              letterSpacing: "-0.015em",
               fontSize: "clamp(72px, 8vw, 96px)",
               color: "#221C14",
               lineHeight: 0.92,
@@ -289,7 +279,8 @@ export default function ForPlansClient() {
           <div style={{ width: "48px", height: "1px", backgroundColor: "#C8A97E", margin: "0 auto 40px" }} />
           <blockquote
             style={{
-              fontFamily: "var(--font-cormorant), Georgia, serif",
+              fontFamily: "var(--font-lora), Georgia, serif",
+              letterSpacing: "-0.015em",
               fontSize: "clamp(28px, 3.5vw, 40px)",
               color: "#221C14",
               lineHeight: 1.25,
@@ -318,7 +309,7 @@ export default function ForPlansClient() {
 
       {/* ── Closing CTA ── */}
       <section style={{ backgroundColor: "#F4EFE6", paddingTop: "96px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
-        <motion.div {...fadeUp} style={{ textAlign: "center" }}>
+        <motion.div {...fadeUp}>
           <h2 style={{ ...serif("48px", { lineHeight: 1.1, marginBottom: "40px" }) }}>
             Exploring member advocacy
             <br />
