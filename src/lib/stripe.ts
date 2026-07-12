@@ -14,6 +14,9 @@ export function getStripe(): Stripe {
 
 export const PRICES = {
   singleDispute: process.env.STRIPE_PRICE_SINGLE_DISPUTE!,
+  // "Dispute Package + Certified Mail" — the $59 one-time tier whose purchase
+  // also grants the mail-it-for-me (Lob) fulfillment path (cases.mail_paid).
+  disputeCertified: process.env.STRIPE_PRICE_DISPUTE_CERTIFIED!,
   membershipMonthly: process.env.STRIPE_PRICE_MEMBERSHIP_MONTHLY!,
   membershipAnnual: process.env.STRIPE_PRICE_MEMBERSHIP_ANNUAL!,
 }

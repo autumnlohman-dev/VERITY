@@ -29,8 +29,11 @@ export function startMembershipCheckout(plan: 'monthly' | 'annual' = 'monthly') 
   return startCheckout('/api/checkout/membership', { plan })
 }
 
-export function startSingleDisputeCheckout(caseId: string) {
-  return startCheckout('/api/checkout/single-dispute', { caseId })
+export function startSingleDisputeCheckout(caseId: string, opts?: { certified?: boolean }) {
+  return startCheckout('/api/checkout/single-dispute', {
+    caseId,
+    certified: opts?.certified === true,
+  })
 }
 
 // ─── Pending checkout intent (guest → auth → checkout) ────────────────────────

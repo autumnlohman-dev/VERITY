@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { disputeUnlocked } from '@/lib/entitlements'
+import { disputeUnlocked, getEntitlements } from '@/lib/entitlements'
 import { applyLetterSubstitutions } from '@/lib/letterFields'
 import { checkRateLimit } from '@/lib/rateLimit'
 import {
@@ -213,7 +213,7 @@ export async function POST(request: Request) {
     const { data: caseRecord } = await supabase
       .from('cases')
       .select(
-        'id, provider_name, bill_data, patient_info, lob_letter_id, mail_status, amount_billed, amount_expected, potential_savings, errors_found'
+        'id, provider_name, bill_data, patient_info, lob_letter_id, mail_status, mail_paid, amount_billed, amount_expected, potential_savings, errors_found'
       )
       .eq('id', caseId)
       .eq('user_id', user.id)
@@ -228,6 +228,23 @@ export async function POST(request: Request) {
         { error: 'Mailing the dispute letter requires an active purchase or membership.', code: 'payment_required' },
         { status: 402 }
       )
+    }
+
+    // Mail fulfillment is its own entitlement: the $59 "Dispute Package +
+    // Certified Mail" tier (cases.mail_paid, webhook-written) or a membership.
+    // The $39 package ends at download — those users mail the letter themselves.
+    if (caseRecord.mail_paid !== true) {
+      const { isMember } = await getEntitlements(supabase, user.id)
+      if (!isMember) {
+        return NextResponse.json(
+          {
+            error:
+              'Mailing is included with the Dispute Package + Certified Mail tier or a membership. Download the letter and mail it yourself, or upgrade.',
+            code: 'mail_not_included',
+          },
+          { status: 402 }
+        )
+      }
     }
 
     // Idempotency: don't mail twice for the same case.

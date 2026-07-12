@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/client";
-import { disputeUnlocked } from "@/lib/entitlements";
+import { disputeUnlocked, getEntitlements } from "@/lib/entitlements";
 import { startSingleDisputeCheckout, startMembershipCheckout } from "@/lib/checkout";
 import {
   buildSubstitutionMap,
@@ -81,6 +81,8 @@ interface CaseRow {
   mail_certified: boolean | null;
   mail_expected_delivery: string | null;
   mail_to: Partial<MailAddress> | null;
+  /** Certified Mail fulfillment purchased ($59 tier); webhook-written only. */
+  mail_paid: boolean | null;
 }
 
 interface LetterRow {
@@ -1012,13 +1014,20 @@ function LetterPaywall({
   onRefresh,
   onUnlocked,
   autoOpenPromo = false,
+  potentialSavings = null,
 }: {
   caseId: string;
   confirming: boolean;
   onRefresh: () => void;
   onUnlocked: () => void;
   autoOpenPromo?: boolean;
+  /** The case's real computed findings total; > 0 puts it in the headline. */
+  potentialSavings?: number | null;
 }) {
+  const findingsTotal =
+    typeof potentialSavings === "number" && potentialSavings > 0
+      ? Math.round(potentialSavings)
+      : null;
   const [promoOpen, setPromoOpen] = useState(autoOpenPromo);
   const [promoCode, setPromoCode] = useState("");
   const [promoError, setPromoError] = useState<string | null>(null);
@@ -1102,11 +1111,14 @@ function LetterPaywall({
         <>
           <div style={{ ...label("#C8A97E"), marginBottom: "20px" }}>Dispute package locked</div>
           <div style={{ ...serif("44px", { lineHeight: 1.08, maxWidth: "560px" }) }}>
-            Your audit is free. The dispute package is the paid part.
+            {findingsTotal !== null
+              ? `Verity found $${findingsTotal.toLocaleString()} in billing errors.`
+              : "Your audit is free. The dispute package is the paid part."}
           </div>
           <p style={{ ...sans("14px", "var(--ink-soft)"), marginTop: "20px", maxWidth: "480px", lineHeight: 1.7 }}>
+            {findingsTotal !== null ? "Your audit is free; the dispute package is the paid part. " : ""}
             The full evidentiary package, insurer-specific dispute letter, regulatory citations,
-            submission guide, and deadline tracking, unlocks with a Single Dispute purchase for this
+            submission guide, and deadline tracking, unlocks with a one-time purchase for this
             bill, or with a membership that covers every bill.
           </p>
           <div style={{ display: "flex", gap: "12px", marginTop: "36px", flexWrap: "wrap", justifyContent: "center" }}>
@@ -1123,23 +1135,39 @@ function LetterPaywall({
                 cursor: "pointer",
               }}
             >
-              Unlock this dispute, $39
+              Get your dispute package, $39
             </button>
             <button
-              onClick={() => startMembershipCheckout("monthly")}
+              onClick={() => startSingleDisputeCheckout(caseId, { certified: true })}
               style={{
-                ...sans("11px", "var(--brand)"),
-                background: "transparent",
-                border: "1px solid #C8A97E",
+                ...sans("11px", "var(--ink)"),
+                backgroundColor: "transparent",
+                border: "1px solid var(--brand-fill)",
                 padding: "16px 32px",
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
+                fontWeight: 500,
                 cursor: "pointer",
               }}
             >
-              Or join membership, $19/mo
+              Package + certified mail, $59
             </button>
           </div>
+          <button
+            onClick={() => startMembershipCheckout("monthly")}
+            style={{
+              ...sans("12px", "var(--brand)"),
+              background: "none",
+              border: "none",
+              padding: 0,
+              marginTop: "20px",
+              cursor: "pointer",
+              textDecoration: "underline",
+              textUnderlineOffset: "3px",
+            }}
+          >
+            Or join the membership, $19/mo, every bill covered
+          </button>
 
           {/* Promo code */}
           <div style={{ marginTop: "28px", width: "100%", maxWidth: "380px" }}>
@@ -1237,6 +1265,8 @@ export default function LetterPage({
   const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
   const [letter, setLetter] = useState<LetterRow | null>(null);
   const [unlocked, setUnlocked] = useState(false);
+  // Mail-it-for-me entitlement ($59 Certified Mail tier or membership).
+  const [mailEntitled, setMailEntitled] = useState(false);
   const [paidPending, setPaidPending] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).get("paid") === "1";
@@ -1286,7 +1316,7 @@ export default function LetterPage({
     const { data: caseData, error: caseErr } = await supabase
       .from("cases")
       .select(
-        "id, status, provider_name, insurance_type, amount_billed, amount_expected, potential_savings, errors_found, bill_data, created_at, patient_info, lob_letter_id, mail_status, mail_test_mode, mail_certified, mail_expected_delivery, mail_to"
+        "id, status, provider_name, insurance_type, amount_billed, amount_expected, potential_savings, errors_found, bill_data, created_at, patient_info, lob_letter_id, mail_status, mail_test_mode, mail_certified, mail_expected_delivery, mail_to, mail_paid"
       )
       .eq("id", id)
       .eq("user_id", user.id)
@@ -1314,6 +1344,18 @@ export default function LetterPage({
       entitled = false;
     }
     setUnlocked(entitled);
+
+    // Mail fulfillment is a separate entitlement: the $59 Certified Mail tier
+    // (cases.mail_paid) or a membership. The $39 package ends at download.
+    let canMail = (caseData as CaseRow).mail_paid === true;
+    if (!canMail) {
+      try {
+        canMail = (await getEntitlements(supabase, user.id)).isMember;
+      } catch {
+        canMail = false;
+      }
+    }
+    setMailEntitled(canMail);
 
     // Letter query is scoped by case_id; ownership was just verified above.
     const { data: letterData, error: letterErr } = await supabase
@@ -1520,6 +1562,7 @@ export default function LetterPage({
           void load();
         }}
         autoOpenPromo={promoHint}
+        potentialSavings={caseRow.potential_savings}
       />
     );
   }
@@ -1944,8 +1987,10 @@ export default function LetterPage({
         </p>
       </motion.div>
 
-      {/* Mail it for me (Lob), blocked until the letter has no [placeholders] */}
-      {caseRow.lob_letter_id || letterReady ? (
+      {/* Mail it for me (Lob): requires the Certified Mail tier or membership,
+          and is blocked until the letter has no [placeholders]. An already-
+          mailed case always shows its mail status. */}
+      {caseRow.lob_letter_id || (mailEntitled && letterReady) ? (
         <MailItPanel
           caseId={caseRow.id}
           providerName={caseRow.provider_name}
@@ -1984,12 +2029,26 @@ export default function LetterPage({
             padding: "32px",
           }}
         >
-          <div style={{ ...serif("22px") }}>Complete your letter to mail it.</div>
-          <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "10px", lineHeight: 1.65, maxWidth: "560px" }}>
-            Your letter still has details to fill in. Add your information above (look for the
-            highlighted fields), and the “Mail it for me” option will unlock, so we never mail a
-            letter with blank placeholders.
-          </p>
+          {mailEntitled ? (
+            <>
+              <div style={{ ...serif("22px") }}>Complete your letter to mail it.</div>
+              <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "10px", lineHeight: 1.65, maxWidth: "560px" }}>
+                Your letter still has details to fill in. Add your information above (look for the
+                highlighted fields), and the “Mail it for me” option will unlock, so we never mail a
+                letter with blank placeholders.
+              </p>
+            </>
+          ) : (
+            <>
+              <div style={{ ...serif("22px") }}>Mailing it yourself? Use certified mail.</div>
+              <p style={{ ...sans("13px", "var(--ink-soft)"), marginTop: "10px", lineHeight: 1.65, maxWidth: "560px" }}>
+                Your package includes a submission guide with the address to use. Send it certified
+                with return receipt so you have dated proof of delivery. Having Verity print and
+                mail it for you is part of the Dispute Package + Certified Mail tier and the
+                membership.
+              </p>
+            </>
+          )}
         </div>
       )}
 

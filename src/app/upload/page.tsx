@@ -1029,10 +1029,16 @@ function UploadPageInner() {
 
           <div style={{ marginTop: "48px", backgroundColor: "#F4EFE6", border: "1px solid #D8CFBE", padding: "32px" }}>
             <div style={{ ...serif("26px", { lineHeight: 1.2, marginBottom: "8px" }) }}>
-              {hasErrors ? "Get your money back." : "Stay protected."}
+              {hasErrors && r.potentialSavings > 0
+                ? `Verity found $${Math.round(r.potentialSavings).toLocaleString()} in billing errors.`
+                : hasErrors
+                ? "Get your money back."
+                : "Stay protected."}
             </div>
             <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.7, maxWidth: "480px", marginBottom: "24px" }}>
-              Create a free account to save this audit{hasErrors ? ", generate a ready-to-send dispute letter, " : " "}and have every future bill checked automatically.
+              {hasErrors
+                ? "Create a free account to save this audit and get your dispute package, $39 for this bill, and have every future bill checked automatically."
+                : "Create a free account to save this audit and have every future bill checked automatically."}
             </p>
             <div className="r-cta" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <Link href="/login" style={{ textDecoration: "none" }}>

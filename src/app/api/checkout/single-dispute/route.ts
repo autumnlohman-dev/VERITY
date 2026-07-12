@@ -15,10 +15,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { caseId } = await request.json()
+    const { caseId, certified } = await request.json()
     if (!caseId || typeof caseId !== 'string') {
       return NextResponse.json({ error: 'Missing caseId' }, { status: 400 })
     }
+    // certified=true buys the $59 "Dispute Package + Certified Mail" product,
+    // which additionally grants the Lob mail fulfillment for this case.
+    const withMail = certified === true
 
     // The case must belong to this user.
     const { data: caseRecord } = await supabase
@@ -34,12 +37,17 @@ export async function POST(request: Request) {
 
     const customerId = await ensureStripeCustomer(user.id, user.email)
     const origin = siteUrl(request)
-    const metadata = { userId: user.id, caseId, kind: 'single_dispute' }
+    const metadata = {
+      userId: user.id,
+      caseId,
+      kind: 'single_dispute',
+      mailIncluded: withMail ? 'true' : 'false',
+    }
 
     const session = await getStripe().checkout.sessions.create({
       mode: 'payment',
       customer: customerId,
-      line_items: [{ price: PRICES.singleDispute, quantity: 1 }],
+      line_items: [{ price: withMail ? PRICES.disputeCertified : PRICES.singleDispute, quantity: 1 }],
       metadata,
       payment_intent_data: { metadata },
       success_url: `${origin}/cases/${caseId}/letter?paid=1`,

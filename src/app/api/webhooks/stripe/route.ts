@@ -75,7 +75,14 @@ export async function POST(request: Request) {
           if (caseId) {
             await admin
               .from('cases')
-              .update({ dispute_paid: true, dispute_unlock_source: 'payment' })
+              .update({
+                dispute_paid: true,
+                dispute_unlock_source: 'payment',
+                // The $59 tier also buys the certified-mail fulfillment. Only
+                // ever set, never cleared: a later $39 purchase event must not
+                // revoke a mail entitlement already bought.
+                ...(session.metadata?.mailIncluded === 'true' ? { mail_paid: true } : {}),
+              })
               .eq('id', caseId)
           }
         } else if (session.mode === 'subscription' && session.subscription) {
