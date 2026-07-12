@@ -128,18 +128,16 @@ export async function extractEOBToCBS(
   // we have no BAA covering log storage. Log only shape metrics, which are enough
   // to tell a blank vision response (length≈0) from a present-but-unparseable one
   // (non-zero length, header missing or zero parsed rows): transcription length,
-  // whether the canonical header was found, parsed row count, and the cell count
-  // of the first pipe row (structure only, no cell contents).
+  // line count, whether the canonical header was found, parsed row count, and the
+  // cell count of the first pipe row (structure only, no cell contents).
   const headerFound = eobCanonicalHeaderPresent(rawText)
-  const firstPipeLine = rawText
-    .split('\n')
-    .map((l) => l.trim())
-    .find((l) => l.includes('|'))
+  const transcriptionLines = rawText.split('\n')
+  const firstPipeLine = transcriptionLines.map((l) => l.trim()).find((l) => l.includes('|'))
   const firstPipeRowCells = firstPipeLine ? firstPipeLine.split('|').length : 0
   console.info(
     `extractEOBToCBS[${documentId}]: transcriptionLength=${rawText.length}, ` +
-      `canonicalHeaderFound=${headerFound}, parsedLineItems=${cbs.lineItems.length}, ` +
-      `firstPipeRowCells=${firstPipeRowCells}`
+      `transcriptionLines=${transcriptionLines.length}, canonicalHeaderFound=${headerFound}, ` +
+      `parsedLineItems=${cbs.lineItems.length}, firstPipeRowCells=${firstPipeRowCells}`
   )
 
   // A transcription that yields zero usable line items is an extraction failure,

@@ -1,4 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { FullAuditResult } from './deterministicCore'
+import { AUDIT_LOGIC_VERSION } from './version'
+import { auditSnapshotFingerprint, markLettersStaleIfChanged } from '../letters/staleness'
 
 // ─── Bill-level deduplication ─────────────────────────────────────────────────
 // A single physical bill is identified by (provider + date of service + amount
@@ -57,4 +60,140 @@ export async function findDuplicateCase(
     return { id: row.id as string }
   }
   return null
+}
+
+// ─── Absorbing a duplicate upload into the surviving case ────────────────────
+// When a fresh upload dedups against an existing case, the shell case created
+// for the upload is deleted and the user is pointed at the survivor. Before
+// ac3506a-era fixes, that delete silently discarded a newly uploaded EOB: the
+// fresh cross-document audit died with the shell and the survivor stayed
+// bill-only forever. This helper owns the order of operations:
+//
+//   1. If the fresh audit carries EOB signal (a successful read OR a failed
+//      attempt the user should be told about) and the survivor has none,
+//      migrate the fresh results AND the EOB document references onto the
+//      survivor, then mark the survivor's letters stale.
+//   2. Delete the shell ONLY after a successful (or unnecessary) migration.
+//      A failed migration returns 'migration_failed' with the shell intact so
+//      the caller can persist the fresh audit onto it and surface the error —
+//      the EOB is never silently dropped.
+//
+// Never downgrades: a surviving EOB-validated audit is not overwritten by a
+// bill-only re-upload.
+
+export interface AbsorbDuplicateParams {
+  userId: string
+  /** The freshly created shell case this upload made (deleted on success). */
+  shellCaseId: string
+  /** The pre-existing case that already holds this physical bill. */
+  survivorCaseId: string
+  /** The fresh audit result (bill + any EOB, already cross-compared). */
+  result: FullAuditResult
+  /** Storage references for the freshly uploaded EOB document, so the
+   *  survivor can re-extract it on future recomputes. */
+  eobPageRefs: string[]
+  eobMergedPath: string | null
+}
+
+export type AbsorbDuplicateOutcome =
+  | { outcome: 'absorbed'; migratedEob: boolean }
+  | { outcome: 'migration_failed'; message: string }
+
+export async function absorbDuplicateUpload(
+  supabase: SupabaseClient,
+  params: AbsorbDuplicateParams
+): Promise<AbsorbDuplicateOutcome> {
+  const { userId, shellCaseId, survivorCaseId, result, eobPageRefs, eobMergedPath } = params
+
+  const { data: survivorRow } = await supabase
+    .from('cases')
+    .select('bill_data, provider_name')
+    .eq('id', survivorCaseId)
+    .eq('user_id', userId)
+    .single()
+  const survivorBillData =
+    survivorRow?.bill_data && typeof survivorRow.bill_data === 'object' && !Array.isArray(survivorRow.bill_data)
+      ? (survivorRow.bill_data as Record<string, unknown>)
+      : {}
+  const survivorHasEob = survivorBillData.hasEob === true
+
+  let migratedEob = false
+  if ((result.hasEob || result.eobError) && !survivorHasEob) {
+    const migratedBillData = {
+      ...survivorBillData,
+      lineItems: result.lineItems,
+      normalizedCbs: result.normalizedCbs,
+      date_of_service: result.dateOfService || survivorBillData.date_of_service || '',
+      hasEob: result.hasEob,
+      eobError: result.eobError,
+      lowConfidence: result.lowConfidence,
+      billPatientResponsibility: result.billPatientResponsibility,
+      eobPatientResponsibility: result.eobPatientResponsibility,
+      suspectedPartialRead: result.suspectedPartialRead,
+      auditLogicVersion: AUDIT_LOGIC_VERSION,
+      // The EOB document itself moves with its data: without these storage
+      // references the survivor could never re-extract the EOB on a future
+      // recompute, only replay this parse.
+      ...(eobPageRefs.length > 0 ? { eobPages: eobPageRefs } : {}),
+      ...(eobMergedPath ? { eobMergedPath } : {}),
+    }
+    const { error: migrateErr } = await supabase
+      .from('cases')
+      .update({
+        status: result.errorCount > 0 ? 'error_found' : 'no_errors',
+        provider_name: result.provider ?? survivorRow?.provider_name ?? null,
+        amount_billed: result.totalBilled,
+        amount_expected: result.totalExpected,
+        potential_savings: result.potentialSavings,
+        errors_found: result.errors,
+        bill_data: migratedBillData,
+      })
+      .eq('id', survivorCaseId)
+      .eq('user_id', userId)
+    if (migrateErr) {
+      console.error(
+        `absorbDuplicateUpload[${shellCaseId}]: dedup EOB migration onto surviving case ${survivorCaseId} FAILED (shell case KEPT):`,
+        migrateErr
+      )
+      return {
+        outcome: 'migration_failed',
+        message: `EOB migration onto surviving case ${survivorCaseId} failed: ${migrateErr.message}`,
+      }
+    }
+    migratedEob = true
+    console.info(
+      `absorbDuplicateUpload[${shellCaseId}]: dedup migrated fresh audit onto surviving case ${survivorCaseId} ` +
+        `(hasEob=${result.hasEob}, eobError=${result.eobError}, eobPages=${eobPageRefs.length}, discrepancies now recomputed)`
+    )
+    // The survivor's findings just changed — any letter written from its
+    // previous results is now out of sync. Mark, never delete.
+    await markLettersStaleIfChanged(
+      supabase,
+      survivorCaseId,
+      auditSnapshotFingerprint({
+        amount_billed: result.totalBilled,
+        amount_expected: result.totalExpected,
+        potential_savings: result.potentialSavings,
+        errors_found: result.errors,
+        bill_data: migratedBillData,
+      })
+    )
+  }
+
+  // Remove the empty shell this upload just created so it doesn't linger.
+  // Reached only when migration succeeded or wasn't needed.
+  const { error: deleteErr } = await supabase
+    .from('cases')
+    .delete()
+    .eq('id', shellCaseId)
+    .eq('user_id', userId)
+  if (deleteErr) {
+    // The survivor is authoritative either way; a lingering shell is visible
+    // in the dashboard, not silent data loss — log and continue.
+    console.error(
+      `absorbDuplicateUpload[${shellCaseId}]: shell delete failed after successful dedup:`,
+      deleteErr
+    )
+  }
+  return { outcome: 'absorbed', migratedEob }
 }
