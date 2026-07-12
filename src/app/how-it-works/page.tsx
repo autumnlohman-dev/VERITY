@@ -61,6 +61,7 @@ function Nav() {
           { lbl: "How it works", href: "/how-it-works" },
           { lbl: "Pricing", href: "/pricing" },
           { lbl: "FAQ", href: "#faq" },
+          { lbl: "For Plans & Employers", href: "/for-plans" },
         ].map((link) => (
           <Link
             key={link.href}
@@ -107,6 +108,7 @@ function Footer() {
           { lbl: "Pricing", href: "/pricing" },
           { lbl: "Dashboard", href: "/dashboard" },
           { lbl: "FAQ", href: "#faq" },
+          { lbl: "For Plans & Employers", href: "/for-plans" },
         ].map((link) => (
           <Link
             key={link.href}
