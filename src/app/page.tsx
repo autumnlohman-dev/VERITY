@@ -825,6 +825,15 @@ export default function LandingPage() {
         </div>
       </SectionAccordion>
 
+      {/* ── Roadmap teaser ── */}
+      <section style={{ borderTop: "1px dashed #CFC6B4", padding: "40px 64px" }}>
+        <Link href="/how-it-works#whats-next" style={{ textDecoration: "none" }}>
+          <span style={{ ...sans("12px", "#8A7F6E"), textDecoration: "underline", textUnderlineOffset: "3px" }}>
+            See what we&apos;re building →
+          </span>
+        </Link>
+      </section>
+
       {/* ── Brand band ── */}
       <section
         style={{

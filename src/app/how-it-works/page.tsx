@@ -440,14 +440,56 @@ export default function HowItWorksPage() {
         </div>
       </section>
 
+      {/* ── What's next (roadmap — future tense, nothing here is live) ── */}
+      <section id="whats-next" style={{ borderTop: "1px dashed #CFC6B4", paddingTop: "96px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
+        <motion.div {...fadeUp}>
+          <div style={{ ...label("#8A7F6E"), marginBottom: "24px" }}>On the roadmap · Coming soon</div>
+          <p style={{ ...sans("15px", "#5F5648"), maxWidth: "560px", lineHeight: 1.75, marginBottom: "56px" }}>
+            Today, Verity audits your bill and writes your dispute letter. That&apos;s the foundation. Here&apos;s what comes next.
+          </p>
+        </motion.div>
+        <div className="r-grid-1" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "48px", maxWidth: "1100px" }}>
+          {[
+            {
+              title: "Disputes that escalate themselves.",
+              body: "When a provider denies your dispute, Verity will generate the appeal. When an appeal stalls, it will prepare the next step: complaints to state regulators, credit bureau disputes, collection agency challenges. Each one drafted, cited, and queued for your signature. You approve every action. Verity does everything else.",
+            },
+            {
+              title: "Your bills, watched.",
+              body: "Connect your insurance portal and Verity will monitor new claims as they post, auditing each one automatically. Errors get flagged before the bill even reaches your mailbox.",
+            },
+            {
+              title: "A copilot for the phone call.",
+              body: "Billing departments count on you not knowing the codes. Verity's live guidance will listen alongside you during billing calls, flag statements that contradict your documents, and suggest what to say next, with the citation to back it up.",
+            },
+            {
+              title: "Your household's financial weather report.",
+              body: "Verity's Family Profile will track your family's deductibles and out-of-pocket maximums across every member, simulate what a planned procedure will actually cost you, and warn you when heavy financial weather is coming.",
+            },
+          ].map((item, i) => (
+            <motion.div
+              key={item.title}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: i * 0.05 }}
+              style={{ borderTop: "1px dashed #CFC6B4", paddingTop: "28px" }}
+            >
+              <div style={{ ...serif("23px", { color: "#5F5648", lineHeight: 1.15, marginBottom: "14px" }) }}>{item.title}</div>
+              <p style={{ ...sans("13px", "#8A7F6E"), lineHeight: 1.75 }}>{item.body}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
       {/* ── What we are, two columns ── */}
       <section style={{ paddingTop: "96px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
         <motion.div {...fadeUp}>
-          <div style={{ ...label(), marginBottom: "32px" }}>Our authorization</div>
+          <div style={{ ...label(), marginBottom: "32px" }}>What Verity is · and isn&apos;t</div>
           <h2 style={{ ...serif("40px", { lineHeight: 1.1, marginBottom: "48px" }) }}>
-            Medical bill advocacy
+            Clear about what we do.
             <br />
-            is a recognized profession.
+            Just as clear about what we don&apos;t.
           </h2>
         </motion.div>
 
@@ -461,7 +503,7 @@ export default function HowItWorksPage() {
                 "Software that finds billing errors and writes your dispute letter",
                 "Checks bills against CMS reference data: the Physician Fee Schedule, the Clinical Lab Fee Schedule, NCCI bundling edits, and MUE limits",
                 "Built on CPT codes, insurance contracts, and dispute procedures",
-                "Prepares disputes that you submit under your own name and signed authorization",
+                "Prepares disputes that you review, sign, and submit in your own name.",
               ].map((item) => (
                 <div key={item} style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
                   <span style={{ ...sans("14px", "#C8A97E"), marginTop: "2px", flexShrink: 0 }}>›</span>
@@ -493,8 +535,8 @@ export default function HowItWorksPage() {
               ))}
             </div>
             <p style={{ ...sans("12px", "#8A7F6E"), fontStyle: "italic", marginTop: "32px", lineHeight: 1.65 }}>
-              If your case involves fraud, malpractice, or requires legal action, we&apos;ll tell you, and refer you
-              to appropriate legal counsel. We don&apos;t handle cases beyond our scope.
+              If your case involves fraud, malpractice, or a legal claim, we&apos;ll tell you and point you toward
+              appropriate legal counsel.
             </p>
           </motion.div>
         </div>
