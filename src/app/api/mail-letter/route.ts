@@ -12,6 +12,7 @@ import {
   type LobAddress,
 } from '@/lib/lob'
 import { auditSnapshotFingerprint, isLetterStale } from '@/lib/letters/staleness'
+import { buildDispatchOutcomeRow } from '@/lib/outcomes/dispatch'
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 
@@ -258,7 +259,7 @@ export async function POST(request: Request) {
     // Need a generated letter to mail.
     const { data: letterData } = await supabase
       .from('dispute_letters')
-      .select('letter_content, stale, audit_fingerprint, audit_logic_version')
+      .select('id, letter_content, stale, audit_fingerprint, audit_logic_version')
       .eq('case_id', caseId)
       .order('generated_at', { ascending: false })
       .limit(1)
@@ -386,6 +387,7 @@ export async function POST(request: Request) {
 
     // Persist mail state via the service role (these columns are server-only).
     const admin = createAdminClient()
+    const mailedAt = new Date().toISOString()
     const { error: updateErr } = await admin
       .from('cases')
       .update({
@@ -394,7 +396,7 @@ export async function POST(request: Request) {
         mail_expected_delivery: created.expectedDeliveryDate,
         mail_test_mode: testMode,
         mail_certified: certified,
-        mailed_at: new Date().toISOString(),
+        mailed_at: mailedAt,
         mail_to: toFinal,
         mail_from: fromParsed,
       })
@@ -404,6 +406,31 @@ export async function POST(request: Request) {
       // The letter WAS created at Lob; log but still report success with the id
       // so the user isn't told it failed when it didn't.
       console.error('mail-letter: persisted state update failed:', updateErr)
+    }
+
+    // Dispatch bookkeeping: record the sent letter in dispute_outcomes so
+    // escalation logic can exist later. Letter delivery takes priority over
+    // bookkeeping — an insert failure is logged loudly, never blocks the send.
+    const { error: outcomeErr } = await admin.from('dispute_outcomes').insert(
+      buildDispatchOutcomeRow({
+        caseId,
+        userId: user.id,
+        letterRowId: (letterRow?.id as string) ?? null,
+        lobLetterId: created.id,
+        letterVersion: letterRow?.audit_logic_version ?? null,
+        sentAt: mailedAt,
+        recipientName: toFinal.name ?? null,
+      })
+    )
+    if (outcomeErr) {
+      console.error(
+        `mail-letter: DISPATCH OUTCOME INSERT FAILED for case ${caseId} (letter ${created.id} was mailed; bookkeeping row is missing):`,
+        outcomeErr
+      )
+      Sentry.captureException(new Error(`dispute_outcomes dispatch insert failed: ${outcomeErr.message}`), {
+        tags: { route: 'mail-letter', stage: 'outcome-insert' },
+        extra: { caseId, lobLetterId: created.id },
+      })
     }
 
     return NextResponse.json({

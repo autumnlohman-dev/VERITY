@@ -74,7 +74,12 @@ export async function POST(request: Request) {
     }
     const capStr = (v: unknown, max: number): string | null =>
       typeof v === 'string' && v.trim() ? v.slice(0, max) : null
-    const VALID_STATUSES = new Set(['pending', 'in_progress', 'won', 'partial', 'lost', 'abandoned'])
+    // User-label vocabulary plus the dispatch lifecycle (rows created server-
+    // side at Lob dispatch); matches the dispute_outcomes status CHECK.
+    const VALID_STATUSES = new Set([
+      'pending', 'in_progress', 'won', 'partial', 'lost', 'abandoned',
+      'draft', 'sent', 'response_received', 'resolved', 'denied', 'no_response', 'escalated',
+    ])
     const status =
       typeof body.status === 'string' && VALID_STATUSES.has(body.status) ? body.status : 'pending'
     const resolvedAt =
@@ -103,6 +108,7 @@ export async function POST(request: Request) {
       amount_recovered: body.amountRecovered != null ? clampNum(body.amountRecovered, 0, 100_000_000) : null,
       days_to_resolution: body.daysToResolution != null ? clampNum(body.daysToResolution, 0, 100_000) : null,
       notes: capStr(body.notes, 4000),
+      updated_at: new Date().toISOString(),
     }
 
     const { error } = await supabase

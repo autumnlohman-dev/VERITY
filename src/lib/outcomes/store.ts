@@ -6,11 +6,15 @@ import { createClient } from '@/lib/supabase/client'
 // Every dispute tracked here becomes a labeled training record for the
 // future Recovery Probability Score ML model.
 //
-// Persistence model (v8.1): Supabase is the system of record; localStorage is
-// a synchronous cache and offline fallback. Every write lands in localStorage
-// immediately (so the synchronous read API below stays instant) and is then
-// pushed to Supabase best-effort. Guests accumulate records locally; on login
-// `syncOutcomes()` reconciles the two stores.
+// Persistence model (v8.2): Supabase is the system of record for authenticated
+// users; localStorage is guest-only. `hydrateOutcomes()` (called on login and
+// by outcome-reading components) determines the session, replays any legacy
+// localStorage records through /api/outcomes ONCE and clears the legacy key,
+// then pulls the user's rows into an in-memory cache so the synchronous read
+// API below stays instant. Guests keep accumulating records in localStorage,
+// untouched, until they sign up. Before hydration resolves, writes fall back
+// to the old dual-write (localStorage + push) so nothing is ever dropped; the
+// next hydration migrates and clears.
 
 export interface DisputeOutcomeLabel {
   outcomeId: string
@@ -54,7 +58,15 @@ export interface OutcomeStats {
 
 const STORAGE_KEY = 'verity_dispute_outcomes'
 
-function loadAll(): DisputeOutcomeLabel[] {
+// Session-scoped module state. `memCache` is the authenticated user's Supabase
+// rows (or the guest's localStorage rows) after hydration; `authed` is only
+// trusted once hydration has run. Both reset on full page load, which is when
+// hydration re-runs.
+let memCache: DisputeOutcomeLabel[] | null = null
+let authed = false
+let hydration: Promise<void> | null = null
+
+function loadLocal(): DisputeOutcomeLabel[] {
   try {
     if (typeof window === 'undefined') return []
     const raw = window.localStorage.getItem(STORAGE_KEY)
@@ -64,7 +76,7 @@ function loadAll(): DisputeOutcomeLabel[] {
   }
 }
 
-function saveAll(outcomes: DisputeOutcomeLabel[]): void {
+function saveLocal(outcomes: DisputeOutcomeLabel[]): void {
   try {
     if (typeof window === 'undefined') return
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(outcomes))
@@ -73,41 +85,116 @@ function saveAll(outcomes: DisputeOutcomeLabel[]): void {
   }
 }
 
+// The synchronous read source: hydrated cache when available, else the guest/
+// legacy localStorage copy.
+function current(): DisputeOutcomeLabel[] {
+  return memCache ?? loadLocal()
+}
+
+function cacheUpsert(outcome: DisputeOutcomeLabel): void {
+  if (!memCache) memCache = loadLocal()
+  const idx = memCache.findIndex(o => o.outcomeId === outcome.outcomeId)
+  if (idx >= 0) memCache[idx] = outcome
+  else memCache.push(outcome)
+}
+
+// Hydrate the read cache. Authenticated: migrate any legacy localStorage
+// records to Supabase (clearing the key only when EVERY row landed), then pull
+// the user's rows. Guest: cache is the localStorage copy. Idempotent per page
+// load; concurrent callers share one flight.
+export async function hydrateOutcomes(): Promise<void> {
+  if (typeof window === 'undefined') return
+  if (hydration) return hydration
+  hydration = (async () => {
+    try {
+      const supabase = createClient()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      authed = !!session
+
+      if (!authed) {
+        memCache = loadLocal()
+        return
+      }
+
+      // One-time legacy migration for this user. Clear the key only if every
+      // record was accepted — a partial failure leaves the key for a retry on
+      // the next load, and the upsert makes replays harmless.
+      const legacy = loadLocal()
+      if (legacy.length > 0) {
+        const results = await Promise.all(legacy.map(pushRemote))
+        if (results.every(Boolean)) {
+          try {
+            window.localStorage.removeItem(STORAGE_KEY)
+          } catch {
+            // Key removal failing is cosmetic; the upsert already landed.
+          }
+        } else {
+          console.error(
+            `outcomes: legacy localStorage migration incomplete (${results.filter(r => !r).length}/${legacy.length} failed); keeping legacy key for retry.`
+          )
+        }
+      }
+
+      const { data, error } = await supabase.from('dispute_outcomes').select('*')
+      if (!error && data) {
+        memCache = data.map(row => rowToLabel(row as Record<string, unknown>))
+      } else if (!memCache) {
+        memCache = legacy
+      }
+    } catch {
+      // Hydration is best-effort; readers fall back to localStorage.
+      if (!memCache) memCache = loadLocal()
+    }
+  })()
+  return hydration
+}
+
 export function saveOutcome(outcome: DisputeOutcomeLabel): void {
-  const all = loadAll()
-  const idx = all.findIndex(o => o.outcomeId === outcome.outcomeId)
-  if (idx >= 0) {
-    all[idx] = outcome
-  } else {
-    all.push(outcome)
+  cacheUpsert(outcome)
+  // Guests (and pre-hydration writes, where the session is unknown) keep the
+  // localStorage copy; hydration later migrates and clears it. Authenticated
+  // users write through to Supabase only.
+  if (!authed) {
+    const all = loadLocal()
+    const idx = all.findIndex(o => o.outcomeId === outcome.outcomeId)
+    if (idx >= 0) all[idx] = outcome
+    else all.push(outcome)
+    saveLocal(all)
   }
-  saveAll(all)
   void pushRemote(outcome)
 }
 
 export function getOutcome(outcomeId: string): DisputeOutcomeLabel | null {
-  return loadAll().find(o => o.outcomeId === outcomeId) ?? null
+  return current().find(o => o.outcomeId === outcomeId) ?? null
 }
 
 export function getAllOutcomes(): DisputeOutcomeLabel[] {
-  return loadAll()
+  return current()
 }
 
 export function updateOutcome(
   outcomeId: string,
   updates: Partial<DisputeOutcomeLabel>
 ): void {
-  const all = loadAll()
-  const idx = all.findIndex(o => o.outcomeId === outcomeId)
-  if (idx >= 0) {
-    all[idx] = { ...all[idx], ...updates }
-    saveAll(all)
-    void pushRemote(all[idx])
+  const existing = current().find(o => o.outcomeId === outcomeId)
+  if (!existing) return
+  const merged = { ...existing, ...updates }
+  cacheUpsert(merged)
+  if (!authed) {
+    const all = loadLocal()
+    const idx = all.findIndex(o => o.outcomeId === outcomeId)
+    if (idx >= 0) {
+      all[idx] = merged
+      saveLocal(all)
+    }
   }
+  void pushRemote(merged)
 }
 
 export function getAggregateStats(): OutcomeStats {
-  const all = loadAll()
+  const all = current()
   const resolved = all.filter(o => ['won', 'partial', 'lost'].includes(o.status))
   const won = all.filter(o => o.status === 'won')
   const partial = all.filter(o => o.status === 'partial')
@@ -198,40 +285,24 @@ function rowToLabel(row: Record<string, unknown>): DisputeOutcomeLabel {
   }
 }
 
-async function pushRemote(outcome: DisputeOutcomeLabel): Promise<void> {
+// Returns true when the API accepted the record (401 for guests and network
+// failures return false; the localStorage copy remains the fallback).
+async function pushRemote(outcome: DisputeOutcomeLabel): Promise<boolean> {
   try {
-    if (typeof window === 'undefined') return
-    await fetch('/api/outcomes', {
+    if (typeof window === 'undefined') return false
+    const res = await fetch('/api/outcomes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(outcome),
     })
+    return res.ok
   } catch {
-    // Offline / network error — localStorage copy is the fallback.
+    return false
   }
 }
 
-// Reconcile localStorage with Supabase. Called on login: pushes every local
-// record up (claiming guest records under the now-authenticated user via the
-// API route), then pulls the remote set down into the local cache.
+// Login-time reconciliation. Kept as the historical export name; hydration now
+// owns the whole flow (legacy migration + Supabase pull into the read cache).
 export async function syncOutcomes(): Promise<void> {
-  if (typeof window === 'undefined') return
-  try {
-    const local = loadAll()
-    await Promise.all(local.map(pushRemote))
-
-    const supabase = createClient()
-    const { data, error } = await supabase.from('dispute_outcomes').select('*')
-    if (error || !data) return
-
-    const merged = new Map<string, DisputeOutcomeLabel>()
-    for (const o of local) merged.set(o.outcomeId, o)
-    for (const row of data) {
-      const label = rowToLabel(row as Record<string, unknown>)
-      merged.set(label.outcomeId, label)
-    }
-    saveAll([...merged.values()])
-  } catch {
-    // Sync is best-effort; the local cache remains usable.
-  }
+  return hydrateOutcomes()
 }

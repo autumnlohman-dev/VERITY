@@ -1,8 +1,9 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { buildDigitalTwin, type DigitalTwin, type TwinCaseInput } from '@/lib/twin/digitalTwin'
+import { hydrateOutcomes } from '@/lib/outcomes/store'
 import { useClientMemo } from '@/lib/useClientMemo'
 
 const sans = (size: string, color = 'var(--ink-soft)', extra?: React.CSSProperties): React.CSSProperties => ({
@@ -14,11 +15,24 @@ const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties =
 })
 
 export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
-  // Build client-side only: the twin folds in localStorage outcomes + workflows,
+  // Authenticated users' outcomes now live in Supabase; hydrate the outcome
+  // store's read cache before folding outcomes into the twin, then rebuild.
+  const [outcomesVersion, setOutcomesVersion] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    void hydrateOutcomes().then(() => {
+      if (!cancelled) setOutcomesVersion(v => v + 1)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Build client-side only: the twin folds in stored outcomes + workflows,
   // which don't exist during SSR. useClientMemo keeps the first render in sync
   // with the server HTML (null), then computes once hydrated.
   const twin = useClientMemo<DigitalTwin | null>(
-    JSON.stringify(cases),
+    `${JSON.stringify(cases)}:${outcomesVersion}`,
     () => buildDigitalTwin(cases),
     null,
   )

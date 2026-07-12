@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
-import { updateOutcome, getOutcome } from '@/lib/outcomes/store'
+import React, { useState, useEffect } from 'react'
+import { updateOutcome, getOutcome, hydrateOutcomes } from '@/lib/outcomes/store'
 import type { DisputeOutcomeLabel } from '@/lib/outcomes/store'
 import { useClientMemo } from '@/lib/useClientMemo'
 
@@ -45,10 +45,25 @@ function StatusButton({ label, active, onSelect }: { label: string; active: bool
 export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFollowUpProps) {
   const [status, setStatus] = useState<OutcomeStatus | null>(null)
   const [amountRecovered, setAmountRecovered] = useState('')
-  // Bumped after a write so the stored-outcome snapshot below re-reads localStorage.
+  // Bumped after a write (or hydration) so the stored-outcome snapshot below
+  // re-reads the store.
   const [version, setVersion] = useState(0)
 
-  // Read the persisted outcome from localStorage client-side (hydration-safe).
+  // Authenticated users read outcomes from Supabase: hydration fills the
+  // store's read cache (running the one-time legacy localStorage migration),
+  // then the version bump re-renders with the durable copy. Guests hydrate
+  // from localStorage, same behavior as before.
+  useEffect(() => {
+    let cancelled = false
+    void hydrateOutcomes().then(() => {
+      if (!cancelled) setVersion(v => v + 1)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Read the persisted outcome from the store client-side (hydration-safe).
   const outcome = useClientMemo<DisputeOutcomeLabel | null>(
     `${outcomeId}:${version}`,
     () => getOutcome(outcomeId),
