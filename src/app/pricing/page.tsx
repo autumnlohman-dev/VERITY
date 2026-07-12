@@ -604,7 +604,7 @@ export default function PricingPage() {
         <motion.div {...fadeUp} style={{ backgroundColor: "#F4EFE6", border: "1px solid #D8CFBE", padding: "32px" }}>
           <div style={{ ...label("#8A7F6E"), marginBottom: "16px" }}>On the roadmap · Coming soon</div>
           <p style={{ ...sans("13px", "#5F5648"), lineHeight: 1.75, maxWidth: "680px" }}>
-            In development for members: generated appeal letters when a dispute is denied, escalation letters to regulators, credit bureaus, and collectors, and real-time call guidance. None of these are live yet. Today, Verity generates your audit report and dispute letter, and mails your dispute for you, with certified mail available.
+            In development for members: generated appeal letters when a dispute is denied, escalation letters to regulators, credit bureaus, and collectors, and real-time call guidance. None of these are live yet. Today, Verity generates your audit report and dispute letter, and mails your dispute by certified mail.
           </p>
         </motion.div>
       </section>

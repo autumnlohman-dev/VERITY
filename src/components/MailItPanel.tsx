@@ -172,7 +172,9 @@ export function MailItPanel({
 }) {
   const [to, setTo] = useState<MailAddress>(() => parseProviderBlob(providerName));
   const [from, setFrom] = useState<MailAddress>(() => parseAddress(patientInfo.address, patientInfo.name ?? ""));
-  const [certified, setCertified] = useState(false);
+  // Certified is the default: dated proof of delivery is the point of having
+  // Verity mail the dispute. Unchecking falls back to first-class.
+  const [certified, setCertified] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<MailAddress | null>(null);
