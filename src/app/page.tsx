@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { BRAND_NAME } from "@/lib/brand";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { startMembershipCheckout } from "@/lib/checkout";
 import { ChevronDown } from "lucide-react";
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
@@ -39,11 +38,15 @@ const label = (color = "#C8A97E"): React.CSSProperties => ({
 const FAQS = [
   {
     q: "What types of billing errors do you find?",
-    a: "The most common: upcoding (charging for a more expensive procedure than performed), duplicate billing, balance billing violations, charges above contracted rates, and unbundling (splitting one procedure into multiple charges). Most patients have at least two.",
+    a: "The most common: upcoding (billing a more expensive procedure than the one performed), duplicate billing, balance billing that conflicts with the No Surprises Act, charges above contracted rates, and unbundling (splitting one procedure into multiple charges).",
   },
   {
     q: "How long does it take?",
-    a: "Audit reports are ready within 24 hours of upload, and your dispute package is generated instantly. Before you file, you'll see an estimated recovery amount, likely timeframe, and settlement range. Once you send it, or authorize Verity to file on your behalf, most insurers and providers respond within 30 days. Complex cases and appeals can take longer, and Verity generates every follow-up letter you need at each step.",
+    a: "Audit reports are ready within 24 hours of upload, and your dispute package is generated right after. Members also see an estimated recovery amount and settlement range before filing. Once you send your dispute, most insurers and providers respond within 30 days; complex cases and appeals can take longer.",
+  },
+  {
+    q: "How long do I have to submit a dispute?",
+    a: "It depends. Deadlines vary by dispute type, insurer, and state; provider billing disputes, insurer appeals, and external reviews each run on different clocks, and some deadlines are set by your own plan documents. There is no single window that applies to everyone. Verity identifies the deadline that applies to your case and tracks it for you.",
   },
   {
     q: "What do I need to upload?",
@@ -51,7 +54,7 @@ const FAQS = [
   },
   {
     q: "What happens if my insurer denies the dispute?",
-    a: "Your audit report includes the evidence and regulatory citations behind every flagged charge, so you can escalate to a second-level appeal or an external review. Verity generates the follow-up letters you need at each step.",
+    a: "Your audit report includes the evidence and regulatory citations behind every flagged charge, so you can escalate to a second-level appeal or an external review.",
   },
   {
     q: "Is my medical data safe?",
@@ -232,63 +235,6 @@ function Footer() {
   );
 }
 
-// ─── CountUp ──────────────────────────────────────────────────────────────────
-function useCountUp(target: number, duration = 1800) {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLDivElement>(null);
-  const started = useRef(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          const startTime = performance.now();
-          const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-          const tick = (now: number) => {
-            const elapsed = now - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            setCount(Math.round(easeOutCubic(progress) * target));
-            if (progress < 1) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-        }
-      },
-      { threshold: 0.5 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [target, duration]);
-
-  return { count, ref };
-}
-
-function StatItem({
-  value,
-  prefix,
-  suffix,
-  statLabel,
-}: {
-  value: number;
-  prefix: string;
-  suffix: string;
-  statLabel: string;
-}) {
-  const { count, ref } = useCountUp(value);
-  return (
-    <div ref={ref} style={{ textAlign: "center", padding: "0 32px" }}>
-      <div style={{ ...serif("64px"), lineHeight: 1 }}>
-        {prefix}
-        {count.toLocaleString()}
-        {suffix}
-      </div>
-      <div style={{ ...label("#8A7F6E"), marginTop: "12px" }}>{statLabel}</div>
-    </div>
-  );
-}
-
 // ─── FAQ Item ─────────────────────────────────────────────────────────────────
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
@@ -447,8 +393,8 @@ export default function LandingPage() {
         }}
       >
         <h1 className="sr-only">
-          Clarity over confusion. Verity™ uses AI and expert advocacy to uncover
-          overcharges, decode complex billing, and restore financial clarity.
+          Clarity over confusion. Verity™ finds overcharges on medical bills
+          and prepares the dispute letters to fix them.
         </h1>
         <Image
           src="/hero-campaign.png"
@@ -504,44 +450,6 @@ export default function LandingPage() {
         </p>
       </section>
 
-      {/* ── Stats Bar ── */}
-      <motion.section
-        {...fadeUp}
-        style={{
-          borderTop: "1px solid #D8CFBE",
-          borderBottom: "1px solid #D8CFBE",
-          padding: "56px 64px",
-        }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1px 1fr 1px 1fr",
-            alignItems: "center",
-          }}
-        >
-          {[
-            { value: 12400, prefix: "", suffix: "+", statLabel: "bills audited" },
-            { value: 1840, prefix: "$", suffix: "", statLabel: "average savings" },
-            { value: 91, prefix: "", suffix: "%", statLabel: "success rate" },
-          ].map((stat, i) => (
-            <React.Fragment key={stat.statLabel}>
-              {i > 0 && (
-                <div
-                  style={{
-                    width: "1px",
-                    height: "80px",
-                    backgroundColor: "#D8CFBE",
-                    margin: "0 auto",
-                  }}
-                />
-              )}
-              <StatItem {...stat} />
-            </React.Fragment>
-          ))}
-        </div>
-      </motion.section>
-
       {/* ── Problem Section ── */}
       <motion.section
         {...fadeUp}
@@ -564,45 +472,12 @@ export default function LandingPage() {
             style={{
               ...sans("14px", "#5F5648"),
               lineHeight: 1.75,
-              marginBottom: "32px",
             }}
           >
             Providers upcode procedures. Insurers underpay. Duplicate charges
             slip through. Most patients never know, because the bills are
             designed to be unreadable.
           </p>
-          <div
-            style={{
-              borderTop: "1px solid #D8CFBE",
-              paddingTop: "32px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "24px",
-            }}
-          >
-            {[
-              { num: "80%", stat: "of all medical bills contain at least one error" },
-              { num: "$1,300", stat: "average overcharge on a hospital bill" },
-              { num: "1 in 3", stat: "patients are balance billed illegally" },
-            ].map((item) => (
-              <div key={item.num}>
-                <div
-                  style={{
-                    ...serif("48px", {
-                      fontStyle: "italic",
-                      color: "#C8A97E",
-                      lineHeight: 1,
-                    }),
-                  }}
-                >
-                  {item.num}
-                </div>
-                <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "4px" }}>
-                  {item.stat}
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </motion.section>
 
@@ -630,7 +505,7 @@ export default function LandingPage() {
               { n: "01", name: "Duplicate charges", evidence: "Same CPT · same day · billed ×2", note: "Identical services billed more than once." },
               { n: "02", name: "Upcoding", evidence: "99215 billed → 99213 documented", note: "A higher-intensity code than the visit supports." },
               { n: "03", name: "Unbundling", evidence: "One panel split into 6 line items", note: "Bundled services broken apart to bill more." },
-              { n: "04", name: "Balance billing", evidence: "Out-of-network charge · NSA claim", note: "Illegal under the No Surprises Act." },
+              { n: "04", name: "Balance billing", evidence: "Out-of-network charge · NSA claim", note: "Conflicts with the No Surprises Act." },
               { n: "05", name: "EOB mismatch", evidence: "Allowed $350 · billed $600", note: "Provider bills past the insurer-allowed rate." },
               { n: "06", name: "Excess units", evidence: "4 units billed · MUE max 1", note: "More units than medically possible per day." },
               { n: "07", name: "Deductible errors", evidence: "Deductible met · charged again", note: "Cost-sharing applied after it was satisfied." },
@@ -662,7 +537,7 @@ export default function LandingPage() {
             <div style={{ backgroundColor: "#F1EBDF", padding: "32px 28px 36px" }}>
               <div style={{ ...sans("11px", "#B3A28A"), letterSpacing: "0.2em", marginBottom: "20px" }}>09</div>
               <div style={{ ...serif("23px", { marginBottom: "16px", lineHeight: 1.1 }) }}>Recovery Probability Score</div>
-              <div style={{ ...sans("12.5px", "#5F5648"), lineHeight: 1.65 }}>For every error we find, our AI estimates your likelihood of winning that dispute. Estimates start from published industry baselines and sharpen as real VERITY dispute outcomes accumulate, and each prediction shows how many real outcomes it&apos;s based on.</div>
+              <div style={{ ...sans("12.5px", "#5F5648"), lineHeight: 1.65 }}>For every error we find, Verity estimates your likelihood of winning that dispute. Estimates start from published industry baselines and sharpen as real dispute outcomes accumulate.</div>
             </div>
             <div style={{ backgroundColor: "#F1EBDF", padding: "32px 28px 36px" }}>
               <div style={{ ...sans("11px", "#B3A28A"), letterSpacing: "0.2em", marginBottom: "20px" }}>10</div>
@@ -672,7 +547,7 @@ export default function LandingPage() {
           </div>
 
           <p style={{ ...sans("12px", "#8A7F6E"), letterSpacing: "0.08em", textTransform: "uppercase", marginTop: "40px" }}>
-            Every finding is backed by the exact federal rule or contract clause it violates.
+            Every finding cites the specific federal rule or contract clause it conflicts with.
           </p>
         </div>
       </SectionAccordion>
@@ -691,8 +566,8 @@ export default function LandingPage() {
         <div style={{ maxWidth: "1100px" }}>
           <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, maxWidth: "560px", marginBottom: "56px" }}>
             The engine behind every audit. Most tools read a claim. Verity reads
-            your documents the way an investigator would, then proves it against
-            the law.
+            your documents the way an investigator would, then checks each charge
+            against the specific rule that governs it.
           </p>
 
           <div className="r-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1px", backgroundColor: "#D8CFBE" }}>
@@ -700,9 +575,9 @@ export default function LandingPage() {
               { r: "I", name: "Multimodal extraction", body: "We turn a phone photo of a bill or EOB into every CPT code, charge, date, and modifier, flagging anything the image left uncertain." },
               { r: "II", name: "Simultaneous audit", body: "NCCI, MUE, and Medicare fee-schedule rules are checked in a single pass, fewer false positives, and nothing slips between datasets." },
               { r: "III", name: "E&M integrity scoring", body: "A weighted model judges whether the visit level billed is actually supported, catching the upcoding that coding-only checkers miss." },
-              { r: "IV", name: "Citation-linked disputes", body: "Every violation is mapped to the exact regulation it breaks and written into a dispute package, citation embedded, ready to send." },
+              { r: "IV", name: "Citation-linked disputes", body: "Every finding is mapped to the specific rule it conflicts with and written into a dispute package with the citation embedded." },
               { r: "V", name: "Outcome prediction", body: "Before you file, see your estimated recovery amount, likely resolution timeframe, escalation probability, and a specific settlement range, so you know what you're walking into." },
-              { r: "VI", name: "Relentless advocacy", body: "Verity prepares every letter, appeal, and escalation in your case, you approve each send, and Verity adapts to every response until the case is closed." },
+              { r: "VI", name: "A mapped escalation path", body: "Verity lays out each next step in your dispute, who to contact, and the deadline that applies. You approve everything before it goes out." },
             ].map((c) => (
               <div key={c.r} style={{ backgroundColor: "var(--surface)", padding: "36px 28px 40px" }}>
                 <div style={{ ...serif("34px", { color: "#C8A97E", lineHeight: 1, marginBottom: "20px" }) }}>{c.r}</div>
@@ -741,13 +616,13 @@ export default function LandingPage() {
           {
             num: "02",
             title: "We find every error.",
-            body: "We normalize every document you upload, your itemized bill, your EOB, your denial letter, your authorization, into a single unified schema, then compare them against each other and against federal billing rules in one pass. Discrepancies across documents are found automatically, no manual review required.",
+            body: "Every code and charge is checked against your EOB and CMS reference data: fee schedules, NCCI bundling edits, and MUE limits. Each discrepancy is flagged with its dollar impact.",
             time: "24 hours",
           },
           {
             num: "03",
             title: "You choose what happens next.",
-            body: "See your audit free. Get your estimated recovery amount and settlement range before you file. Download a ready-to-send dispute package, or authorize Verity to run the dispute entirely, filing correspondence and appeals on your behalf until it's resolved.",
+            body: "See your audit free. Download a ready-to-send dispute package; nothing is sent without your approval.",
             time: "Your call",
           },
         ].map((step, i) => (
@@ -807,6 +682,11 @@ export default function LandingPage() {
           </motion.div>
         ))}
         <div style={{ borderTop: "1px solid #D8CFBE" }} />
+        <Link href="/how-it-works" style={{ textDecoration: "none" }}>
+          <span style={{ ...sans("12px", "#8A7F6E"), display: "inline-block", marginTop: "24px", textDecoration: "underline", textUnderlineOffset: "3px" }}>
+            See the full process, step by step →
+          </span>
+        </Link>
         </div>
       </SectionAccordion>
 
@@ -841,7 +721,7 @@ export default function LandingPage() {
             {[
               { k: "Original bill", v: "$4,827", gold: false },
               { k: "Errors found", v: "4", gold: false },
-              { k: "What you actually owed", v: "$3,487", gold: false },
+              { k: "Corrected balance", v: "$3,487", gold: false },
               { k: "Recovered", v: "$1,340", gold: true },
             ].map((m, i) => (
               <div key={m.k} style={{ padding: "32px 28px", borderLeft: i > 0 ? "1px solid #D8CFBE" : "none" }}>
@@ -901,7 +781,8 @@ export default function LandingPage() {
         <div style={{ maxWidth: "1100px" }}>
           <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, maxWidth: "520px", marginBottom: "48px" }}>
             Coding-only checkers read a claim and flag a few CPT errors. Verity
-            reads your documents, every ruleset, and the law behind each charge.
+            reads your documents, every ruleset, and the specific rules behind
+            each charge.
           </p>
 
           <div style={{ overflowX: "auto" }}>
@@ -922,8 +803,8 @@ export default function LandingPage() {
                 { f: "Upcoding / E&M integrity", a: "no", b: "some", v: "yes" },
                 { f: "Balance billing & out-of-network (NSA)", a: "no", b: "no", v: "yes" },
                 { f: "Cites the exact federal rule", a: "no", b: "no", v: "yes" },
-                { f: "Writes the dispute & appeal letters", a: "no", b: "no", v: "yes" },
-                { f: "Watches every future bill", a: "no", b: "no", v: "yes" },
+                { f: "Writes the dispute letter, ready to send", a: "no", b: "no", v: "yes" },
+                { f: "Audits every new bill you upload", a: "no", b: "no", v: "yes" },
               ].map((row, i) => (
                 <div key={i} style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1.1fr", borderBottom: "1px solid #E2DACB", alignItems: "center" }}>
                   <div style={{ padding: "18px 16px" }}><span style={{ ...sans("13px", "#2A2520") }}>{row.f}</span></div>
@@ -944,62 +825,6 @@ export default function LandingPage() {
         </div>
       </SectionAccordion>
 
-      {/* ── Continuous Monitoring ── */}
-      <motion.section {...fadeUp} style={{ borderTop: "1px solid #D8CFBE", padding: "112px 64px" }}>
-        <div style={{ maxWidth: "1100px", margin: "0 auto", display: "grid", gridTemplateColumns: "1.1fr 0.9fr", gap: "64px", alignItems: "center" }} className="r-grid-1">
-          <div>
-            <div style={{ ...label(), marginBottom: "24px" }}>Always on</div>
-            <h2 style={{ ...serif("52px", { lineHeight: 1.05, marginBottom: "20px" }) }}>
-              One bill, fixed.
-              <br />
-              <em style={{ fontStyle: "italic", color: "#C8A97E" }}>Then we keep watching.</em>
-            </h2>
-            <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.8, maxWidth: "440px", marginBottom: "32px" }}>
-              Most overcharges arrive after you&apos;ve stopped looking. With a
-              Verity membership, every new bill and EOB you receive is audited the
-              moment it lands, and you&apos;re alerted the instant something looks
-              wrong. Every encounter, every insurer, every dispute outcome is tracked
-              in one place across your complete billing history. You never have to catch it yourself again.
-            </p>
-            <Link href="/upload?tier=membership" style={{ textDecoration: "none" }}>
-              <span
-                style={{
-                  ...sans("11px", "#221C14"),
-                  backgroundColor: "#C8A97E",
-                  padding: "16px 32px",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  fontWeight: 500,
-                  display: "inline-block",
-                }}
-              >
-                Start membership, $19/mo
-              </span>
-            </Link>
-          </div>
-
-          {/* monitoring feed */}
-          <div style={{ borderLeft: "1px solid #D8CFBE", paddingLeft: "40px" }}>
-            {[
-              { d: "Apr 14", t: "New bill detected", s: "City Medical Center · $3,600", flag: true },
-              { d: "Apr 10", t: "Audit complete", s: "1 error · $165 recoverable · 84% win probability", flag: true },
-              { d: "Apr 10", t: "Dispute filed automatically", s: "Appeal letter sent to Aetna on your behalf", flag: true },
-              { d: "Mar 28", t: "EOB reconciled", s: "Matches your plan, no action", flag: false },
-              { d: "Mar 12", t: "Recovered", s: "$2,840 credited to your account", flag: false },
-            ].map((row, i) => (
-              <div key={i} style={{ display: "flex", gap: "16px", alignItems: "flex-start", paddingBottom: i < 3 ? "28px" : 0 }}>
-                <div style={{ ...sans("11px", "#B3A28A"), letterSpacing: "0.08em", width: "48px", flexShrink: 0, paddingTop: "3px" }}>{row.d}</div>
-                <div style={{ width: "7px", height: "7px", borderRadius: "50%", backgroundColor: row.flag ? "#C8A97E" : "#5E7E66", marginTop: "6px", flexShrink: 0 }} />
-                <div>
-                  <div style={{ ...serif("19px", { lineHeight: 1.2 }) }}>{row.t}</div>
-                  <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "2px" }}>{row.s}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </motion.section>
-
       {/* ── Brand band ── */}
       <section
         style={{
@@ -1019,7 +844,7 @@ export default function LandingPage() {
         />
       </section>
 
-      {/* ── Pricing ── */}
+      {/* ── Pricing teaser ── */}
       <section style={{ padding: "112px 64px" }}>
         <motion.div {...fadeUp}>
           <div style={{ ...label(), marginBottom: "24px" }}>Pricing</div>
@@ -1032,415 +857,43 @@ export default function LandingPage() {
             <br />
             Pay when you act.
           </h2>
-          <p style={{ ...sans("14px", "#8A7F6E"), marginBottom: "64px" }}>
-            Three tiers. Each one goes further.
+          <p style={{ ...sans("14px", "#5F5648"), maxWidth: "460px", lineHeight: 1.75, marginBottom: "32px" }}>
+            The audit is free. A single dispute package is $39. The membership is
+            $19/mo for unlimited audits and dispute packages.
           </p>
-        </motion.div>
-
-        <div
-          className="r-grid-1"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: "16px",
-          }}
-        >
-          {/* Audit */}
-          <motion.div
-            {...fadeUp}
-            style={{
-              backgroundColor: "#F4EFE6",
-              border: "1px solid #D8CFBE",
-              padding: "32px",
-            }}
-          >
-            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>
-              Audit
-            </div>
-            <div
-              style={{
-                ...serif("52px", {
-                  fontStyle: "italic",
-                  lineHeight: 1,
-                  marginBottom: "4px",
-                }),
-              }}
-            >
-              Free
-            </div>
-            <div style={{ ...sans("12px", "#8A7F6E") }}>always</div>
-            <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
-            <div
-              style={{
-                ...serif("18px", {
-                  fontStyle: "italic",
-                  color: "#5F5648",
-                  lineHeight: 1.4,
-                  marginBottom: "24px",
-                }),
-              }}
-            >
-              see exactly what they got wrong.
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                marginBottom: "32px",
-              }}
-            >
-              {[
-                "Upload your bill",
-                "AI scans every charge",
-                "Error report with confidence scores",
-                "No dispute filed",
-              ].map((f) => (
-                <div
-                  key={f}
-                  style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}
-                >
-                  <span style={{ ...sans("13px", "#8A7F6E") }}>›</span>
-                  <span style={{ ...sans("13px", "#5F5648") }}>{f}</span>
-                </div>
-              ))}
-            </div>
-            <Link href="/upload?tier=audit" style={{ textDecoration: "none" }}>
-              <div
-                style={{
-                  ...sans("11px", "#C8A97E"),
-                  border: "1px solid #C8A97E",
-                  padding: "14px",
-                  textAlign: "center",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  cursor: "pointer",
-                  transition: "background-color 0.2s, color 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  const el = e.currentTarget as HTMLDivElement;
-                  el.style.backgroundColor = "#C8A97E";
-                  el.style.color = "#221C14";
-                }}
-                onMouseLeave={(e) => {
-                  const el = e.currentTarget as HTMLDivElement;
-                  el.style.backgroundColor = "transparent";
-                  el.style.color = "#C8A97E";
-                }}
-              >
-                See what&apos;s wrong, free
-              </div>
-            </Link>
-          </motion.div>
-
-          {/* Single Dispute */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
-            style={{
-              backgroundColor: "#F4EFE6",
-              border: "1px solid #D8CFBE",
-              padding: "32px",
-              position: "relative",
-            }}
-          >
-            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>
-              Single Dispute
-            </div>
-            <div
-              style={{
-                ...serif("52px", {
-                  fontStyle: "italic",
-                  lineHeight: 1,
-                  marginBottom: "4px",
-                }),
-              }}
-            >
-              $39
-            </div>
-            <div style={{ ...sans("12px", "#8A7F6E") }}>
-              one-time, for one bill
-            </div>
-            <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
-            <div
-              style={{
-                ...serif("18px", {
-                  fontStyle: "italic",
-                  color: "#5F5648",
-                  lineHeight: 1.4,
-                  marginBottom: "24px",
-                }),
-              }}
-            >
-              one bill. ready to send.
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                marginBottom: "32px",
-              }}
-            >
-              {[
-                "Everything in Audit, plus:",
-                "Insurer-specific dispute package including the dispute letter, regulatory citations, financial calculations, and timeline summary.",
-                "Appeal letter if denied",
-                "Step-by-step submission guide",
-                "Appeal deadline tracker with urgency alerts, Critical (under 7 days), High (under 30 days), Moderate (under 90 days).",
-              ].map((f) => (
-                <div
-                  key={f}
-                  style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}
-                >
-                  <span style={{ ...sans("13px", "#8A7F6E") }}>›</span>
-                  <span style={{ ...sans("13px", "#5F5648") }}>{f}</span>
-                </div>
-              ))}
-            </div>
-            <Link href="/upload?tier=dispute" style={{ textDecoration: "none" }}>
-              <div
-                style={{
-                  ...sans("11px", "#C8A97E"),
-                  border: "1px solid #C8A97E",
-                  padding: "14px",
-                  textAlign: "center",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  cursor: "pointer",
-                }}
-              >
-                Get my dispute letter
-              </div>
-            </Link>
-          </motion.div>
-
-          {/* Membership */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.2 }}
-            style={{
-              backgroundColor: "#F4EFE6",
-              border: "1.5px solid #C8A97E",
-              padding: "32px",
-              position: "relative",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                top: "16px",
-                right: "16px",
-                ...sans("9px", "#221C14"),
-                backgroundColor: "#C8A97E",
-                padding: "4px 8px",
-                letterSpacing: "0.15em",
-                textTransform: "uppercase",
-              }}
-            >
-              Most popular
-            </div>
-            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>
-              Membership
-            </div>
-            <div
-              style={{
-                ...serif("52px", {
-                  fontStyle: "italic",
-                  lineHeight: 1,
-                  marginBottom: "4px",
-                }),
-              }}
-            >
-              $19<span style={{ fontSize: "22px" }}>/mo</span>
-            </div>
-            <div style={{ ...sans("12px", "#8A7F6E") }}>
-              or $149/yr, two months free
-            </div>
-            <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
-            <div
-              style={{
-                ...serif("18px", {
-                  fontStyle: "italic",
-                  color: "#5F5648",
-                  lineHeight: 1.4,
-                  marginBottom: "24px",
-                }),
-              }}
-            >
-              your ongoing bill watchdog.
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                marginBottom: "32px",
-              }}
-            >
-              {[
-                "Unlimited audits and dispute packages",
-                "Every new bill audited automatically",
-                "Alerts on new and suspicious charges",
-                "Outcome prediction before you file, recovery amount, timeframe, and settlement range",
-                "Full dispute preparation, Verity drafts every letter and escalation; you approve each send",
-                "Complete billing history tracked across all providers and insurers",
-                "Escalation & regulator letters (appeal, DOI, CMS, CFPB) plus FCRA credit bureau and FDCPA collection dispute letters",
-                "Priority support",
-                "Real-time call guidance, coming soon",
-              ].map((f) => (
-                <div
-                  key={f}
-                  style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}
-                >
-                  <span style={{ ...sans("13px", "#8A7F6E") }}>›</span>
-                  <span style={{ ...sans("13px", "#5F5648") }}>{f}</span>
-                </div>
-              ))}
-            </div>
-            <div
-              onClick={() => startMembershipCheckout("monthly")}
+          <Link href="/pricing" style={{ textDecoration: "none" }}>
+            <span
               style={{
                 ...sans("11px", "#221C14"),
                 backgroundColor: "#C8A97E",
-                padding: "14px",
-                textAlign: "center",
+                padding: "16px 32px",
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
-                cursor: "pointer",
+                fontWeight: 500,
+                display: "inline-block",
               }}
             >
-              Start membership
-            </div>
-          </motion.div>
-        </div>
+              See full pricing →
+            </span>
+          </Link>
+        </motion.div>
       </section>
 
-      {/* ── Trust & Legal ── */}
-      <section style={{ backgroundColor: "#F4EFE6", padding: "96px 64px" }}>
+      {/* ── Advocacy note ── */}
+      <section style={{ backgroundColor: "#F4EFE6", padding: "64px" }}>
         <motion.div
           {...fadeUp}
-          style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: "80px" }}
+          className="r-cta"
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "32px" }}
         >
-          <div>
-            <div style={{ ...label(), marginBottom: "24px" }}>
-              How we&apos;re authorized to help
-            </div>
-            <h2
-              style={{
-                ...serif("40px", { lineHeight: 1.1, marginBottom: "32px" }),
-              }}
-            >
-              Medical bill advocacy
-              <br />
-              is a recognized profession.
-            </h2>
-            <p
-              style={{
-                ...sans("14px", "#5F5648"),
-                lineHeight: 1.75,
-              }}
-            >
-              Verity is an administrative advocacy service, not a law firm.
-              Medical billing advocates are a recognized professional category
-              authorized to review bills, identify errors, and file disputes on
-              patients&apos; behalf with signed authorization.
-            </p>
-            <p
-              style={{
-                ...sans("14px", "#5F5648"),
-                lineHeight: 1.75,
-                marginTop: "16px",
-              }}
-            >
-              Disputing a medical bill is your federally protected right under
-              the No Surprises Act and applicable state patient protection laws.
-              Verity arms you with the evidence, citations, and ready-to-send
-              letters to exercise that right, so you&apos;re not navigating it alone.
-            </p>
-            <p style={{ ...sans("12px", "#8A7F6E"), marginTop: "32px" }}>
-              Verity is not a law firm and does not provide legal advice. If
-              your case requires legal action, we refer to appropriate counsel.
-            </p>
+          <div style={{ ...serif("28px", { lineHeight: 1.2 }) }}>
+            Verity is an administrative advocacy service, not a law firm.
           </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "28px",
-              justifyContent: "center",
-            }}
-          >
-            {[
-              {
-                icon: "shield",
-                text: "Disputes filed under your signed patient authorization",
-              },
-              {
-                icon: "filecheck",
-                text: "Federally protected under the No Surprises Act",
-              },
-              { icon: "lock", text: "Privacy-first document handling" },
-            ].map((badge) => (
-              <div
-                key={badge.icon}
-                style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}
-              >
-                <div
-                  style={{
-                    color: "#C8A97E",
-                    flexShrink: 0,
-                    marginTop: "2px",
-                  }}
-                >
-                  {badge.icon === "shield" && (
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    >
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    </svg>
-                  )}
-                  {badge.icon === "filecheck" && (
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    >
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <polyline points="9 15 11 17 15 13" />
-                    </svg>
-                  )}
-                  {badge.icon === "lock" && (
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    >
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                  )}
-                </div>
-                <span style={{ ...sans("13px", "#5F5648") }}>{badge.text}</span>
-              </div>
-            ))}
-          </div>
+          <Link href="/how-it-works" style={{ textDecoration: "none", flexShrink: 0 }}>
+            <span style={{ ...sans("12px", "#8A7F6E"), textDecoration: "underline", textUnderlineOffset: "3px" }}>
+              How we&apos;re authorized to help →
+            </span>
+          </Link>
         </motion.div>
       </section>
 

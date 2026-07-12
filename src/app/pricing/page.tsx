@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { BRAND_NAME } from "@/lib/brand";
 import { motion, AnimatePresence } from "framer-motion";
@@ -37,13 +37,6 @@ const label = (color = "#C8A97E"): React.CSSProperties => ({
 
 // ─── Nav (copied from landing page) ──────────────────────────────────────────
 function Nav() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
   return (
     <nav
       style={{
@@ -200,7 +193,7 @@ const PRICING_FAQS = [
   },
   {
     q: "Should I pay per bill or join the membership?",
-    a: "If you have a single bill to fight, the $39 Single Dispute covers it, letter, appeal, and submission guide for that one bill. If you see doctors more than a few times a year, or you're managing care for a family or a parent, the $19/mo membership almost always pays for itself: every new bill gets audited automatically and you get unlimited dispute and escalation letters.",
+    a: "If you have a single bill to fight, the $39 Single Dispute covers it: the dispute letter, package, and submission guide for that one bill. If you see doctors more than a few times a year, or you manage care for a family or a parent, the $19/mo membership covers unlimited audits and dispute packages.",
   },
   {
     q: "Can I upgrade mid-case?",
@@ -208,7 +201,7 @@ const PRICING_FAQS = [
   },
   {
     q: "What does the membership actually do between bills?",
-    a: "Every new bill or EOB you upload is audited automatically and cross-checked against CMS reference data, and when something is wrong you get the full dispute package without paying again. If a dispute is denied or ignored, escalation letters to regulators, credit bureaus, and collectors are included.",
+    a: "Every new bill or EOB you upload is audited and cross-checked against CMS reference data, and when something is wrong you get the full dispute package without paying again.",
   },
 ];
 
@@ -218,12 +211,10 @@ type CellVal = "check" | "dash" | string;
 const TABLE_ROWS: { feature: string; audit: CellVal; dispute: CellVal; member: CellVal }[] = [
   { feature: "Full bill audit, every code and charge checked, with evidence and citations", audit: "check", dispute: "check", member: "check" },
   { feature: "Bills covered", audit: "Report only", dispute: "1 bill", member: "Unlimited" },
-  { feature: "Ready-to-send dispute package (letter, citations, submission guide)", audit: "dash", dispute: "check", member: "check" },
-  { feature: "Appeal letter if denied", audit: "dash", dispute: "check", member: "check" },
+  { feature: "Ready-to-send dispute package (letter, worksheet, citations, submission guide)", audit: "dash", dispute: "check", member: "check" },
   { feature: "Deadline tracker with urgency alerts", audit: "dash", dispute: "check", member: "check" },
-  { feature: "Every new bill audited automatically", audit: "dash", dispute: "dash", member: "check" },
-  { feature: "Escalation & regulator letters (DOI, CMS, CFPB, credit bureaus, collectors)", audit: "dash", dispute: "dash", member: "check" },
-  { feature: "Outcome prediction before you file", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Every new bill you upload audited automatically", audit: "dash", dispute: "dash", member: "check" },
+  { feature: "Outcome estimate before you file", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Priority support", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Price", audit: "$0", dispute: "$39 one-time", member: "$19/mo · $149/yr" },
 ];
@@ -286,11 +277,10 @@ export default function PricingPage() {
             <br />
             <em style={{ fontStyle: "italic" }}>Cheap to fix.</em>
             <br />
-            Watched for good.
+            Covered for good.
           </h1>
           <p style={{ ...sans("15px", "#5F5648"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
-            The audit is always free. Pay $39 for the letter on one bill, or join the membership and we watch every bill
-            you get. No credit card to start.
+            The audit is free; you pay only when you act on what it finds.
           </p>
         </motion.div>
       </section>
@@ -421,7 +411,7 @@ export default function PricingPage() {
               {[
                 "› Everything in Audit, plus:",
                 "› Ready-to-send dispute letter with citations",
-                "› Appeal letter if your dispute is denied",
+                "› Full dispute package: worksheet, citations, deadlines",
                 "› Step-by-step submission guide",
                 "› Deadline tracker with urgency alerts",
               ].map((f) => (
@@ -479,15 +469,15 @@ export default function PricingPage() {
             <div style={{ ...sans("12px", "#8A7F6E") }}>or $149/yr, two months free</div>
             <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
             <div style={{ ...serif("18px", { fontStyle: "italic", color: "#5F5648", lineHeight: 1.4, marginBottom: "24px" }) }}>
-              your ongoing bill watchdog.
+              every bill you get, covered.
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
               {[
                 "› Everything in Single Dispute, unlimited:",
                 "› Unlimited audits and dispute packages",
                 "› Every new bill you upload audited automatically",
-                "› Escalation & regulator letters (DOI, CMS, CFPB, credit bureaus, collectors)",
-                "› Outcome prediction before you file",
+                "› Outcome estimate before you file",
+                "› Complete billing history in one place",
                 "› Priority support",
               ].map((f) => (
                 <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
@@ -606,6 +596,16 @@ export default function PricingPage() {
               ))}
             </div>
           ))}
+        </motion.div>
+      </section>
+
+      {/* ── On the roadmap ── */}
+      <section style={{ paddingTop: "0", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
+        <motion.div {...fadeUp} style={{ backgroundColor: "#F4EFE6", border: "1px solid #D8CFBE", padding: "32px" }}>
+          <div style={{ ...label("#8A7F6E"), marginBottom: "16px" }}>On the roadmap · Coming soon</div>
+          <p style={{ ...sans("13px", "#5F5648"), lineHeight: 1.75, maxWidth: "680px" }}>
+            In development for members: generated appeal letters when a dispute is denied, escalation letters to regulators, credit bureaus, and collectors, and real-time call guidance. None of these are live yet. Today, Verity generates your audit report, dispute letter, and full dispute package.
+          </p>
         </motion.div>
       </section>
 

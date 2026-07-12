@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
 import { BRAND_NAME } from "@/lib/brand";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown } from "lucide-react";
+import { motion } from "framer-motion";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
 const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties => ({
@@ -60,7 +59,7 @@ function Nav() {
         {[
           { lbl: "How it works", href: "/how-it-works" },
           { lbl: "Pricing", href: "/pricing" },
-          { lbl: "FAQ", href: "#faq" },
+          { lbl: "FAQ", href: "/#faq" },
           { lbl: "For Plans & Employers", href: "/for-plans" },
         ].map((link) => (
           <Link
@@ -107,7 +106,7 @@ function Footer() {
           { lbl: "How it works", href: "/how-it-works" },
           { lbl: "Pricing", href: "/pricing" },
           { lbl: "Dashboard", href: "/dashboard" },
-          { lbl: "FAQ", href: "#faq" },
+          { lbl: "FAQ", href: "/#faq" },
           { lbl: "For Plans & Employers", href: "/for-plans" },
         ].map((link) => (
           <Link
@@ -134,94 +133,6 @@ function Footer() {
   );
 }
 
-// ─── FAQs (same as landing page) ─────────────────────────────────────────────
-const FAQS = [
-  {
-    q: "What types of billing errors do you find?",
-    a: "The most common: upcoding (charging for a more expensive procedure than performed), duplicate billing, balance billing violations, charges above contracted rates, and unbundling (splitting one procedure into multiple charges). Most patients have at least two.",
-  },
-  {
-    q: "How long does it take?",
-    a: "Audit reports are ready within 24 hours of upload, and your dispute package is generated instantly. Once you send it, most insurers and providers respond within 30 days, though complex cases or appeals can take longer.",
-  },
-  {
-    q: "What do I need to upload?",
-    a: "Your itemized medical bill (not the summary, request the itemized version from your provider if you don't have it), your Explanation of Benefits from your insurer, and your insurance card. The EOB is optional but makes the audit more precise.",
-  },
-  {
-    q: "What happens if my insurer denies the dispute?",
-    a: "Your audit report includes the evidence and regulatory citations behind every flagged charge, so you can escalate to a second-level appeal or an external review. Verity generates the follow-up letters you need at each step.",
-  },
-  {
-    q: "Is my medical data safe?",
-    a: "All documents are encrypted at rest and in transit using AES-256, and built with privacy and security best practices. We never sell or share your information with any third party.",
-  },
-  {
-    q: "Do you work with all insurance types?",
-    a: "We handle PPO, HMO, EPO, and Medicare Advantage plans. We also review self-pay bills over $500. Medicare and Medicaid disputes follow different pathways, we'll flag this during your audit.",
-  },
-];
-
-// ─── FAQ Item ─────────────────────────────────────────────────────────────────
-function FaqItem({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{ borderTop: "1px solid #D8CFBE" }}>
-      <button
-        onClick={() => setOpen(!open)}
-        style={{
-          width: "100%",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "24px 0",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          textAlign: "left",
-          gap: "24px",
-        }}
-      >
-        <span
-          style={{
-            fontFamily: "var(--font-lora), Georgia, serif",
-  
-  letterSpacing: "-0.015em",
-            fontSize: "20px",
-            color: "#221C14",
-            fontWeight: 400,
-          }}
-        >
-          {q}
-        </span>
-        <ChevronDown
-          size={18}
-          color="#8A7F6E"
-          style={{
-            flexShrink: 0,
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 0.3s",
-          }}
-        />
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            key="answer"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
-            style={{ overflow: "hidden" }}
-          >
-            <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, paddingBottom: "24px" }}>{a}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
 // ─── Process steps ────────────────────────────────────────────────────────────
 const STEPS = [
   {
@@ -233,31 +144,31 @@ const STEPS = [
   {
     n: 2,
     title: "We audit every charge.",
-    body: "We normalize every document you upload, your itemized bill, your EOB, your denial letter, your authorization, into a single unified schema, then compare them against each other and against federal billing rules in one pass. Discrepancies across documents are found automatically, no manual review required.",
+    body: "Your documents are checked against each other and against CMS reference data, fee schedules, NCCI bundling edits, and MUE limits, in a single pass. Every discrepancy is flagged with its dollar impact.",
     time: "24 hours",
   },
   {
     n: 3,
     title: "You receive your error report.",
-    body: "Every error, the evidence behind it, and a dollar value attached to each. The report is yours free, no commitment, no obligation to proceed.",
+    body: "Every error, the evidence behind it, and the dollar value attached. The report is free.",
     time: "Same day",
   },
   {
     n: 4,
-    title: "See your outcome prediction.",
-    body: "Before you file anything, membership users see an estimated recovery amount, likely resolution timeframe, escalation probability, and a specific settlement floor and ceiling, so you know exactly what you're walking into.",
+    title: "See your outcome estimate.",
+    body: "Members see an estimated recovery amount, expected timeframe, and settlement range before filing anything.",
     time: "Instant",
   },
   {
     n: 5,
     title: "You choose what happens next.",
-    body: "Stay on the free audit, pay $39 for a single dispute package on one bill, or join the membership and authorize Verity to file and close the dispute entirely, generating every letter, appeal, and follow-up automatically until the case is resolved.",
+    body: "Stay on the free audit, buy a $39 dispute package for one bill, or join the membership for unlimited audits and dispute packages. Nothing is sent without your approval.",
     time: "Your call",
   },
   {
     n: 6,
-    title: "You recover what you're owed.",
-    body: "The provider or insurer corrects the charge and issues a refund or adjusts your balance. Most respond within 30 days, and Verity generates every appeal or regulator letter needed at each escalation step.",
+    title: "The charge gets corrected.",
+    body: "If the dispute succeeds, the provider or insurer corrects the charge or issues a refund. Most respond within 30 days.",
     time: "~30 days",
   },
 ];
@@ -309,8 +220,7 @@ export default function HowItWorksPage() {
             <em style={{ fontStyle: "italic" }}>You keep the money.</em>
           </h1>
           <p style={{ ...sans("15px", "#5F5648"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
-            Verity is a medical bill advocacy tool. We review your bill, find the errors, predict your recovery odds, and, if you choose,
-            run the dispute entirely on your behalf.
+            Verity reviews your bill, finds the errors, and prepares a ready-to-send dispute package; nothing is sent without your approval.
           </p>
         </motion.div>
       </section>
@@ -392,7 +302,7 @@ export default function HowItWorksPage() {
         }}
       >
         <motion.div {...fadeUp}>
-          <div style={{ ...label(), marginBottom: "32px" }}>A real case timeline</div>
+          <div style={{ ...label(), marginBottom: "32px" }}>A representative case timeline</div>
           <h2 style={{ ...serif("40px", { lineHeight: 1.1, marginBottom: "64px" }) }}>
             From upload to resolution.
           </h2>
@@ -472,6 +382,62 @@ export default function HowItWorksPage() {
             ))}
           </div>
         </motion.div>
+        <p style={{ ...sans("11px", "#8A7F6E"), letterSpacing: "0.06em", marginTop: "32px", fontStyle: "italic" }}>
+          Representative case. Timelines vary by insurer and dispute type.
+        </p>
+      </section>
+
+      {/* ── What's in a dispute package ── */}
+      <section style={{ paddingTop: "96px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
+        <motion.div {...fadeUp}>
+          <div style={{ ...label(), marginBottom: "24px" }}>The deliverable</div>
+          <h2 style={{ ...serif("40px", { lineHeight: 1.1, marginBottom: "24px" }) }}>
+            What&apos;s in a dispute package.
+          </h2>
+          <p style={{ ...sans("14px", "#5F5648"), maxWidth: "560px", lineHeight: 1.75, marginBottom: "48px" }}>
+            One PDF, ready to send. Every section is built from your own documents and the audit findings.
+          </p>
+        </motion.div>
+        <div style={{ maxWidth: "760px" }}>
+          {[
+            {
+              name: "Formal dispute letter",
+              desc: "States each disputed charge and cites the specific rule it conflicts with.",
+            },
+            {
+              name: "Financial calculation worksheet",
+              desc: "Billed versus expected amount for every flagged charge, with subtotals and the total in dispute.",
+            },
+            {
+              name: "Regulatory citation appendix",
+              desc: "The full text of each citation, grouped by statute, so the recipient can verify every reference.",
+            },
+            {
+              name: "Case timeline",
+              desc: "A chronological record of your documents and findings, included when you upload more than one document.",
+            },
+            {
+              name: "Deadline summary",
+              desc: "Every deadline that applies to your dispute, grouped by urgency.",
+            },
+          ].map((item, i) => (
+            <motion.div
+              key={item.name}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: i * 0.05 }}
+              style={{ borderTop: "1px solid #D8CFBE", padding: "28px 0", display: "flex", gap: "32px", alignItems: "baseline" }}
+            >
+              <div style={{ ...serif("22px", { lineHeight: 1.2, minWidth: "300px", flexShrink: 0 }) }}>{item.name}</div>
+              <p style={{ ...sans("13px", "#5F5648"), lineHeight: 1.7 }}>{item.desc}</p>
+            </motion.div>
+          ))}
+          <div style={{ borderTop: "1px solid #D8CFBE" }} />
+          <p style={{ ...sans("12px", "#8A7F6E"), marginTop: "24px", lineHeight: 1.65 }}>
+            A step-by-step submission guide for your dispute type appears alongside the letter.
+          </p>
+        </div>
       </section>
 
       {/* ── What we are, two columns ── */}
@@ -492,10 +458,10 @@ export default function HowItWorksPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               {[
                 "A medical bill advocacy platform for patients",
-                "Software that finds billing errors and writes your dispute and appeal letters",
-                "Grounded in federal rules, NCCI, MUE, PFS, No Surprises Act, Transparency in Coverage Rule, FDCPA, FCRA, and ERISA, with state-specific overlays",
+                "Software that finds billing errors and writes your dispute letter",
+                "Checks bills against CMS reference data: the Physician Fee Schedule, the Clinical Lab Fee Schedule, NCCI bundling edits, and MUE limits",
                 "Built on CPT codes, insurance contracts, and dispute procedures",
-                "Covered under your patient rights to dispute charges",
+                "Prepares disputes that you submit under your own name and signed authorization",
               ].map((item) => (
                 <div key={item} style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
                   <span style={{ ...sans("14px", "#C8A97E"), marginTop: "2px", flexShrink: 0 }}>›</span>
@@ -545,18 +511,17 @@ export default function HowItWorksPage() {
         }}
       >
         <motion.div {...fadeUp}>
-          <div style={{ ...label(), marginBottom: "32px" }}>Your legal rights</div>
+          <div style={{ ...label(), marginBottom: "32px" }}>The rules we cite</div>
           <h2 style={{ ...serif("40px", { lineHeight: 1.1, marginBottom: "32px" }) }}>
-            Disputing a medical bill
+            Specific rules,
             <br />
-            is your legal right.
+            cited in every letter.
           </h2>
           <p style={{ ...sans("14px", "#5F5648"), maxWidth: "640px", lineHeight: 1.75 }}>
-            Under the No Surprises Act, Transparency in Coverage Rule, FDCPA, FCRA, ERISA, and applicable state balance billing and insurance protection laws, with state-specific overlays based on your state of residence and state of treatment, patients have federally and state-protected rights to dispute medical bills. You have the right to request an itemized bill from any provider, the right to dispute charges above the contracted rate, and the right to an independent external review if your insurer denies your claim.
+            Every dispute letter Verity generates cites the specific rule it relies on. Bills are checked against CMS reference data, the Physician Fee Schedule and the Clinical Lab Fee Schedule as pricing benchmarks, NCCI bundling edits, and MUE unit limits, plus No Surprises Act and ACA preventive-care protections where they apply.
           </p>
           <p style={{ ...sans("14px", "#5F5648"), maxWidth: "640px", lineHeight: 1.75, marginTop: "16px" }}>
-            Verity makes this process simple: we find the errors, cite the exact rules, and generate the letters,
-            with the deadlines and escalation pathways built in. You don&apos;t have to navigate it alone.
+            Each letter references the rule behind every flagged charge, and Verity identifies the deadline and escalation path that apply to your dispute.
           </p>
           <Link href="/upload" style={{ textDecoration: "none" }}>
             <span
@@ -577,20 +542,14 @@ export default function HowItWorksPage() {
         </motion.div>
       </section>
 
-      {/* ── FAQ ── */}
-      <section id="faq" style={{ paddingTop: "96px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
-        <motion.div {...fadeUp}>
-          <div style={{ ...label(), marginBottom: "24px" }}>Questions</div>
-          <h2 style={{ ...serif("48px", { lineHeight: 1.05, marginBottom: "64px" }) }}>
-            Everything you need to know.
-          </h2>
-        </motion.div>
-        <div style={{ maxWidth: "720px" }}>
-          {FAQS.map((faq) => (
-            <FaqItem key={faq.q} q={faq.q} a={faq.a} />
-          ))}
-          <div style={{ borderTop: "1px solid #D8CFBE" }} />
-        </div>
+      {/* ── FAQ link ── */}
+      <section style={{ paddingTop: "64px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
+        <p style={{ ...sans("14px", "#5F5648") }}>
+          More questions?{" "}
+          <Link href="/#faq" style={{ color: "#8A6A35", textDecoration: "underline", textUnderlineOffset: "3px" }}>
+            Read the FAQ
+          </Link>
+        </p>
       </section>
 
       <Footer />
