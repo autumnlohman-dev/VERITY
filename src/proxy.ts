@@ -13,7 +13,12 @@ import { GATE_COOKIE, gateToken, safeEqual } from '@/lib/gate'
 // Paths that must stay reachable WITHOUT a gate cookie:
 //  - /gate + /api/gate     → the gate UI and its submit endpoint
 //  - /api/webhooks/stripe  → Stripe calls this server-to-server, with no cookie
-const PUBLIC_PREFIXES = ['/gate', '/api/gate', '/api/webhooks/stripe']
+//  - /api/cron             → Vercel's cron scheduler calls these server-to-server
+//                            with no cookie; the routes enforce their own
+//                            CRON_SECRET bearer auth. Without this exemption the
+//                            gate rewrote cron requests to the gate page — a
+//                            "successful" 200 that never ran the job.
+const PUBLIC_PREFIXES = ['/gate', '/api/gate', '/api/webhooks/stripe', '/api/cron']
 const PUBLIC_FILES = ['/robots.txt', '/favicon.ico', '/sitemap.xml']
 
 function isPublic(pathname: string): boolean {
