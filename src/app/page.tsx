@@ -235,85 +235,6 @@ function Footer() {
   );
 }
 
-// ─── Finding card exhibit (hero) ──────────────────────────────────────────────
-// Product proof rendered in HTML/CSS: a stylized, clearly-synthetic bill
-// excerpt with one flagged line. Golden-case numbers only — never a real bill,
-// never PHI. Dollar amounts and CPT codes render in the mono face per the
-// design bible.
-const mono = (size: string, color = "#221C14", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-  fontSize: size,
-  fontWeight: 500,
-  color,
-  ...extra,
-});
-
-function FindingCardExhibit() {
-  const rows = [
-    { code: "80048", desc: "Basic metabolic panel", amount: "$96.00", flagged: false },
-    { code: "80053", desc: "Comprehensive metabolic panel", amount: "$300.00", flagged: true },
-    { code: "36415", desc: "Venipuncture, routine", amount: "$18.00", flagged: false },
-  ];
-  return (
-    <div
-      style={{
-        backgroundColor: "var(--surface-raised)",
-        border: "1px solid var(--line)",
-        padding: "20px 22px",
-        maxWidth: "460px",
-        width: "100%",
-        textAlign: "left",
-        boxShadow: "0 18px 50px rgba(60,46,32,0.10)",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
-        <span style={{ ...sans("10px", "#8A7F6E"), letterSpacing: "0.22em", textTransform: "uppercase" }}>
-          Itemized bill · sample audit
-        </span>
-        <span style={{ ...sans("9px", "#B3A28A"), letterSpacing: "0.18em", textTransform: "uppercase" }}>
-          Synthetic data
-        </span>
-      </div>
-      {rows.map((r) => (
-        <div
-          key={r.code}
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: "12px",
-            padding: "8px 10px",
-            borderLeft: r.flagged ? "3px solid #C47C6A" : "3px solid transparent",
-            backgroundColor: r.flagged ? "rgba(196,124,106,0.10)" : "transparent",
-          }}
-        >
-          <span style={{ ...mono("11px", "#8A7F6E") }}>{r.code}</span>
-          <span style={{ ...sans("12px", "#5F5648"), flex: 1 }}>{r.desc}</span>
-          <span style={{ ...mono("12px", r.flagged ? "#221C14" : "#5F5648") }}>{r.amount}</span>
-        </div>
-      ))}
-      <div
-        style={{
-          marginTop: "14px",
-          border: "1px solid #C8A97E",
-          backgroundColor: "rgba(200,169,126,0.10)",
-          padding: "10px 12px",
-          display: "flex",
-          gap: "10px",
-          alignItems: "baseline",
-        }}
-      >
-        <span style={{ ...sans("9px", "var(--brand)"), letterSpacing: "0.18em", textTransform: "uppercase", fontWeight: 600, flexShrink: 0 }}>
-          Flagged
-        </span>
-        <span style={{ ...sans("12px", "#221C14"), lineHeight: 1.5 }}>
-          Duplicate charge, CPT <span style={{ ...mono("11.5px") }}>80053</span>,{" "}
-          <span style={{ ...mono("11.5px") }}>$300.00</span> correction requested.
-        </span>
-      </div>
-    </div>
-  );
-}
-
 // ─── FAQ Item ─────────────────────────────────────────────────────────────────
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
@@ -527,11 +448,6 @@ export default function LandingPage() {
         <p style={{ ...sans("11px", "#8A7F6E"), letterSpacing: "0.14em", textTransform: "uppercase", marginTop: "20px" }}>
           Free audit · no account needed
         </p>
-
-        {/* Product proof above the fold: the finding-card exhibit. */}
-        <div style={{ marginTop: "40px", display: "flex", justifyContent: "center", width: "100%", padding: "0 16px" }}>
-          <FindingCardExhibit />
-        </div>
       </section>
 
       {/* ── Problem Section ── */}
