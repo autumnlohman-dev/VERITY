@@ -28,6 +28,16 @@ interface OutcomeBody {
   amountRecovered?: number
   daysToResolution?: number
   notes?: string
+  // Dispatch + response fields: guests record these locally with the same
+  // shape, and the login sync replays them here so nothing is lost.
+  sentAt?: string
+  recipientType?: string
+  recipientName?: string
+  letterVersion?: string
+  lobLetterId?: string
+  responseReceivedAt?: string
+  responseSummary?: string
+  responseDocumentPath?: string
 }
 
 function isUuid(v: unknown): v is string {
@@ -109,6 +119,25 @@ export async function POST(request: Request) {
       days_to_resolution: body.daysToResolution != null ? clampNum(body.daysToResolution, 0, 100_000) : null,
       notes: capStr(body.notes, 4000),
       updated_at: new Date().toISOString(),
+      // Dispatch/response parity for guest-recorded rows. Guests cannot mail
+      // through Lob, so these normally arrive only via the login sync of a
+      // guest's self-tracked outcomes. Dates validated, strings capped;
+      // recipient_type must satisfy the DB CHECK or is dropped.
+      ...(typeof body.sentAt === 'string' && !Number.isNaN(Date.parse(body.sentAt))
+        ? { sent_at: body.sentAt }
+        : {}),
+      ...(typeof body.recipientType === 'string' &&
+      ['provider', 'payer', 'regulator', 'credit_bureau', 'collector'].includes(body.recipientType)
+        ? { recipient_type: body.recipientType }
+        : {}),
+      ...(capStr(body.recipientName, 200) ? { recipient_name: capStr(body.recipientName, 200) } : {}),
+      ...(capStr(body.letterVersion, 40) ? { letter_version: capStr(body.letterVersion, 40) } : {}),
+      ...(capStr(body.lobLetterId, 80) ? { lob_letter_id: capStr(body.lobLetterId, 80) } : {}),
+      ...(typeof body.responseReceivedAt === 'string' && !Number.isNaN(Date.parse(body.responseReceivedAt))
+        ? { response_received_at: body.responseReceivedAt }
+        : {}),
+      ...(capStr(body.responseSummary, 2000) ? { response_summary: capStr(body.responseSummary, 2000) } : {}),
+      ...(capStr(body.responseDocumentPath, 300) ? { response_document_path: capStr(body.responseDocumentPath, 300) } : {}),
     }
 
     const { error } = await supabase

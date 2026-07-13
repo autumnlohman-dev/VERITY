@@ -38,11 +38,26 @@ export interface DisputeOutcomeLabel {
   documentationCompleteness: 'complete' | 'partial' | 'minimal'
   resolutionPathwayUsed?: string
 
-  // Outcome
-  status: 'pending' | 'in_progress' | 'won' | 'partial' | 'lost' | 'abandoned'
+  // Outcome. The first six values are the user-label vocabulary; the rest are
+  // the dispatch lifecycle written server-side at Lob mailing and by the
+  // record-a-response flow. Guests use the same fields in localStorage so the
+  // login sync carries everything over unchanged.
+  status:
+    | 'pending' | 'in_progress' | 'won' | 'partial' | 'lost' | 'abandoned'
+    | 'draft' | 'sent' | 'response_received' | 'resolved' | 'denied' | 'no_response' | 'escalated'
   amountRecovered?: number
   daysToResolution?: number
   notes?: string
+
+  // Dispatch + response tracking (step 1/2 of outcome persistence)
+  sentAt?: string
+  recipientType?: string
+  recipientName?: string
+  letterVersion?: string
+  lobLetterId?: string
+  responseReceivedAt?: string
+  responseSummary?: string
+  responseDocumentPath?: string
 }
 
 export interface OutcomeStats {
@@ -261,6 +276,10 @@ export function createPendingOutcome(params: {
 // are best-effort — a failure leaves the localStorage copy as the offline
 // fallback to be reconciled by syncOutcomes() on the next login.
 
+export function outcomeRowToLabel(row: Record<string, unknown>): DisputeOutcomeLabel {
+  return rowToLabel(row)
+}
+
 function rowToLabel(row: Record<string, unknown>): DisputeOutcomeLabel {
   return {
     outcomeId: String(row.id),
@@ -282,6 +301,14 @@ function rowToLabel(row: Record<string, unknown>): DisputeOutcomeLabel {
     amountRecovered: row.amount_recovered != null ? Number(row.amount_recovered) : undefined,
     daysToResolution: row.days_to_resolution != null ? Number(row.days_to_resolution) : undefined,
     notes: (row.notes as string) ?? undefined,
+    sentAt: (row.sent_at as string) ?? undefined,
+    recipientType: (row.recipient_type as string) ?? undefined,
+    recipientName: (row.recipient_name as string) ?? undefined,
+    letterVersion: (row.letter_version as string) ?? undefined,
+    lobLetterId: (row.lob_letter_id as string) ?? undefined,
+    responseReceivedAt: (row.response_received_at as string) ?? undefined,
+    responseSummary: (row.response_summary as string) ?? undefined,
+    responseDocumentPath: (row.response_document_path as string) ?? undefined,
   }
 }
 

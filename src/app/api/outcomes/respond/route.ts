@@ -1,0 +1,112 @@
+import { createClient } from '@/lib/supabase/server'
+import { pathHasPrefix } from '@/lib/storage/bills'
+import { validateResponseUpdate } from '@/lib/outcomes/respond'
+import { NextResponse } from 'next/server'
+
+export const runtime = 'nodejs'
+
+// Records what happened after a dispatched letter: the response intake for a
+// dispute_outcomes row. Status rules live server-side in validateResponseUpdate
+// (the UI mirrors them for feedback only). Runs with the caller's RLS-scoped
+// client, so a user can only ever load and update their own rows; the explicit
+// user_id filters are defense in depth on top of RLS.
+export async function POST(request: Request) {
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+
+    const body = (await request.json().catch(() => ({}))) as {
+      outcomeId?: unknown
+      result?: unknown
+      responseAt?: unknown
+      responseSummary?: unknown
+      amountRecovered?: unknown
+      responseDocumentPath?: unknown
+    }
+    const outcomeId = typeof body.outcomeId === 'string' ? body.outcomeId : ''
+    if (!outcomeId) {
+      return NextResponse.json({ error: 'Missing outcomeId' }, { status: 400 })
+    }
+
+    const { data: row, error: rowErr } = await supabase
+      .from('dispute_outcomes')
+      .select('id, case_id, sent_at, dollar_amount_disputed')
+      .eq('id', outcomeId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (rowErr) {
+      console.error('outcomes/respond row lookup error:', rowErr)
+      return NextResponse.json({ error: 'Failed to load outcome' }, { status: 500 })
+    }
+    if (!row) {
+      return NextResponse.json({ error: 'Outcome not found' }, { status: 404 })
+    }
+
+    // Partial-recovery bound: the row's disputed amount when it carries one,
+    // else the case's potential savings when available.
+    let disputedAmount = Number(row.dollar_amount_disputed) > 0 ? Number(row.dollar_amount_disputed) : null
+    if (disputedAmount == null && row.case_id) {
+      const { data: caseRow } = await supabase
+        .from('cases')
+        .select('potential_savings')
+        .eq('id', row.case_id)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (caseRow && Number(caseRow.potential_savings) > 0) {
+        disputedAmount = Number(caseRow.potential_savings)
+      }
+    }
+
+    const validation = validateResponseUpdate(
+      {
+        result: body.result,
+        responseAt: body.responseAt,
+        responseSummary: body.responseSummary,
+        amountRecovered: body.amountRecovered,
+      },
+      { sentAt: (row.sent_at as string) ?? null, disputedAmount }
+    )
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.error }, { status: 422 })
+    }
+
+    // The uploaded response/denial letter is evidence only this step (no
+    // parsing, no audit). Its path must sit under the caller's own folder.
+    let responseDocumentPath: string | null = null
+    if (body.responseDocumentPath != null) {
+      if (!pathHasPrefix(body.responseDocumentPath, user.id)) {
+        return NextResponse.json({ error: 'Invalid response document reference' }, { status: 400 })
+      }
+      responseDocumentPath = body.responseDocumentPath
+    }
+
+    const { data: updated, error: updateErr } = await supabase
+      .from('dispute_outcomes')
+      .update({
+        ...validation.update,
+        ...(responseDocumentPath ? { response_document_path: responseDocumentPath } : {}),
+        // Response recorded ⇒ the dispute label resolved-at tracks the response
+        // event for terminal results; corrections overwrite it.
+        resolved_at: validation.update.status === 'no_response' ? null : validation.update.response_received_at,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', outcomeId)
+      .eq('user_id', user.id)
+      .select('*')
+      .single()
+    if (updateErr) {
+      console.error('outcomes/respond update error:', updateErr)
+      return NextResponse.json({ error: 'Failed to save the response' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, outcome: updated })
+  } catch (err) {
+    console.error('outcomes/respond error:', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
+}

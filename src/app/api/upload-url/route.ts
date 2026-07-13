@@ -16,7 +16,9 @@ export async function POST(request: Request) {
   try {
     const { slot, fileName, guestSessionId } = await request.json()
 
-    if (slot !== 'bill' && slot !== 'eob') {
+    // 'response' = a provider/insurer response or denial letter attached to a
+    // dispute outcome (evidence storage only; never parsed or audited).
+    if (slot !== 'bill' && slot !== 'eob' && slot !== 'response') {
       return NextResponse.json({ error: 'Invalid slot' }, { status: 400 })
     }
     if (typeof fileName !== 'string' || !fileName) {

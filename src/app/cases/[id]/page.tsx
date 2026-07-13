@@ -11,6 +11,7 @@ import { FinancialHarmScoreDisplay, FHSIntakeForm } from "@/components/Financial
 import { DeadlineTracker } from "@/components/DeadlineTracker";
 import { FinancialTimeline } from "@/components/FinancialTimeline";
 import { OutcomeFollowUp } from "@/components/OutcomeFollowUp";
+import { DispatchOutcomePanel } from "@/components/DispatchOutcomePanel";
 import { calculateFinancialHarmScore, type FHSUserInputs } from "@/lib/scores/financialHarmScore";
 import { calculateDeadlines } from "@/lib/deadlines/calculator";
 import { isSelfPay } from "@/lib/insuranceMapping";
@@ -1832,6 +1833,11 @@ export default function CaseDetailPage({
               )}
             </div>
           )}
+
+          {/* Letter dispatch tracking: one card per mailed letter, with the
+              record-a-response intake. Renders nothing until a letter has
+              actually been dispatched. */}
+          <DispatchOutcomePanel caseId={id} potentialSavings={savings} />
 
           {/* Delete this case. */}
           <div style={{ marginTop: "32px", borderTop: "1px solid var(--line)", paddingTop: "20px" }}>
