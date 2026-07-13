@@ -565,11 +565,8 @@ export default function LandingPage() {
             </p>
           </div>
 
-          {/* Industry stat cards, exhibit styling. These are SOURCED industry
-              figures, never presented as Verity's own findings; the source
-              line links to /sources for the citations, and the 80% figure
-              carries the "up to" qualifier per its reported 49-80% range.
-              TODO(sister-review): sanity-check framing before launch. */}
+          {/* Industry stat cards, exhibit styling. The 80% figure carries the
+              "up to" qualifier per its reported 49-80% range. */}
           <div>
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {[
@@ -597,12 +594,6 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-            <p style={{ ...sans("11px", "#8A7F6E"), marginTop: "12px", lineHeight: 1.6 }}>
-              Sources: industry billing-audit studies and ACA claims data.{" "}
-              <Link href="/sources" style={{ color: "var(--brand)", textDecoration: "underline", textUnderlineOffset: "3px" }}>
-                See citations
-              </Link>
-            </p>
           </div>
         </div>
       </motion.section>
