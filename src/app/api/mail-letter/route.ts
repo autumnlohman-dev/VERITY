@@ -249,26 +249,44 @@ export async function POST(request: Request) {
       }
     }
 
-    // Idempotency: don't mail twice for the same case.
-    if (caseRecord.lob_letter_id && caseRecord.mail_status !== 'failed') {
-      return NextResponse.json(
-        { error: 'This letter has already been sent to mail.', code: 'already_mailed', alreadyMailed: true },
-        { status: 409 }
-      )
-    }
-
     // Need a generated letter to mail.
     const { data: letterData } = await supabase
       .from('dispute_letters')
-      .select('id, letter_content, stale, audit_fingerprint, audit_logic_version')
+      .select('id, letter_content, stale, audit_fingerprint, audit_logic_version, letter_type')
       .eq('case_id', caseId)
       .order('generated_at', { ascending: false })
       .limit(1)
     const letterRow = letterData?.[0]
+    const letterType = (letterRow?.letter_type as string) ?? 'first_dispute'
     const letterContent = letterRow?.letter_content
     if (!letterContent) {
       return NextResponse.json(
         { error: 'Generate the dispute letter before mailing it.', code: 'no_letter' },
+        { status: 409 }
+      )
+    }
+
+    // Idempotency is per LETTER, not per case (a case legitimately mails a
+    // first dispute and later escalation letters): the mailed record is the
+    // dispute_outcomes dispatch row linked by letter_id. The legacy case-level
+    // check remains for first letters only, covering pre-linkage mailings.
+    if (letterRow?.id) {
+      const { data: alreadyMailed } = await supabase
+        .from('dispute_outcomes')
+        .select('id')
+        .eq('letter_id', letterRow.id)
+        .not('lob_letter_id', 'is', null)
+        .limit(1)
+      if (alreadyMailed && alreadyMailed.length > 0) {
+        return NextResponse.json(
+          { error: 'This letter has already been sent to mail.', code: 'already_mailed', alreadyMailed: true },
+          { status: 409 }
+        )
+      }
+    }
+    if (letterType === 'first_dispute' && caseRecord.lob_letter_id && caseRecord.mail_status !== 'failed') {
+      return NextResponse.json(
+        { error: 'This letter has already been sent to mail.', code: 'already_mailed', alreadyMailed: true },
         { status: 409 }
       )
     }
@@ -423,6 +441,7 @@ export async function POST(request: Request) {
           letterVersion: letterRow?.audit_logic_version ?? null,
           sentAt: mailedAt,
           recipientName: toFinal.name ?? null,
+          letterType,
         })
       )
       .select('id')
@@ -451,6 +470,22 @@ export async function POST(request: Request) {
           tags: { route: 'mail-letter', stage: 'deadline-apply' },
           extra: { caseId },
         })
+      }
+
+      // Dispatching an ESCALATION letter closes the loop on the parent
+      // outcome: the denied/no-response dispatch it escalates is now
+      // 'escalated'. (No parent linkage column exists; the case's open
+      // denied/no_response dispatches are the parents by definition.)
+      if (letterType !== 'first_dispute') {
+        const { error: parentErr } = await admin
+          .from('dispute_outcomes')
+          .update({ status: 'escalated', updated_at: mailedAt })
+          .eq('case_id', caseId)
+          .in('status', ['denied', 'no_response'])
+          .neq('id', outcomeRow.id as string)
+        if (parentErr) {
+          console.error(`mail-letter: parent outcome escalation mark failed for case ${caseId}:`, parentErr)
+        }
       }
     }
 

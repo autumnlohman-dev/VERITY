@@ -1830,6 +1830,7 @@ export default function CaseDetailPage({
                 <OutcomeFollowUp
                   outcomeId={outcomeId}
                   dollarAmountDisputed={fhs?.totalDollarAtRisk || savings}
+                  caseId={id}
                 />
               )}
             </div>
@@ -1838,7 +1839,18 @@ export default function CaseDetailPage({
           {/* Letter dispatch tracking: one card per mailed letter, with the
               record-a-response intake. Renders nothing until a letter has
               actually been dispatched. */}
-          <DispatchOutcomePanel caseId={id} potentialSavings={savings} />
+          <DispatchOutcomePanel
+            caseId={id}
+            potentialSavings={savings}
+            intake={{
+              patientState:
+                ((caseRow as unknown as Record<string, unknown>).patient_state as string | null) ?? null,
+              inCollections:
+                ((caseRow as unknown as Record<string, unknown>).in_collections as boolean | null) ?? null,
+              onCreditReport:
+                ((caseRow as unknown as Record<string, unknown>).on_credit_report as boolean | null) ?? null,
+            }}
+          />
 
           {/* Delete this case. */}
           <div style={{ marginTop: "32px", borderTop: "1px solid var(--line)", paddingTop: "20px" }}>

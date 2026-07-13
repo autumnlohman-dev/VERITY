@@ -16,9 +16,22 @@ export interface DispatchOutcomeParams {
   sentAt: string
   /** Mail recipient name from the letter's To address. */
   recipientName: string | null
+  /** The letter's escalation rung (dispute_letters.letter_type); drives
+   *  recipient_type and escalation_level on the outcome row. */
+  letterType?: string | null
+}
+
+// letter_type → dispute_outcomes.recipient_type (DB CHECK vocabulary).
+const RECIPIENT_BY_LETTER_TYPE: Record<string, string> = {
+  first_dispute: 'provider',
+  appeal: 'provider',
+  regulator_complaint: 'regulator',
+  credit_bureau_dispute: 'credit_bureau',
+  collector_dispute: 'collector',
 }
 
 export function buildDispatchOutcomeRow(p: DispatchOutcomeParams): Record<string, unknown> {
+  const letterType = p.letterType && RECIPIENT_BY_LETTER_TYPE[p.letterType] ? p.letterType : 'first_dispute'
   return {
     case_id: p.caseId,
     user_id: p.userId,
@@ -26,12 +39,10 @@ export function buildDispatchOutcomeRow(p: DispatchOutcomeParams): Record<string
     lob_letter_id: p.lobLetterId,
     letter_version: p.letterVersion != null ? String(p.letterVersion) : null,
     sent_at: p.sentAt,
-    // The only live pathway today: the first dispute letter, mailed to the
-    // provider's billing office. Escalation rungs land in later build steps.
-    recipient_type: 'provider',
+    recipient_type: RECIPIENT_BY_LETTER_TYPE[letterType],
     recipient_name: p.recipientName,
     status: 'sent',
-    escalation_level: 'first_dispute',
+    escalation_level: letterType,
     updated_at: p.sentAt,
   }
 }

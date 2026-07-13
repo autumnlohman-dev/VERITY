@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { updateOutcome, getOutcome, hydrateOutcomes } from '@/lib/outcomes/store'
+import { updateOutcome, getOutcome, getAllOutcomes, hydrateOutcomes } from '@/lib/outcomes/store'
 import type { DisputeOutcomeLabel } from '@/lib/outcomes/store'
 import { useClientMemo } from '@/lib/useClientMemo'
 
@@ -15,7 +15,13 @@ const sans = (size: string, color = 'var(--ink-soft)', extra?: React.CSSProperti
 interface OutcomeFollowUpProps {
   outcomeId: string
   dollarAmountDisputed: number
+  /** When set, the widget hides itself on cases that already have a dispatch
+   *  outcome in a terminal status (D4 interim de-dupe: the dispatch panel is
+   *  the record of truth there, pending the label fold-in step). */
+  caseId?: string
 }
+
+const TERMINAL_DISPATCH_STATUSES = new Set(['resolved', 'partial', 'denied', 'won', 'lost', 'abandoned'])
 
 type OutcomeStatus = 'won' | 'partial' | 'lost' | 'abandoned' | 'in_progress'
 
@@ -42,7 +48,7 @@ function StatusButton({ label, active, onSelect }: { label: string; active: bool
   )
 }
 
-export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFollowUpProps) {
+export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed, caseId }: OutcomeFollowUpProps) {
   const [status, setStatus] = useState<OutcomeStatus | null>(null)
   const [amountRecovered, setAmountRecovered] = useState('')
   // Bumped after a write (or hydration) so the stored-outcome snapshot below
@@ -71,6 +77,15 @@ export function OutcomeFollowUp({ outcomeId, dollarAmountDisputed }: OutcomeFoll
   )
   // A recorded outcome (any non-pending status) means the form was submitted.
   const submitted = !!outcome && outcome.status !== 'pending'
+
+  // D4: a dispatch outcome in a terminal status makes this legacy label widget
+  // redundant on the case; the dispatch panel is the record there.
+  const hiddenByDispatch =
+    !!caseId &&
+    getAllOutcomes().some(
+      (o) => o.caseId === caseId && !!o.sentAt && TERMINAL_DISPATCH_STATUSES.has(o.status)
+    )
+  if (hiddenByDispatch) return null
 
   if (submitted && outcome) {
     const statusLabels: Record<string, { label: string; color: string }> = {

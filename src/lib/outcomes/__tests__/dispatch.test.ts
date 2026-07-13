@@ -43,4 +43,23 @@ describe('buildDispatchOutcomeRow (Lob dispatch bookkeeping)', () => {
   it('stringifies numeric letter versions including zero', () => {
     expect(buildDispatchOutcomeRow({ ...base, letterVersion: 0 }).letter_version).toBe('0')
   })
+
+  it('maps escalation letter types to their recipient_type and escalation_level (D2)', () => {
+    const cases: Array<[string, string]> = [
+      ['first_dispute', 'provider'],
+      ['appeal', 'provider'],
+      ['regulator_complaint', 'regulator'],
+      ['credit_bureau_dispute', 'credit_bureau'],
+      ['collector_dispute', 'collector'],
+    ]
+    for (const [letterType, recipient] of cases) {
+      const row = buildDispatchOutcomeRow({ ...base, letterType })
+      expect(row.recipient_type).toBe(recipient)
+      expect(row.escalation_level).toBe(letterType)
+      expect(row.status).toBe('sent')
+    }
+    // Unknown/absent letter types fall back to the first-dispute defaults.
+    expect(buildDispatchOutcomeRow({ ...base, letterType: 'mystery' }).recipient_type).toBe('provider')
+    expect(buildDispatchOutcomeRow({ ...base }).escalation_level).toBe('first_dispute')
+  })
 })

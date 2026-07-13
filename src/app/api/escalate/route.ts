@@ -9,6 +9,8 @@ import {
   type EscalationFacts,
   type EscalationFinding,
 } from '@/lib/letters/escalationTemplates'
+import { auditSnapshotFingerprint } from '@/lib/letters/staleness'
+import { AUDIT_LOGIC_VERSION } from '@/lib/audit/version'
 
 export const runtime = 'nodejs'
 
@@ -139,14 +141,22 @@ export async function POST(request: Request) {
       letters = [{ label: 'Collection agency validation (FDCPA § 809)', letterType: 'collector_dispute', content: buildCollectorValidation(facts) }]
     }
 
-    // Persist each letter with its escalation rung; the letter page's staleness
-    // stamping doesn't apply here (templates derive from the outcome record,
-    // not the recomputable audit snapshot), so no fingerprint is stamped.
+    // Persist each letter as a DRAFT with its escalation rung, stamped with the
+    // audit snapshot it restates (D3): an audit version bump or recompute marks
+    // unsent escalation drafts stale exactly like first letters — and without a
+    // stamp the legacy-null rule would treat them as permanently stale.
+    const fingerprint = auditSnapshotFingerprint(caseRow)
     const inserted: Array<{ id: string; label: string; letterType: string; content: string }> = []
     for (const l of letters) {
       const { data: row, error } = await supabase
         .from('dispute_letters')
-        .insert({ case_id: outcome.case_id, letter_content: l.content, letter_type: l.letterType })
+        .insert({
+          case_id: outcome.case_id,
+          letter_content: l.content,
+          letter_type: l.letterType,
+          audit_logic_version: AUDIT_LOGIC_VERSION,
+          audit_fingerprint: fingerprint,
+        })
         .select('id')
         .single()
       if (error) {

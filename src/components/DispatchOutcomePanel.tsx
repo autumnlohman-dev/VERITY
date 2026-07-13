@@ -125,13 +125,21 @@ function daysLeft(dueDate: string): number {
   return Math.round((due - now) / 86_400_000)
 }
 
+export interface IntakeGates {
+  patientState: string | null
+  inCollections: boolean | null
+  onCreditReport: boolean | null
+}
+
 interface PanelProps {
   caseId: string
   /** The case's disputed figure; bounds a partial recovery when present. */
   potentialSavings?: number | null
+  /** Escalation-pathway facts from the case row (D1 card gating). */
+  intake?: IntakeGates
 }
 
-export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
+export function DispatchOutcomePanel({ caseId, potentialSavings, intake }: PanelProps) {
   const [rows, setRows] = useState<DisputeOutcomeLabel[]>([])
   const [deadlines, setDeadlines] = useState<DeadlineRow[]>([])
   const [authed, setAuthed] = useState(false)
@@ -216,6 +224,7 @@ export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
           deadline={deadlines.find((d) => d.outcomeId === row.outcomeId && d.status === 'active') ?? null}
           onDismissDeadline={(id) => void dismissDeadline(id)}
           authed={authed}
+          intake={intake ?? null}
           potentialSavings={potentialSavings ?? null}
           editing={editingId === row.outcomeId}
           onEditToggle={(open) => setEditingId(open ? row.outcomeId : null)}
@@ -319,6 +328,7 @@ function OutcomeCard({
   deadline,
   onDismissDeadline,
   authed,
+  intake,
   potentialSavings,
   editing,
   onEditToggle,
@@ -328,6 +338,7 @@ function OutcomeCard({
   deadline: DeadlineRow | null
   onDismissDeadline: (deadlineId: string) => void
   authed: boolean
+  intake: IntakeGates | null
   potentialSavings: number | null
   editing: boolean
   onEditToggle: (open: boolean) => void
@@ -434,13 +445,13 @@ function OutcomeCard({
           documented no-response. Every letter is generated for the user's
           review and download; nothing is filed or mailed automatically. */}
       {authed && !editing && (row.status === 'denied' || row.status === 'no_response') && (
-        <EscalationActions row={row} />
+        <EscalationActions row={row} intake={intake ?? null} />
       )}
     </div>
   )
 }
 
-function EscalationActions({ row }: { row: DisputeOutcomeLabel }) {
+function EscalationActions({ row, intake }: { row: DisputeOutcomeLabel; intake: IntakeGates | null }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
 
@@ -503,25 +514,46 @@ function EscalationActions({ row }: { row: DisputeOutcomeLabel }) {
     }
   }
 
-  const btn = (onClick: () => void, label: string, key: string) => (
-    <button
-      key={key}
-      onClick={onClick}
-      disabled={busy !== null}
-      style={{
-        ...sans('11px', 'var(--brand)'),
-        background: 'transparent',
-        border: '1px solid var(--brand-fill)',
-        padding: '8px 14px',
-        letterSpacing: '0.1em',
-        textTransform: 'uppercase',
-        cursor: busy ? 'not-allowed' : 'pointer',
-        opacity: busy && busy !== key ? 0.5 : 1,
-      }}
-    >
-      {busy === key ? 'Preparing…' : label}
-    </button>
-  )
+  // D1 gates, mirrored client-side for the disabled-with-reason cards; the
+  // server enforces the same gates authoritatively in /api/escalate.
+  const gateReason: Record<string, string | null> = {
+    second_level_appeal: null,
+    cfpb: null,
+    doi_complaint: intake?.patientState
+      ? null
+      : "Add your state of residence (in 'Record a response') to unlock",
+    credit_bureau_dispute:
+      intake?.onCreditReport === true ? null : "Answer 'does this appear on your credit report?' to unlock",
+    collector_dispute:
+      intake?.inCollections === true ? null : "Answer 'has this been sent to a collection agency?' to unlock",
+  }
+
+  const card = (onClick: () => void, label: string, key: string) => {
+    const reason = gateReason[key] ?? null
+    const disabled = busy !== null || reason !== null
+    return (
+      <div key={key} style={{ border: '1px solid var(--line)', padding: '12px 14px', minWidth: '220px', flex: '1 1 220px' }}>
+        <button
+          onClick={onClick}
+          disabled={disabled}
+          style={{
+            ...sans('11px', reason ? 'var(--ink-soft)' : 'var(--brand)'),
+            background: 'transparent',
+            border: `1px solid ${reason ? 'var(--line)' : 'var(--brand-fill)'}`,
+            padding: '8px 14px',
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            opacity: busy && busy !== key ? 0.5 : 1,
+            width: '100%',
+          }}
+        >
+          {busy === key ? 'Preparing…' : label}
+        </button>
+        {reason && <div style={{ ...sans('11px'), marginTop: '6px', lineHeight: 1.5 }}>{reason}</div>}
+      </div>
+    )
+  }
 
   return (
     <div style={{ marginTop: '14px' }}>
@@ -529,11 +561,11 @@ function EscalationActions({ row }: { row: DisputeOutcomeLabel }) {
         Escalation options
       </div>
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        {btn(() => void generate('second_level_appeal', 'Second-level appeal'), 'Second-level appeal', 'second_level_appeal')}
-        {btn(() => void generate('doi_complaint', 'State regulator complaint'), 'State regulator complaint', 'doi_complaint')}
-        {btn(() => void generate('credit_bureau_dispute', 'Credit bureau disputes'), 'Credit bureau disputes', 'credit_bureau_dispute')}
-        {btn(() => void generate('collector_dispute', 'Collector validation letter'), 'Collector validation letter', 'collector_dispute')}
-        {btn(() => void prepareCfpb(), 'Prepare CFPB complaint package', 'cfpb')}
+        {card(() => void generate('second_level_appeal', 'Second-level appeal'), 'Second-level appeal', 'second_level_appeal')}
+        {card(() => void generate('doi_complaint', 'State regulator complaint'), 'State regulator complaint', 'doi_complaint')}
+        {card(() => void generate('credit_bureau_dispute', 'Credit bureau disputes'), 'Credit bureau disputes', 'credit_bureau_dispute')}
+        {card(() => void generate('collector_dispute', 'Collector validation letter'), 'Collector validation letter', 'collector_dispute')}
+        {card(() => void prepareCfpb(), 'Prepare CFPB complaint package', 'cfpb')}
       </div>
       {note && <p style={{ ...sans('12px'), marginTop: '10px', lineHeight: 1.6, maxWidth: '560px' }}>{note}</p>}
     </div>
