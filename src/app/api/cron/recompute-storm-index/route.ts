@@ -18,15 +18,14 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isAuthorizedCronRequest } from '@/lib/cronAuth';
 import { loadHousehold } from '@/lib/household-loader';
 import { computeStormIndex } from '@/lib/verity-sim/stormIndex';
 import type { ProjectedClaim } from '@/lib/verity-sim/types';
 
 export async function GET(req: NextRequest) {
-  // ── CRON_SECRET gate ──────────────────────────────────────────────────────
-  const authHeader = req.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  // ── CRON_SECRET gate (shared with /api/cron/deadlines) ───────────────────
+  if (!isAuthorizedCronRequest(req.headers.get('authorization'), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

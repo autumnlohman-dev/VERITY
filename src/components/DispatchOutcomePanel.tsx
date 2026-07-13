@@ -61,11 +61,14 @@ function todayISODate(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-interface ActiveDeadlineRow {
+interface DeadlineRow {
+  id: string
   outcomeId: string | null
   deadlineType: OutcomeDeadlineType
   dueDate: string
   urgency: DeadlineUrgency
+  status: string
+  source: string
 }
 
 const DEADLINE_LABELS: Record<string, string> = {
@@ -74,13 +77,19 @@ const DEADLINE_LABELS: Record<string, string> = {
   custom: 'Due by',
 }
 
-// Urgency colors follow the semantic-color rule: red/amber only for a genuine
-// deadline pressure, neutral otherwise.
+// Urgency colors follow the semantic-color rule (red/amber only for genuine
+// deadline pressure) and mirror DeadlineTracker's badge scheme exactly.
 const URGENCY_COLORS: Record<DeadlineUrgency, string> = {
-  critical: 'var(--urgent-red)',
-  high: 'var(--urgent-amber)',
+  critical: '#C47C6A',
+  high: '#C8A97E',
   moderate: 'var(--ink-soft)',
   informational: 'var(--ink-soft)',
+}
+const URGENCY_BADGES: Record<DeadlineUrgency, { bg: string; text: string }> = {
+  critical: { bg: '#C47C6A', text: 'var(--ink)' },
+  high: { bg: '#C8A97E', text: 'var(--ink)' },
+  moderate: { bg: 'var(--ink-soft)', text: 'var(--surface-raised)' },
+  informational: { bg: 'var(--line)', text: 'var(--ink-soft)' },
 }
 
 function daysLeft(dueDate: string): number {
@@ -97,9 +106,10 @@ interface PanelProps {
 
 export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
   const [rows, setRows] = useState<DisputeOutcomeLabel[]>([])
-  const [deadlines, setDeadlines] = useState<ActiveDeadlineRow[]>([])
+  const [deadlines, setDeadlines] = useState<DeadlineRow[]>([])
   const [authed, setAuthed] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [showPastDeadlines, setShowPastDeadlines] = useState(false)
 
   const load = useCallback(async () => {
     const supabase = createClient()
@@ -117,17 +127,20 @@ export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
           .order('created_at', { ascending: false }),
         supabase
           .from('deadlines')
-          .select('outcome_id, deadline_type, due_date, urgency')
+          .select('id, outcome_id, deadline_type, due_date, urgency, status, source')
           .eq('case_id', caseId)
-          .eq('status', 'active'),
+          .order('due_date', { ascending: true }),
       ])
       setRows((data ?? []).map((r) => outcomeRowToLabel(r as Record<string, unknown>)))
       setDeadlines(
         (dlRows ?? []).map((d) => ({
+          id: d.id as string,
           outcomeId: (d.outcome_id as string) ?? null,
           deadlineType: d.deadline_type as OutcomeDeadlineType,
           dueDate: d.due_date as string,
           urgency: d.urgency as DeadlineUrgency,
+          status: d.status as string,
+          source: (d.source as string) ?? '',
         }))
       )
     } else {
@@ -140,6 +153,15 @@ export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
       setDeadlines([])
     }
   }, [caseId])
+
+  async function dismissDeadline(deadlineId: string) {
+    const res = await fetch('/api/deadlines/dismiss', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deadlineId }),
+    })
+    if (res.ok) void load()
+  }
 
   useEffect(() => {
     // load() is async and only calls setState after await points — not
@@ -164,7 +186,8 @@ export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
         <OutcomeCard
           key={row.outcomeId}
           row={row}
-          deadline={deadlines.find((d) => d.outcomeId === row.outcomeId) ?? null}
+          deadline={deadlines.find((d) => d.outcomeId === row.outcomeId && d.status === 'active') ?? null}
+          onDismissDeadline={(id) => void dismissDeadline(id)}
           authed={authed}
           potentialSavings={potentialSavings ?? null}
           editing={editingId === row.outcomeId}
@@ -175,6 +198,91 @@ export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
           }}
         />
       ))}
+
+      {/* Satisfied/expired/dismissed deadlines, collapsed by default. */}
+      {deadlines.some((d) => d.status !== 'active') && (
+        <div style={{ borderTop: '1px solid var(--line)', paddingTop: '12px' }}>
+          <button
+            onClick={() => setShowPastDeadlines((v) => !v)}
+            style={{ ...sans('12px'), background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+          >
+            {showPastDeadlines ? 'Hide past deadlines' : `Past deadlines (${deadlines.filter((d) => d.status !== 'active').length})`}
+          </button>
+          {showPastDeadlines &&
+            deadlines
+              .filter((d) => d.status !== 'active')
+              .map((d) => (
+                <div key={d.id} style={{ ...sans('12px'), marginTop: '8px' }}>
+                  {DEADLINE_LABELS[d.deadlineType] ?? 'Due by'} {formatCalendarDate(d.dueDate)} · {d.source} ·{' '}
+                  <span style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>{d.status}</span>
+                </div>
+              ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Prominent top-of-case banner when a letter deadline has gone critical
+// (≤7 days or past due). Mirrors DeadlineTracker's critical banner styling.
+// Renders nothing otherwise; guests have no server deadlines.
+export function CriticalOutcomeDeadlineBanner({ caseId }: { caseId: string }) {
+  const [critical, setCritical] = useState<DeadlineRow | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const supabase = createClient()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session) return
+      const { data } = await supabase
+        .from('deadlines')
+        .select('id, outcome_id, deadline_type, due_date, urgency, status, source')
+        .eq('case_id', caseId)
+        .eq('status', 'active')
+        .eq('urgency', 'critical')
+        .order('due_date', { ascending: true })
+        .limit(1)
+      if (!cancelled && data && data.length > 0) {
+        const d = data[0]
+        setCritical({
+          id: d.id as string,
+          outcomeId: (d.outcome_id as string) ?? null,
+          deadlineType: d.deadline_type as OutcomeDeadlineType,
+          dueDate: d.due_date as string,
+          urgency: d.urgency as DeadlineUrgency,
+          status: d.status as string,
+          source: (d.source as string) ?? '',
+        })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [caseId])
+
+  if (!critical) return null
+  const left = daysLeft(critical.dueDate)
+  return (
+    <div
+      style={{
+        backgroundColor: 'rgba(196,124,106,0.15)',
+        border: '1px solid #C47C6A',
+        padding: '14px 20px',
+        marginBottom: '16px',
+        display: 'flex',
+        alignItems: 'baseline',
+        gap: '10px',
+        flexWrap: 'wrap',
+      }}
+    >
+      <span style={{ ...sans('13px', 'var(--ink)'), fontWeight: 600 }}>
+        {DEADLINE_LABELS[critical.deadlineType] ?? 'Due by'} {formatCalendarDate(critical.dueDate)}
+        {left >= 0 ? `, ${left} day${left === 1 ? '' : 's'} left.` : ', past due.'}
+      </span>
+      <span style={{ ...sans('12px') }}>{critical.source}</span>
     </div>
   )
 }
@@ -182,6 +290,7 @@ export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
 function OutcomeCard({
   row,
   deadline,
+  onDismissDeadline,
   authed,
   potentialSavings,
   editing,
@@ -189,7 +298,8 @@ function OutcomeCard({
   onSaved,
 }: {
   row: DisputeOutcomeLabel
-  deadline: ActiveDeadlineRow | null
+  deadline: DeadlineRow | null
+  onDismissDeadline: (deadlineId: string) => void
   authed: boolean
   potentialSavings: number | null
   editing: boolean
@@ -210,9 +320,34 @@ function OutcomeCard({
             {row.letterVersion ? ` · letter v${row.letterVersion}` : ''}
           </div>
           {deadline && (
-            <div style={{ ...sans('12px', URGENCY_COLORS[deadline.urgency]), marginTop: '4px' }}>
-              {DEADLINE_LABELS[deadline.deadlineType] ?? 'Due by'} {formatCalendarDate(deadline.dueDate)}
-              {daysLeft(deadline.dueDate) >= 0 ? ` · ${daysLeft(deadline.dueDate)} days left` : ' · past due'}
+            <div style={{ marginTop: '4px' }}>
+              <span
+                style={{
+                  ...sans('10px', URGENCY_BADGES[deadline.urgency].text),
+                  backgroundColor: URGENCY_BADGES[deadline.urgency].bg,
+                  padding: '2px 7px',
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  fontWeight: 600,
+                  marginRight: '8px',
+                }}
+              >
+                {deadline.urgency}
+              </span>
+              <span style={{ ...sans('12px', URGENCY_COLORS[deadline.urgency]) }}>
+                {DEADLINE_LABELS[deadline.deadlineType] ?? 'Due by'} {formatCalendarDate(deadline.dueDate)}
+                {daysLeft(deadline.dueDate) >= 0 ? ` · ${daysLeft(deadline.dueDate)} days left` : ' · past due'}
+              </span>
+              <span style={{ ...sans('11px'), fontStyle: 'italic', marginLeft: '8px' }}>{deadline.source}</span>
+              {authed && (
+                <button
+                  onClick={() => onDismissDeadline(deadline.id)}
+                  title="Not relevant to this case"
+                  style={{ ...sans('11px'), background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', marginLeft: '8px', padding: 0 }}
+                >
+                  Dismiss
+                </button>
+              )}
             </div>
           )}
         </div>

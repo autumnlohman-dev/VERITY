@@ -7,6 +7,10 @@
 // case's documents; these windows track our own dispute correspondence.
 
 // ─── Configurable window lengths (the one place to change them) ──────────────
+// DEFAULTS PENDING COUNSEL/SISTER REVIEW: real appeal and response windows
+// vary by payer, plan type, and state; 30 days is a conservative placeholder
+// for our own correspondence cadence, not a legal deadline. Change here only —
+// call sites and the backfill migration must never hardcode these figures.
 export const RESPONSE_WINDOW_DAYS = 30
 export const ESCALATION_WINDOW_DAYS = 30
 

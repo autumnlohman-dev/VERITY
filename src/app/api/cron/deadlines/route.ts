@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isAuthorizedCronRequest } from '@/lib/cronAuth'
 import { sweepReclassify, type DeadlineUrgency, type DeadlineStatus } from '@/lib/deadlines/outcomeWindows'
 
 export const runtime = 'nodejs'
@@ -9,11 +10,11 @@ export const maxDuration = 60
 // deadlines and re-tiers urgency as due dates approach (critical ≤7 days,
 // high ≤30, moderate ≤90). Deterministic — same pure rules the write paths
 // use — and idempotent: rerunning changes nothing new.
+//
+// Structured for future siblings (e.g. moving the Storm Index recompute in
+// here): shared CRON_SECRET gate via lib/cronAuth, separate handler bodies.
 export async function GET(req: NextRequest) {
-  // ── CRON_SECRET gate (same pattern as recompute-storm-index) ─────────────
-  const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!isAuthorizedCronRequest(req.headers.get('authorization'), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
