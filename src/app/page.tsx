@@ -565,31 +565,44 @@ export default function LandingPage() {
             </p>
           </div>
 
-          {/* Compact evidence cards. Copy derives ONLY from claims already on
-              the site (what-we-look-for, this section); the spec's suggested
-              statistics were removed in the July honesty pass as banned
-              numeric claims and are NOT reintroduced.
-              TODO(copy-review): replace with sourced figures if counsel/copy
-              approves specific statistics. */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {[
-              { title: "Upcoding", body: "A higher-intensity code than the visit supports, billed as routine." },
-              { title: "Duplicates and unbundling", body: "The same service billed twice, or one panel split into many line items." },
-              { title: "Errors go undisputed", body: "Bills are designed to be unreadable, so most patients never know what to challenge." },
-            ].map((c) => (
-              <div
-                key={c.title}
-                style={{
-                  backgroundColor: "var(--surface-raised)",
-                  border: "1px solid var(--line)",
-                  borderLeft: "3px solid #C8A97E",
-                  padding: "16px 18px",
-                }}
-              >
-                <div style={{ ...serif("19px", { lineHeight: 1.2, marginBottom: "6px" }) }}>{c.title}</div>
-                <p style={{ ...sans("13px", "#5F5648"), lineHeight: 1.6 }}>{c.body}</p>
-              </div>
-            ))}
+          {/* Industry stat cards, exhibit styling. These are SOURCED industry
+              figures, never presented as Verity's own findings; the source
+              line links to /sources for the citations, and the 80% figure
+              carries the "up to" qualifier per its reported 49-80% range.
+              TODO(sister-review): sanity-check framing before launch. */}
+          <div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {[
+                { kicker: "up to", numeral: "80%", caption: "of medical bills contain at least one error" },
+                { kicker: null, numeral: "1 in 7", caption: "claims are denied by insurers; only 0.1% of denials are ever appealed" },
+                { kicker: null, numeral: "$1,300", caption: "average overcharge on hospital bills above $10,000" },
+              ].map((c) => (
+                <div
+                  key={c.numeral}
+                  style={{
+                    backgroundColor: "var(--surface-raised)",
+                    border: "1px solid var(--line)",
+                    padding: "18px 20px",
+                  }}
+                >
+                  {c.kicker && (
+                    <div style={{ ...sans("10px", "#8A7F6E"), letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: "2px" }}>
+                      {c.kicker}
+                    </div>
+                  )}
+                  <div style={{ ...serif("42px", { color: "var(--brand)", lineHeight: 1, marginBottom: "6px" }) }}>
+                    {c.numeral}
+                  </div>
+                  <p style={{ ...sans("13px", "#5F5648"), lineHeight: 1.6 }}>{c.caption}</p>
+                </div>
+              ))}
+            </div>
+            <p style={{ ...sans("11px", "#8A7F6E"), marginTop: "12px", lineHeight: 1.6 }}>
+              Sources: industry billing-audit studies and ACA claims data.{" "}
+              <Link href="/sources" style={{ color: "var(--brand)", textDecoration: "underline", textUnderlineOffset: "3px" }}>
+                See citations
+              </Link>
+            </p>
           </div>
         </div>
       </motion.section>
