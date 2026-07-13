@@ -10,6 +10,7 @@ import {
   type DisputeOutcomeLabel,
 } from '@/lib/outcomes/store'
 import { RESPONSE_RESULTS, validateResponseUpdate, type ResponseResult } from '@/lib/outcomes/respond'
+import type { DeadlineUrgency, OutcomeDeadlineType } from '@/lib/deadlines/outcomeWindows'
 import { formatCalendarDate } from '@/lib/dates'
 
 // Letter dispatch tracking on the case page: one compact card per mailed
@@ -60,6 +61,34 @@ function todayISODate(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+interface ActiveDeadlineRow {
+  outcomeId: string | null
+  deadlineType: OutcomeDeadlineType
+  dueDate: string
+  urgency: DeadlineUrgency
+}
+
+const DEADLINE_LABELS: Record<string, string> = {
+  response_window: 'Response expected by',
+  escalation_window: 'Escalate by',
+  custom: 'Due by',
+}
+
+// Urgency colors follow the semantic-color rule: red/amber only for a genuine
+// deadline pressure, neutral otherwise.
+const URGENCY_COLORS: Record<DeadlineUrgency, string> = {
+  critical: 'var(--urgent-red)',
+  high: 'var(--urgent-amber)',
+  moderate: 'var(--ink-soft)',
+  informational: 'var(--ink-soft)',
+}
+
+function daysLeft(dueDate: string): number {
+  const due = new Date(`${dueDate}T00:00:00Z`).getTime()
+  const now = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z').getTime()
+  return Math.round((due - now) / 86_400_000)
+}
+
 interface PanelProps {
   caseId: string
   /** The case's disputed figure; bounds a partial recovery when present. */
@@ -68,6 +97,7 @@ interface PanelProps {
 
 export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
   const [rows, setRows] = useState<DisputeOutcomeLabel[]>([])
+  const [deadlines, setDeadlines] = useState<ActiveDeadlineRow[]>([])
   const [authed, setAuthed] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -78,13 +108,28 @@ export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
     } = await supabase.auth.getSession()
     setAuthed(!!session)
     if (session) {
-      const { data } = await supabase
-        .from('dispute_outcomes')
-        .select('*')
-        .eq('case_id', caseId)
-        .not('sent_at', 'is', null)
-        .order('created_at', { ascending: false })
+      const [{ data }, { data: dlRows }] = await Promise.all([
+        supabase
+          .from('dispute_outcomes')
+          .select('*')
+          .eq('case_id', caseId)
+          .not('sent_at', 'is', null)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('deadlines')
+          .select('outcome_id, deadline_type, due_date, urgency')
+          .eq('case_id', caseId)
+          .eq('status', 'active'),
+      ])
       setRows((data ?? []).map((r) => outcomeRowToLabel(r as Record<string, unknown>)))
+      setDeadlines(
+        (dlRows ?? []).map((d) => ({
+          outcomeId: (d.outcome_id as string) ?? null,
+          deadlineType: d.deadline_type as OutcomeDeadlineType,
+          dueDate: d.due_date as string,
+          urgency: d.urgency as DeadlineUrgency,
+        }))
+      )
     } else {
       await hydrateOutcomes()
       setRows(
@@ -92,6 +137,7 @@ export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
           .filter((o) => o.caseId === caseId && o.sentAt)
           .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
       )
+      setDeadlines([])
     }
   }, [caseId])
 
@@ -118,6 +164,7 @@ export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
         <OutcomeCard
           key={row.outcomeId}
           row={row}
+          deadline={deadlines.find((d) => d.outcomeId === row.outcomeId) ?? null}
           authed={authed}
           potentialSavings={potentialSavings ?? null}
           editing={editingId === row.outcomeId}
@@ -134,6 +181,7 @@ export function DispatchOutcomePanel({ caseId, potentialSavings }: PanelProps) {
 
 function OutcomeCard({
   row,
+  deadline,
   authed,
   potentialSavings,
   editing,
@@ -141,6 +189,7 @@ function OutcomeCard({
   onSaved,
 }: {
   row: DisputeOutcomeLabel
+  deadline: ActiveDeadlineRow | null
   authed: boolean
   potentialSavings: number | null
   editing: boolean
@@ -160,6 +209,12 @@ function OutcomeCard({
             Mailed {row.sentAt ? formatCalendarDate(row.sentAt) : ''}
             {row.letterVersion ? ` · letter v${row.letterVersion}` : ''}
           </div>
+          {deadline && (
+            <div style={{ ...sans('12px', URGENCY_COLORS[deadline.urgency]), marginTop: '4px' }}>
+              {DEADLINE_LABELS[deadline.deadlineType] ?? 'Due by'} {formatCalendarDate(deadline.dueDate)}
+              {daysLeft(deadline.dueDate) >= 0 ? ` · ${daysLeft(deadline.dueDate)} days left` : ' · past due'}
+            </div>
+          )}
         </div>
         <span style={{ ...sans('11px', badge.color), letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>
           {badge.label}

@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { pathHasPrefix } from '@/lib/storage/bills'
 import { validateResponseUpdate } from '@/lib/outcomes/respond'
+import { applyOutcomeDeadlines } from '@/lib/deadlines/applyOutcomeWindows'
 import { NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
@@ -102,6 +104,21 @@ export async function POST(request: Request) {
     if (updateErr) {
       console.error('outcomes/respond update error:', updateErr)
       return NextResponse.json({ error: 'Failed to save the response' }, { status: 500 })
+    }
+
+    // Deadline transitions for the new state (denied opens the escalation
+    // window, resolved/partial satisfy everything, an overdue no_response
+    // opens escalation). Server-computed rows: service-role client. Failures
+    // are logged loudly; the recorded response never rolls back over them.
+    const { error: dlErr } = await applyOutcomeDeadlines(createAdminClient(), {
+      outcomeId,
+      caseId: (row.case_id as string) ?? '',
+      status: validation.update.status,
+      sentAt: (row.sent_at as string) ?? null,
+      responseReceivedAt: validation.update.response_received_at,
+    })
+    if (dlErr) {
+      console.error(`outcomes/respond: deadline transition failed for outcome ${outcomeId}:`, dlErr)
     }
 
     return NextResponse.json({ success: true, outcome: updated })

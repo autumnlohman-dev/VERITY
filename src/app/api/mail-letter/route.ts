@@ -13,6 +13,7 @@ import {
 } from '@/lib/lob'
 import { auditSnapshotFingerprint, isLetterStale } from '@/lib/letters/staleness'
 import { buildDispatchOutcomeRow } from '@/lib/outcomes/dispatch'
+import { applyOutcomeDeadlines } from '@/lib/deadlines/applyOutcomeWindows'
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 
@@ -411,17 +412,21 @@ export async function POST(request: Request) {
     // Dispatch bookkeeping: record the sent letter in dispute_outcomes so
     // escalation logic can exist later. Letter delivery takes priority over
     // bookkeeping — an insert failure is logged loudly, never blocks the send.
-    const { error: outcomeErr } = await admin.from('dispute_outcomes').insert(
-      buildDispatchOutcomeRow({
-        caseId,
-        userId: user.id,
-        letterRowId: (letterRow?.id as string) ?? null,
-        lobLetterId: created.id,
-        letterVersion: letterRow?.audit_logic_version ?? null,
-        sentAt: mailedAt,
-        recipientName: toFinal.name ?? null,
-      })
-    )
+    const { data: outcomeRow, error: outcomeErr } = await admin
+      .from('dispute_outcomes')
+      .insert(
+        buildDispatchOutcomeRow({
+          caseId,
+          userId: user.id,
+          letterRowId: (letterRow?.id as string) ?? null,
+          lobLetterId: created.id,
+          letterVersion: letterRow?.audit_logic_version ?? null,
+          sentAt: mailedAt,
+          recipientName: toFinal.name ?? null,
+        })
+      )
+      .select('id')
+      .single()
     if (outcomeErr) {
       console.error(
         `mail-letter: DISPATCH OUTCOME INSERT FAILED for case ${caseId} (letter ${created.id} was mailed; bookkeeping row is missing):`,
@@ -431,6 +436,22 @@ export async function POST(request: Request) {
         tags: { route: 'mail-letter', stage: 'outcome-insert' },
         extra: { caseId, lobLetterId: created.id },
       })
+    } else if (outcomeRow) {
+      // Open the response window for the mailed letter (sent_at + N days).
+      const { error: dlErr } = await applyOutcomeDeadlines(admin, {
+        outcomeId: outcomeRow.id as string,
+        caseId,
+        status: 'sent',
+        sentAt: mailedAt,
+        responseReceivedAt: null,
+      })
+      if (dlErr) {
+        console.error(`mail-letter: response-window deadline creation failed for case ${caseId}:`, dlErr)
+        Sentry.captureException(new Error(`deadline apply failed: ${dlErr}`), {
+          tags: { route: 'mail-letter', stage: 'deadline-apply' },
+          extra: { caseId },
+        })
+      }
     }
 
     return NextResponse.json({
