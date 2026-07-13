@@ -133,45 +133,73 @@ function Footer() {
   );
 }
 
-// ─── Process steps ────────────────────────────────────────────────────────────
+// ─── Process steps: four cards, horizontal on desktop ────────────────────────
+// One-line descriptions condensed from the previous six-step copy; the detail
+// they carried (outcome estimates, tiers, correction) lives in the sections
+// below and on /pricing.
 const STEPS = [
-  {
-    n: 1,
-    title: "Upload your documents.",
-    body: "Your itemized medical bill, Explanation of Benefits, and insurance card. We accept PDFs, photos, and scans. Takes about three minutes.",
-    time: "3 min",
-  },
-  {
-    n: 2,
-    title: "We audit every charge.",
-    body: "Your documents are checked against each other and against CMS reference data, fee schedules, NCCI bundling edits, and MUE limits, in a single pass. Every discrepancy is flagged with its dollar impact.",
-    time: "24 hours",
-  },
-  {
-    n: 3,
-    title: "You receive your error report.",
-    body: "Every error, the evidence behind it, and the dollar value attached. The report is free.",
-    time: "Same day",
-  },
-  {
-    n: 4,
-    title: "See your outcome estimate.",
-    body: "Members see an estimated recovery amount, expected timeframe, and settlement range before filing anything.",
-    time: "Instant",
-  },
-  {
-    n: 5,
-    title: "You choose what happens next.",
-    body: "Stay on the free audit, buy a $39 dispute package for one bill, or join the membership for unlimited audits and dispute packages. Nothing is sent without your approval.",
-    time: "Your call",
-  },
-  {
-    n: 6,
-    title: "The charge gets corrected.",
-    body: "If the dispute succeeds, the provider or insurer corrects the charge or issues a refund. Most respond within 30 days.",
-    time: "~30 days",
-  },
+  { n: 1, title: "Upload", body: "Your itemized bill, EOB, and insurance card. About three minutes." },
+  { n: 2, title: "Audit", body: "Every code and charge checked against CMS reference data, each discrepancy priced." },
+  { n: 3, title: "Review", body: "Your free error report, and the dispute package when you choose to act." },
+  { n: 4, title: "Mail", body: "Approve the letter and Verity mails it by certified mail." },
 ];
+
+// ─── Audit vignette (hero) ────────────────────────────────────────────────────
+// A simplified HTML/CSS mock of the audit findings panel, golden-case numbers
+// only (synthetic; no real data). Mirrors the real product's structure: one
+// finding row, then the exact total line the letter enforces.
+const mono = (size: string, color = "#221C14", extra?: React.CSSProperties): React.CSSProperties => ({
+  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
+  fontSize: size,
+  fontWeight: 500,
+  color,
+  ...extra,
+});
+
+function AuditVignette() {
+  return (
+    <div
+      style={{
+        backgroundColor: "var(--surface-raised)",
+        border: "1px solid var(--line)",
+        padding: "22px 24px",
+        maxWidth: "420px",
+        width: "100%",
+        boxShadow: "0 18px 50px rgba(60,46,32,0.10)",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "16px" }}>
+        <span style={{ ...sans("10px", "#8A7F6E"), letterSpacing: "0.22em", textTransform: "uppercase" }}>
+          Audit findings · 1 error
+        </span>
+        <span style={{ ...sans("9px", "#B3A28A"), letterSpacing: "0.18em", textTransform: "uppercase" }}>
+          Synthetic data
+        </span>
+      </div>
+      <div
+        style={{
+          borderLeft: "3px solid #C47C6A",
+          backgroundColor: "rgba(196,124,106,0.10)",
+          padding: "12px 14px",
+          marginBottom: "16px",
+        }}
+      >
+        <div style={{ ...serif("18px", { lineHeight: 1.2, marginBottom: "4px" }) }}>Duplicate charge</div>
+        <div style={{ ...sans("12px", "#5F5648") }}>
+          CPT <span style={{ ...mono("11.5px", "#5F5648") }}>80053</span>, billed twice on the same day
+        </div>
+        <div style={{ ...mono("16px", "var(--brand)", { marginTop: "6px" }) }}>$300.00</div>
+      </div>
+      <div style={{ borderTop: "1px solid var(--line)", paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <span style={{ ...sans("10px", "#221C14"), letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 600 }}>
+          Total correction requested
+        </span>
+        <span style={{ ...mono("15px") }}>$300.00</span>
+      </div>
+      <div style={{ ...sans("11px", "#8A7F6E"), marginTop: "10px" }}>Letter ready for your review.</div>
+    </div>
+  );
+}
 
 // ─── Timeline milestones ──────────────────────────────────────────────────────
 const MILESTONES = [
@@ -202,26 +230,30 @@ export default function HowItWorksPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, ease: [0.25, 0.1, 0.25, 1] }}
         >
-          <div style={{ ...label(), marginBottom: "32px" }}>How it works</div>
-          <h1
-            style={{
-              fontFamily: "var(--font-lora), Georgia, serif",
-  
-  letterSpacing: "-0.015em",
-              fontSize: "clamp(72px, 8vw, 96px)",
-              color: "#221C14",
-              lineHeight: 0.92,
-              fontWeight: 400,
-              marginBottom: 0,
-            }}
-          >
-            We fix medical bills.
-            <br />
-            <em style={{ fontStyle: "italic" }}>You keep the money.</em>
-          </h1>
-          <p style={{ ...sans("15px", "#5F5648"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
-            Verity reviews your bill, finds the errors, and prepares a ready-to-send dispute package; nothing is sent without your approval.
-          </p>
+          <div className="r-grid-1" style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "48px", alignItems: "center" }}>
+            <div>
+              <div style={{ ...label(), marginBottom: "32px" }}>How it works</div>
+              <h1
+                style={{
+                  fontFamily: "var(--font-lora), Georgia, serif",
+                  letterSpacing: "-0.015em",
+                  fontSize: "clamp(56px, 7vw, 96px)",
+                  color: "#221C14",
+                  lineHeight: 0.92,
+                  fontWeight: 400,
+                  marginBottom: 0,
+                }}
+              >
+                We fix medical bills.
+                <br />
+                <em style={{ fontStyle: "italic" }}>You keep the money.</em>
+              </h1>
+              <p style={{ ...sans("15px", "#5F5648"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
+                Verity reviews your bill, finds the errors, and prepares a ready-to-send dispute package; nothing is sent without your approval.
+              </p>
+            </div>
+            <AuditVignette />
+          </div>
         </motion.div>
       </section>
 
@@ -236,59 +268,40 @@ export default function HowItWorksPage() {
           </h2>
         </motion.div>
 
-        {STEPS.map((step, i) => (
-          <motion.div
-            key={step.n}
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: i * 0.05 }}
-            style={{
-              borderTop: "1px solid #D8CFBE",
-              padding: "48px 0",
-              display: "flex",
-              gap: "48px",
-              alignItems: "flex-start",
-            }}
-          >
-            {/* Step number, decorative */}
-            <div
+        {/* Four steps, horizontal on desktop, stacked on mobile. */}
+        <div className="r-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
+          {STEPS.map((step, i) => (
+            <motion.div
+              key={step.n}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: i * 0.05 }}
               style={{
-                fontFamily: "var(--font-lora), Georgia, serif",
-  
-  letterSpacing: "-0.015em",
-                fontSize: "72px",
-                color: "#E2DACB",
-                fontStyle: "italic",
-                fontWeight: 400,
-                lineHeight: 1,
-                minWidth: "80px",
-                flexShrink: 0,
+                backgroundColor: "var(--surface-raised)",
+                border: "1px solid var(--line)",
+                padding: "24px",
               }}
             >
-              {step.n}
-            </div>
-            {/* Content */}
-            <div style={{ flex: 1 }}>
-              <div style={{ ...serif("28px", { lineHeight: 1.1, marginBottom: "16px" }) }}>{step.title}</div>
-              <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.75, maxWidth: "560px" }}>{step.body}</p>
-            </div>
-            {/* Time tag */}
-            <div
-              style={{
-                ...sans("10px", "#8A7F6E"),
-                letterSpacing: "0.2em",
-                textTransform: "uppercase",
-                minWidth: "80px",
-                textAlign: "right",
-                flexShrink: 0,
-              }}
-            >
-              {step.time}
-            </div>
-          </motion.div>
-        ))}
-        <div style={{ borderTop: "1px solid #D8CFBE" }} />
+              <div
+                style={{
+                  fontFamily: "var(--font-lora), Georgia, serif",
+                  letterSpacing: "-0.015em",
+                  fontSize: "44px",
+                  color: "#E2DACB",
+                  fontStyle: "italic",
+                  fontWeight: 400,
+                  lineHeight: 1,
+                  marginBottom: "12px",
+                }}
+              >
+                {step.n}
+              </div>
+              <div style={{ ...serif("24px", { lineHeight: 1.1, marginBottom: "10px" }) }}>{step.title}</div>
+              <p style={{ ...sans("13px", "#5F5648"), lineHeight: 1.65 }}>{step.body}</p>
+            </motion.div>
+          ))}
+        </div>
       </section>
 
       {/* ── Timeline graphic ── */}
