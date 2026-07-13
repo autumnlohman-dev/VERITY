@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import * as Sentry from '@sentry/nextjs'
+import { hasNsaBasis, nsaFramingInstruction } from '@/lib/letters/nsa'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { renderEmReviewForPrompt, type EmReview } from '@/lib/emReview'
@@ -314,9 +315,8 @@ E&M DISPUTE GUIDANCE:
     const totalFindings = errorCount + findingCount
     // NSA is cited only when a finding actually carries it — a routine
     // in-network adjudication dispute is not a No Surprises Act violation.
-    const hasNsaBasis =
-      crossDocFindings.some((d) => d.applicable_regulations.some((r) => /no surprises/i.test(r))) ||
-      disputableErrors.some((e) => /no surprises/i.test(e.rule_violated))
+    // Gate extracted to lib/letters/nsa (unit-tested).
+    const nsaBasis = hasNsaBasis(disputableErrors, crossDocFindings)
     const addressee =
       recipient === 'provider'
         ? "the provider's patient billing / accounts-receivable department"
@@ -366,6 +366,8 @@ ${JSON.stringify(crossDocFindings, null, 2)}
 `
     : ''
 }${
+  /* Benchmark framing pending sister/counsel review: CLFS/PFS figures are
+     reasonableness anchors, never amounts a provider is required to charge. */
   errorCount > 0
     ? `
 CODING/BILLING ERRORS FROM THE AUDIT (present these after the cross-document findings). Reference each error's "rule_violated" text introduced as "Applicable authority: …" without altering its substance, in particular, do NOT relabel a Clinical Laboratory Fee Schedule citation as the Physician Fee Schedule (or vice versa). CMS-benchmark (fee schedule) findings are requests for justification or repricing, phrase them as such, never as an amount the provider owes. Each error's "correction_amount" is the ONLY dollar figure it may contribute to the demanded correction. For errors marked "justification_only": true, their benchmark difference is NOT included in the summary correction and must never be phrased as if it were, phrase each one as "justification requested; any resulting reduction would lower the balance further", and list it in the summary table with a correction amount of $0.00:
@@ -388,7 +390,7 @@ The letter should:
 1. Be addressed to ${addressee}${recipient === 'provider' && !isSelfPay ? ' (this is a dispute of the PROVIDER\'s bill against the insurer\'s adjudication, do not frame it as an insurance appeal, and do not tell the reader to use an insurer portal)' : ''}${recipient === 'insurer' ? ' (this is an appeal of the insurer\'s adjudication, frame requests to the plan, not the provider)' : ''}
 2. State each finding with its specific legal basis using the "Applicable authority: …" convention described above
 3. Request correction of each finding with its exact amount from the findings data, for patient-responsibility and balance-billing findings, request the difference above the EOB's stated patient responsibility be written off; for benchmark findings, request justification or repricing
-4. Reference ${isSelfPay ? 'the No Surprises Act good-faith-estimate protections and the Hospital Price Transparency Rule' : hasNsaBasis ? 'the No Surprises Act and applicable patient rights' : "the patient's plan-adjudication and appeal rights (do NOT cite the No Surprises Act, no finding in this case supports it)"}
+4. Reference ${nsaFramingInstruction(isSelfPay, nsaBasis)}
 5. Include a professional closing requesting a corrected statement within 30 days`
       }]
     }, { timeoutMs: 290_000 })

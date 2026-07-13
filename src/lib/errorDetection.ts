@@ -554,6 +554,7 @@ const ERROR_TYPE_PRECEDENCE: Record<ErrorType, number> = {
 
 export function dedupeErrorsByLine(errors: BillingError[]): BillingError[] {
   const best = new Map<string, BillingError>()
+  const secondary = new Map<string, Set<string>>()
   const order: string[] = []
   for (const e of errors) {
     const code = normalizeCode(e.cpt_code)
@@ -566,7 +567,24 @@ export function dedupeErrorsByLine(errors: BillingError[]): BillingError[] {
     }
     const rank = ERROR_TYPE_PRECEDENCE[e.error_type] ?? 9
     const currentRank = ERROR_TYPE_PRECEDENCE[current.error_type] ?? 9
+    // The losing finding is noted inside the kept one, never listed as its own
+    // finding: one line = one finding, so counts and totals never inflate.
+    const winner = rank < currentRank ? e : current
+    const loser = rank < currentRank ? current : e
     if (rank < currentRank) best.set(key, e)
+    if (loser.error_type !== winner.error_type) {
+      if (!secondary.has(key)) secondary.set(key, new Set())
+      secondary.get(key)!.add(loser.error_type)
+    }
   }
-  return order.map((k) => best.get(k)!)
+  return order.map((k) => {
+    const kept = best.get(k)!
+    const extras = secondary.get(k)
+    if (!extras || extras.size === 0) return kept
+    const noted = [...extras].map((t) => t.replace(/_/g, ' ')).join(', ')
+    return {
+      ...kept,
+      explanation: `${kept.explanation} (This line was also flagged for ${noted}; consolidated under the primary finding so it is not double-counted.)`,
+    }
+  })
 }

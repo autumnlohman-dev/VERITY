@@ -49,6 +49,12 @@ export interface DisputeOutcomeLabel {
   daysToResolution?: number
   notes?: string
 
+  // Intake gates (step 4) — guest parity: authenticated users' answers live on
+  // the case row (server-written); guests carry them here until signup.
+  patientState?: string
+  inCollections?: boolean
+  onCreditReport?: boolean
+
   // Dispatch + response tracking (step 1/2 of outcome persistence)
   sentAt?: string
   recipientType?: string

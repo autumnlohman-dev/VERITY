@@ -29,6 +29,10 @@ export async function POST(request: Request) {
       responseSummary?: unknown
       amountRecovered?: unknown
       responseDocumentPath?: unknown
+      // Intake gates (step 4): collected on denied/no_response, skippable.
+      patientState?: unknown
+      inCollections?: unknown
+      onCreditReport?: unknown
     }
     const outcomeId = typeof body.outcomeId === 'string' ? body.outcomeId : ''
     if (!outcomeId) {
@@ -104,6 +108,26 @@ export async function POST(request: Request) {
     if (updateErr) {
       console.error('outcomes/respond update error:', updateErr)
       return NextResponse.json({ error: 'Failed to save the response' }, { status: 500 })
+    }
+
+    // Intake gates: persist the escalation-pathway facts onto the case. These
+    // columns are client-locked (C1 pattern), so the service role writes them;
+    // skipped answers stay null and can be filled on a later response.
+    const intake: Record<string, unknown> = {}
+    if (typeof body.patientState === 'string' && /^[A-Za-z]{2}$/.test(body.patientState.trim())) {
+      intake.patient_state = body.patientState.trim().toUpperCase()
+    }
+    if (typeof body.inCollections === 'boolean') intake.in_collections = body.inCollections
+    if (typeof body.onCreditReport === 'boolean') intake.on_credit_report = body.onCreditReport
+    if (Object.keys(intake).length > 0 && row.case_id) {
+      const { error: intakeErr } = await createAdminClient()
+        .from('cases')
+        .update(intake)
+        .eq('id', row.case_id)
+        .eq('user_id', user.id)
+      if (intakeErr) {
+        console.error(`outcomes/respond: intake-gate persist failed for case ${row.case_id}:`, intakeErr)
+      }
     }
 
     // Deadline transitions for the new state (denied opens the escalation

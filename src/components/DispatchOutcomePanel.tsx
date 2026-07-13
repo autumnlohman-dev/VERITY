@@ -61,6 +61,33 @@ function todayISODate(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']
+
+// Yes/no/skip triplet for the intake follow-ups. null = skipped.
+function TriState({ label, value, onChange }: { label: string; value: boolean | null; onChange: (v: boolean | null) => void }) {
+  return (
+    <div style={{ marginBottom: '10px' }}>
+      <span style={{ ...sans('12px'), marginRight: '10px' }}>{label}</span>
+      {([['Yes', true], ['No', false], ['Skip', null]] as const).map(([lbl, v]) => (
+        <button
+          key={lbl}
+          onClick={() => onChange(v)}
+          style={{
+            ...sans('11px', value === v ? 'var(--ink)' : 'var(--ink-soft)'),
+            border: `1px solid ${value === v ? 'var(--brand-fill)' : 'var(--line)'}`,
+            backgroundColor: value === v ? 'var(--brand-fill)' : 'transparent',
+            padding: '4px 10px',
+            marginRight: '6px',
+            cursor: 'pointer',
+          }}
+        >
+          {lbl}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 interface DeadlineRow {
   id: string
   outcomeId: string | null
@@ -402,6 +429,113 @@ function OutcomeCard({
           onSaved={onSaved}
         />
       )}
+
+      {/* Escalation pathways (step 4): available after a denial, or after a
+          documented no-response. Every letter is generated for the user's
+          review and download; nothing is filed or mailed automatically. */}
+      {authed && !editing && (row.status === 'denied' || row.status === 'no_response') && (
+        <EscalationActions row={row} />
+      )}
+    </div>
+  )
+}
+
+function EscalationActions({ row }: { row: DisputeOutcomeLabel }) {
+  const [busy, setBusy] = useState<string | null>(null)
+  const [note, setNote] = useState<string | null>(null)
+
+  async function generate(pathway: string, label: string) {
+    if (busy) return
+    setBusy(pathway)
+    setNote(null)
+    try {
+      const res = await fetch('/api/escalate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outcomeId: row.outcomeId, pathway }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setNote(json.error || `Could not prepare the ${label.toLowerCase()}.`)
+        return
+      }
+      const { generateLetterPdf } = await import('@/lib/letterPdf')
+      for (const l of json.letters as Array<{ label: string; content: string }>) {
+        generateLetterPdf(l.content, `verity-${pathway}-${l.label.replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}.pdf`)
+      }
+      setNote(`${label} downloaded. Review it, fill in the bracketed details, sign it, and send it yourself; Verity never files on your behalf.`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function prepareCfpb() {
+    if (busy) return
+    setBusy('cfpb')
+    setNote(null)
+    try {
+      const [{ buildCfpbEvidencePackage }, { generateLetterPdf }] = await Promise.all([
+        import('@/lib/letters/escalationTemplates'),
+        import('@/lib/letterPdf'),
+      ])
+      const md = buildCfpbEvidencePackage(
+        {
+          providerName: row.providerName ?? 'the provider',
+          dateOfService: '',
+          amountInDispute: row.dollarAmountDisputed || 0,
+          firstLetterDate: row.sentAt ?? new Date().toISOString(),
+          lobLetterId: row.lobLetterId ?? null,
+          responseReceivedAt: row.responseReceivedAt ?? null,
+          responseSummary: row.responseSummary ?? null,
+          findings: [],
+          collectorName: null,
+        },
+        row.sentAt ? [{ letterType: row.letterVersion ? `first_dispute (v${row.letterVersion})` : 'first_dispute', date: row.sentAt }] : [],
+        [
+          ...(row.sentAt ? [{ date: row.sentAt, event: 'Dispute letter mailed' }] : []),
+          ...(row.responseReceivedAt ? [{ date: row.responseReceivedAt, event: `Response received: ${row.status}` }] : []),
+        ]
+      )
+      generateLetterPdf(md, 'verity-cfpb-evidence-package.pdf')
+      setNote('Evidence package downloaded. File the complaint yourself at consumerfinance.gov/complaint and attach this package; Verity does not submit it for you.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const btn = (onClick: () => void, label: string, key: string) => (
+    <button
+      key={key}
+      onClick={onClick}
+      disabled={busy !== null}
+      style={{
+        ...sans('11px', 'var(--brand)'),
+        background: 'transparent',
+        border: '1px solid var(--brand-fill)',
+        padding: '8px 14px',
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+        cursor: busy ? 'not-allowed' : 'pointer',
+        opacity: busy && busy !== key ? 0.5 : 1,
+      }}
+    >
+      {busy === key ? 'Preparing…' : label}
+    </button>
+  )
+
+  return (
+    <div style={{ marginTop: '14px' }}>
+      <div style={{ ...sans('11px', 'var(--ink-soft)'), letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '8px' }}>
+        Escalation options
+      </div>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {btn(() => void generate('second_level_appeal', 'Second-level appeal'), 'Second-level appeal', 'second_level_appeal')}
+        {btn(() => void generate('doi_complaint', 'State regulator complaint'), 'State regulator complaint', 'doi_complaint')}
+        {btn(() => void generate('credit_bureau_dispute', 'Credit bureau disputes'), 'Credit bureau disputes', 'credit_bureau_dispute')}
+        {btn(() => void generate('collector_dispute', 'Collector validation letter'), 'Collector validation letter', 'collector_dispute')}
+        {btn(() => void prepareCfpb(), 'Prepare CFPB complaint package', 'cfpb')}
+      </div>
+      {note && <p style={{ ...sans('12px'), marginTop: '10px', lineHeight: 1.6, maxWidth: '560px' }}>{note}</p>}
     </div>
   )
 }
@@ -430,6 +564,11 @@ function ResponseForm({
   const [file, setFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Intake gates (step 4): asked on denied/no_response, all skippable.
+  const [patientState, setPatientState] = useState(row.patientState ?? '')
+  const [inCollections, setInCollections] = useState<boolean | null>(row.inCollections ?? null)
+  const [onCreditReport, setOnCreditReport] = useState<boolean | null>(row.onCreditReport ?? null)
+  const showIntake = result === 'denied' || result === 'no_response'
 
   const needsAmount = result === 'resolved' || result === 'partial'
   const minDate = row.sentAt ? row.sentAt.slice(0, 10) : undefined
@@ -485,6 +624,9 @@ function ResponseForm({
             responseSummary: summary || undefined,
             amountRecovered: needsAmount ? Number(amount) : undefined,
             responseDocumentPath,
+            ...(showIntake && patientState ? { patientState } : {}),
+            ...(showIntake && inCollections !== null ? { inCollections } : {}),
+            ...(showIntake && onCreditReport !== null ? { onCreditReport } : {}),
           }),
         })
         const json = await res.json().catch(() => ({}))
@@ -500,6 +642,9 @@ function ResponseForm({
           responseSummary: validation.update.response_summary ?? undefined,
           amountRecovered: validation.update.amount_recovered ?? undefined,
           resolvedAt: validation.update.response_received_at ?? undefined,
+          ...(showIntake && patientState ? { patientState } : {}),
+          ...(showIntake && inCollections !== null ? { inCollections } : {}),
+          ...(showIntake && onCreditReport !== null ? { onCreditReport } : {}),
         })
       }
       onSaved()
@@ -614,6 +759,29 @@ function ResponseForm({
             style={{ ...sans('12px'), display: 'block', marginTop: '4px' }}
           />
         </label>
+      )}
+
+      {showIntake && (
+        <div style={{ borderTop: '1px dashed var(--line)', paddingTop: '12px', marginBottom: '16px' }}>
+          <div style={{ ...sans('12px', 'var(--ink)'), marginBottom: '8px' }}>
+            Three quick facts unlock more escalation options. All optional.
+          </div>
+          <label style={{ ...sans('12px'), display: 'block', marginBottom: '10px' }}>
+            Your state of residence
+            <select
+              value={patientState}
+              onChange={(e) => setPatientState(e.target.value)}
+              style={{ ...sans('13px', 'var(--ink)'), display: 'block', marginTop: '4px', backgroundColor: 'var(--surface)', border: '1px solid var(--line)', padding: '8px 10px' }}
+            >
+              <option value="">Skip</option>
+              {US_STATES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
+          <TriState label="Has this bill been sent to a collection agency?" value={inCollections} onChange={setInCollections} />
+          <TriState label="Does it appear on your credit report?" value={onCreditReport} onChange={setOnCreditReport} />
+        </div>
       )}
 
       {error && (
