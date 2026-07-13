@@ -867,25 +867,6 @@ export default function LandingPage() {
         </Link>
       </section>
 
-      {/* ── Brand band ── */}
-      <section
-        style={{
-          position: "relative",
-          height: "84vh",
-          minHeight: "520px",
-          overflow: "hidden",
-          borderTop: "1px solid #D8CFBE",
-        }}
-      >
-        <Image
-          src="/verity-portrait.png"
-          alt="Verity"
-          fill
-          sizes="100vw"
-          style={{ objectFit: "contain", objectPosition: "center center", background: "var(--surface)" }}
-        />
-      </section>
-
       {/* ── Pricing teaser ── */}
       <section style={{ padding: "96px 64px" }}>
         <motion.div {...fadeUp}>
