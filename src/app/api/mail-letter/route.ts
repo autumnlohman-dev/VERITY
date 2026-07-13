@@ -12,7 +12,7 @@ import {
   type LobAddress,
 } from '@/lib/lob'
 import { auditSnapshotFingerprint, isLetterStale } from '@/lib/letters/staleness'
-import { buildDispatchOutcomeRow } from '@/lib/outcomes/dispatch'
+import { buildDispatchOutcomeRow, markParentEscalated } from '@/lib/outcomes/dispatch'
 import { applyOutcomeDeadlines } from '@/lib/deadlines/applyOutcomeWindows'
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
@@ -198,11 +198,15 @@ export async function POST(request: Request) {
       to?: AddrInput
       from?: AddrInput
       certified?: unknown
+      // Optional: mail a SPECIFIC letter (the letter picker). Absent = the
+      // case's newest letter, the pre-picker behavior.
+      letterId?: unknown
     }
     const caseId = typeof body.caseId === 'string' ? body.caseId : ''
     if (!caseId) {
       return NextResponse.json({ error: 'Missing caseId' }, { status: 400 })
     }
+    const requestedLetterId = typeof body.letterId === 'string' && body.letterId ? body.letterId : null
     const certified = body.certified === true
 
     const toParsed = parseAddress(body.to, 'recipient (provider)')
@@ -249,13 +253,17 @@ export async function POST(request: Request) {
       }
     }
 
-    // Need a generated letter to mail.
-    const { data: letterData } = await supabase
+    // Need a generated letter to mail: the requested one (letter picker), else
+    // the case's newest. The case_id filter makes a forged letterId from
+    // another case resolve to nothing.
+    let letterQuery = supabase
       .from('dispute_letters')
-      .select('id, letter_content, stale, audit_fingerprint, audit_logic_version, letter_type')
+      .select('id, letter_content, stale, audit_fingerprint, audit_logic_version, letter_type, source_outcome_id')
       .eq('case_id', caseId)
-      .order('generated_at', { ascending: false })
-      .limit(1)
+    letterQuery = requestedLetterId
+      ? letterQuery.eq('id', requestedLetterId)
+      : letterQuery.order('generated_at', { ascending: false }).limit(1)
+    const { data: letterData } = await letterQuery
     const letterRow = letterData?.[0]
     const letterType = (letterRow?.letter_type as string) ?? 'first_dispute'
     const letterContent = letterRow?.letter_content
@@ -442,6 +450,7 @@ export async function POST(request: Request) {
           sentAt: mailedAt,
           recipientName: toFinal.name ?? null,
           letterType,
+          parentOutcomeId: (letterRow?.source_outcome_id as string) ?? null,
         })
       )
       .select('id')
@@ -472,19 +481,15 @@ export async function POST(request: Request) {
         })
       }
 
-      // Dispatching an ESCALATION letter closes the loop on the parent
-      // outcome: the denied/no-response dispatch it escalates is now
-      // 'escalated'. (No parent linkage column exists; the case's open
-      // denied/no_response dispatches are the parents by definition.)
-      if (letterType !== 'first_dispute') {
-        const { error: parentErr } = await admin
-          .from('dispute_outcomes')
-          .update({ status: 'escalated', updated_at: mailedAt })
-          .eq('case_id', caseId)
-          .in('status', ['denied', 'no_response'])
-          .neq('id', outcomeRow.id as string)
+      // Dispatching an ESCALATION letter closes the loop on EXACTLY the parent
+      // outcome the draft carries (source_outcome_id → parent_outcome_id) —
+      // never by case-wide heuristic, which would mis-mark a case holding two
+      // escalatable dispatches.
+      const parentId = (letterRow?.source_outcome_id as string) ?? null
+      if (letterType !== 'first_dispute' && parentId) {
+        const parentErr = await markParentEscalated(admin, parentId, mailedAt)
         if (parentErr) {
-          console.error(`mail-letter: parent outcome escalation mark failed for case ${caseId}:`, parentErr)
+          console.error(`mail-letter: parent outcome escalation mark failed for ${parentId}:`, parentErr)
         }
       }
     }

@@ -24,6 +24,7 @@ import type { BillingError } from "@/lib/errorDetection";
 import { letterRecipient, type RecipientSignal } from "@/lib/letters/recipient";
 import { auditSnapshotFingerprint, isLetterStale } from "@/lib/letters/staleness";
 import { formatCalendarDate } from "@/lib/dates";
+import { CREDIT_BUREAUS } from "@/lib/letters/bureaus";
 import { MailItPanel, type MailState, type MailAddress } from "@/components/MailItPanel";
 
 // ─── Style helpers (exact copy from landing page) ─────────────────────────────
@@ -85,6 +86,33 @@ interface CaseRow {
   mail_paid: boolean | null;
 }
 
+const LETTER_TYPE_LABELS: Record<string, string> = {
+  first_dispute: "First dispute letter",
+  appeal: "Second-level appeal",
+  regulator_complaint: "State regulator complaint",
+  credit_bureau_dispute: "Credit bureau dispute",
+  collector_dispute: "Collection agency dispute",
+};
+
+// For letters addressed to a KNOWN mailing address (the three credit bureaus),
+// prefill the Mail-It "To" block from the constants instead of the provider.
+function letterMailBlob(l: { letter_type?: string | null; letter_content: string }): string | null {
+  if (l.letter_type !== "credit_bureau_dispute") return null;
+  const bureau = CREDIT_BUREAUS.find((b) => l.letter_content.includes(b.name));
+  return bureau ? bureau.mailingAddress.join("\n") : null;
+}
+
+function letterDisplayLabel(l: { letter_type?: string | null; letter_content: string }): string {
+  const base = LETTER_TYPE_LABELS[l.letter_type ?? "first_dispute"] ?? "Letter";
+  // The three FCRA letters share a letter_type; the bureau is identified from
+  // the letter's own address block so each is individually distinguishable.
+  if (l.letter_type === "credit_bureau_dispute") {
+    const bureau = ["Equifax", "Experian", "TransUnion"].find((b) => l.letter_content.includes(b));
+    if (bureau) return `${base} (${bureau})`;
+  }
+  return base;
+}
+
 interface LetterRow {
   id: string;
   case_id: string;
@@ -96,6 +124,8 @@ interface LetterRow {
   // is stale: viewable, but download/print/mail refuse it until regenerated.
   stale?: boolean | null;
   audit_fingerprint?: string | null;
+  letter_type?: string | null;
+  source_outcome_id?: string | null;
   audit_logic_version?: number | null;
 }
 
@@ -1264,6 +1294,14 @@ export default function LetterPage({
   const [loading, setLoading] = useState(true);
   const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
   const [letter, setLetter] = useState<LetterRow | null>(null);
+  // Letter picker (step 5): every letter on the case, newest first; selecting
+  // one routes it through the same review/download/mail flow. The ref keeps
+  // the selection across load() reloads (e.g. after mailing).
+  const [letters, setLetters] = useState<LetterRow[]>([]);
+  const selectedLetterIdRef = useRef<string | null>(null);
+  const [dispatchByLetter, setDispatchByLetter] = useState<
+    Record<string, { lobLetterId: string; recipientName: string | null }>
+  >({});
   const [unlocked, setUnlocked] = useState(false);
   // Mail-it-for-me entitlement ($59 Certified Mail tier or membership).
   const [mailEntitled, setMailEntitled] = useState(false);
@@ -1358,12 +1396,14 @@ export default function LetterPage({
     setMailEntitled(canMail);
 
     // Letter query is scoped by case_id; ownership was just verified above.
+    // ALL letters, newest first: the picker lists every letter on the case
+    // (first dispute + escalation drafts), each flowing through the same
+    // review/download/mail logic when selected.
     const { data: letterData, error: letterErr } = await supabase
       .from("dispute_letters")
       .select("*")
       .eq("case_id", id)
-      .order("generated_at", { ascending: false })
-      .limit(1);
+      .order("generated_at", { ascending: false });
 
     if (letterErr) {
       setFetchError(letterErr.message);
@@ -1371,7 +1411,32 @@ export default function LetterPage({
       return;
     }
 
-    setLetter(letterData && letterData.length > 0 ? (letterData[0] as LetterRow) : null);
+    const all = (letterData ?? []) as LetterRow[];
+    setLetters(all);
+    // Keep the current selection across reloads when it still exists;
+    // otherwise the newest letter is selected (the pre-picker behavior).
+    const kept = selectedLetterIdRef.current
+      ? all.find((l) => l.id === selectedLetterIdRef.current)
+      : undefined;
+    setLetter(kept ?? (all.length > 0 ? all[0] : null));
+
+    // Per-letter dispatch state (sent status + Lob id) for the picker badges
+    // and per-letter mail display, keyed by dispute_letters.id.
+    const { data: dispatchRows } = await supabase
+      .from("dispute_outcomes")
+      .select("letter_id, lob_letter_id, recipient_name")
+      .eq("case_id", id)
+      .not("letter_id", "is", null);
+    const byLetter: Record<string, { lobLetterId: string; recipientName: string | null }> = {};
+    for (const r of dispatchRows ?? []) {
+      if (r.letter_id && r.lob_letter_id) {
+        byLetter[r.letter_id as string] = {
+          lobLetterId: r.lob_letter_id as string,
+          recipientName: (r.recipient_name as string) ?? null,
+        };
+      }
+    }
+    setDispatchByLetter(byLetter);
     setLoading(false);
   }, [id]);
 
@@ -1710,16 +1775,14 @@ export default function LetterPage({
   // the letter predates snapshot stamping), so its numbers no longer match the
   // case. Viewing stays available; download / print / mail refuse it — and the
   // mail + package endpoints enforce the same check server-side.
-  const letterStale = isLetterStale(
-    letter,
-    auditSnapshotFingerprint({
-      amount_billed: caseRow.amount_billed,
-      amount_expected: caseRow.amount_expected,
-      potential_savings: caseRow.potential_savings,
-      errors_found: caseRow.errors_found,
-      bill_data: caseRow.bill_data as Record<string, unknown> | null,
-    })
-  );
+  const currentFingerprint = auditSnapshotFingerprint({
+    amount_billed: caseRow.amount_billed,
+    amount_expected: caseRow.amount_expected,
+    potential_savings: caseRow.potential_savings,
+    errors_found: caseRow.errors_found,
+    bill_data: caseRow.bill_data as Record<string, unknown> | null,
+  });
+  const letterStale = isLetterStale(letter, currentFingerprint);
   // Gate download / print / mail: never ship a letter that still has an unfilled
   // [BRACKET] placeholder — or whose audit snapshot is stale.
   const letterReady = !hasUnfilledPlaceholders(displayContent) && !letterStale;
@@ -1823,6 +1886,50 @@ export default function LetterPage({
           </button>
         </div>
       </div>
+
+      {/* Letter picker (step 5): shown only when the case holds more than one
+          letter. Selecting routes the letter through the same review/download/
+          mail flow; per-letter idempotency and staleness apply unchanged. */}
+      {letters.length > 1 && (
+        <div style={{ borderBottom: "1px solid var(--line)", padding: "12px 32px", backgroundColor: "var(--surface-raised)" }}>
+          <div style={{ ...sans("11px", "var(--ink-soft)"), letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: "8px" }}>
+            Letters on this case ({letters.length})
+          </div>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {letters.map((l) => {
+              const active = l.id === letter.id;
+              const sent = !!dispatchByLetter[l.id] || (l.letter_type === "first_dispute" && !!caseRow.lob_letter_id);
+              const stale = isLetterStale(l, currentFingerprint);
+              const status = sent ? "sent" : stale ? "stale" : "draft";
+              return (
+                <button
+                  key={l.id}
+                  onClick={() => {
+                    selectedLetterIdRef.current = l.id;
+                    setLetter(l);
+                  }}
+                  style={{
+                    ...sans("12px", active ? "var(--ink)" : "var(--ink-soft)"),
+                    backgroundColor: active ? "var(--brand-fill)" : "transparent",
+                    border: `1px solid ${active ? "var(--brand-fill)" : "var(--line)"}`,
+                    padding: "8px 12px",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>{letterDisplayLabel(l)}</span>
+                  <span style={{ marginLeft: "8px", textTransform: "uppercase", letterSpacing: "0.08em", fontSize: "10px", color: status === "stale" ? "#C47C6A" : undefined }}>
+                    {status}
+                  </span>
+                  <span style={{ marginLeft: "8px", fontSize: "11px" }}>
+                    v{l.audit_logic_version ?? "?"} · {l.generated_at ? formatCalendarDate(l.generated_at) : ""}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Deadline banner, single source of truth (lib/deadlines/forCase) */}
       {topDeadline && (
@@ -1988,21 +2095,41 @@ export default function LetterPage({
       </motion.div>
 
       {/* Mail it for me (Lob): requires the Certified Mail tier or membership,
-          and is blocked until the letter has no [placeholders]. An already-
-          mailed case always shows its mail status. */}
-      {caseRow.lob_letter_id || (mailEntitled && letterReady) ? (
+          and is blocked until the letter has no [placeholders]. Mail state is
+          per LETTER (step 5): the selected letter's own dispatch row decides
+          "already mailed"; case-level mail columns cover only the legacy
+          first-letter display. Bureau letters prefill the To block from the
+          bureau's known dispute address. */}
+      {dispatchByLetter[letter.id] ||
+      ((letter.letter_type === "first_dispute" || !letter.letter_type) && caseRow.lob_letter_id) ||
+      (mailEntitled && letterReady) ? (
         <MailItPanel
+          key={letter.id}
           caseId={caseRow.id}
-          providerName={caseRow.provider_name}
+          letterId={letter.id}
+          providerName={letterMailBlob(letter) ?? caseRow.provider_name}
           patientInfo={{ name: patientInfo.name, address: patientInfo.address }}
-          initial={{
-            lobLetterId: caseRow.lob_letter_id,
-            status: caseRow.mail_status,
-            testMode: !!caseRow.mail_test_mode,
-            certified: !!caseRow.mail_certified,
-            expectedDelivery: caseRow.mail_expected_delivery,
-            to: caseRow.mail_to,
-          }}
+          initial={
+            dispatchByLetter[letter.id]
+              ? {
+                  lobLetterId: dispatchByLetter[letter.id].lobLetterId,
+                  status: "submitted",
+                  testMode: !!caseRow.mail_test_mode,
+                  certified: !!caseRow.mail_certified,
+                  expectedDelivery: null,
+                  to: null,
+                }
+              : letter.letter_type === "first_dispute" || !letter.letter_type
+              ? {
+                  lobLetterId: caseRow.lob_letter_id,
+                  status: caseRow.mail_status,
+                  testMode: !!caseRow.mail_test_mode,
+                  certified: !!caseRow.mail_certified,
+                  expectedDelivery: caseRow.mail_expected_delivery,
+                  to: caseRow.mail_to,
+                }
+              : { lobLetterId: null, status: null, testMode: false, certified: false, expectedDelivery: null, to: null }
+          }
           onMailed={(next: MailState) =>
             setCaseRow((prev) =>
               prev

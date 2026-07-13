@@ -156,6 +156,9 @@ export async function POST(request: Request) {
           letter_type: l.letterType,
           audit_logic_version: AUDIT_LOGIC_VERSION,
           audit_fingerprint: fingerprint,
+          // The draft carries its triggering outcome so dispatch sets
+          // parent_outcome_id exactly, never by inference (step 5, A2).
+          source_outcome_id: outcomeId,
         })
         .select('id')
         .single()

@@ -159,12 +159,16 @@ function AddressFields({
 
 export function MailItPanel({
   caseId,
+  letterId,
   providerName,
   patientInfo,
   initial,
   onMailed,
 }: {
   caseId: string;
+  /** The specific dispute_letters row to mail (letter picker, step 5).
+   *  Absent = the case's newest letter, the pre-picker behavior. */
+  letterId?: string;
   providerName: string | null;
   patientInfo: { name?: string; address?: string };
   initial: MailState;
@@ -220,7 +224,7 @@ export function MailItPanel({
       const res = await fetch("/api/mail-letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caseId, to, from, certified }),
+        body: JSON.stringify({ caseId, to, from, certified, ...(letterId ? { letterId } : {}) }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {

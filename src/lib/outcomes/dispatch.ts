@@ -19,6 +19,9 @@ export interface DispatchOutcomeParams {
   /** The letter's escalation rung (dispute_letters.letter_type); drives
    *  recipient_type and escalation_level on the outcome row. */
   letterType?: string | null
+  /** The outcome this dispatch escalates from (dispute_letters.
+   *  source_outcome_id, threaded from draft creation); null for first letters. */
+  parentOutcomeId?: string | null
 }
 
 // letter_type → dispute_outcomes.recipient_type (DB CHECK vocabulary).
@@ -43,6 +46,30 @@ export function buildDispatchOutcomeRow(p: DispatchOutcomeParams): Record<string
     recipient_name: p.recipientName,
     status: 'sent',
     escalation_level: letterType,
+    parent_outcome_id: p.parentOutcomeId ?? null,
     updated_at: p.sentAt,
   }
+}
+
+// Marks EXACTLY the parent outcome escalated on approved dispatch of an
+// escalation letter — by id, never by heuristic. A case can legitimately hold
+// several escalatable dispatches (e.g. a denied provider dispute AND a
+// no-response collector dispute); only the one this letter escalates from
+// changes state. Returns the error message on failure for the caller to log.
+export async function markParentEscalated(
+  admin: {
+    from: (table: string) => {
+      update: (v: Record<string, unknown>) => {
+        eq: (col: string, val: string) => PromiseLike<{ error: { message: string } | null }>
+      }
+    }
+  },
+  parentOutcomeId: string,
+  when: string
+): Promise<string | null> {
+  const { error } = await admin
+    .from('dispute_outcomes')
+    .update({ status: 'escalated', updated_at: when })
+    .eq('id', parentOutcomeId)
+  return error ? error.message : null
 }
