@@ -6,6 +6,7 @@ import { runFullAudit } from '@/lib/audit/runFullAudit'
 import { normalizeInsuranceType } from '@/lib/insuranceMapping'
 import { MAX_FILE_BYTES } from '@/lib/billExtractor'
 import { isUuid } from '@/lib/storage/bills'
+import { captureServer } from '@/lib/analytics-server'
 import { MergeError } from '@/lib/documents/mergePages'
 import { resolveSlot } from '@/lib/documents/resolveUpload'
 import { checkRateLimit, clientIp, decodedBase64Bytes } from '@/lib/rateLimit'
@@ -148,8 +149,16 @@ export async function POST(request: Request) {
       supabase,
     })
 
-    return NextResponse.json({
-      success: true,
+    await captureServer(guestSessionId || 'guest-unknown', 'audit_completed', {
+      surface: 'guest',
+      findings_count: result.errorCount,
+      needs_review_count: result.needsReviewCount,
+      total_billed: result.totalBilled,
+      potential_savings: result.potentialSavings,
+      has_eob: result.hasEob,
+    })
+
+    const payload = {
       provider: result.provider,
       lineItems: result.lineItems,
       errors: result.errors,
@@ -169,7 +178,34 @@ export async function POST(request: Request) {
       crossDocumentDiscrepancies: result.normalizedCbs.crossDocumentDiscrepancies,
       timeline: result.normalizedCbs.timeline,
       normalizedCbs: result.normalizedCbs,
-    })
+    }
+
+    // Persist the audit under an unguessable token so the guest can get back
+    // to it from another device or after clearing the browser (/report/[token]).
+    // Best-effort: the inline result must render even if persistence fails.
+    let reportToken: string | null = null
+    let reportExpiresAt: string | null = null
+    try {
+      const { data: report, error: reportErr } = await createAdminClient()
+        .from('guest_audit_reports')
+        .insert({
+          guest_session_id: isUuid(guestSessionId) ? guestSessionId : null,
+          audit: payload,
+          audit_logic_version: AUDIT_LOGIC_VERSION,
+        })
+        .select('token, expires_at')
+        .single()
+      if (reportErr) {
+        console.error('audit-guest: report persistence failed:', reportErr.message)
+      } else if (report) {
+        reportToken = report.token
+        reportExpiresAt = report.expires_at
+      }
+    } catch (e) {
+      console.error('audit-guest: report persistence failed:', e instanceof Error ? e.message : 'unknown')
+    }
+
+    return NextResponse.json({ success: true, ...payload, reportToken, reportExpiresAt })
   } catch (error) {
     console.error('Guest audit error:', error)
     return NextResponse.json({ error: 'Audit failed. Please try again.' }, { status: 500 })
