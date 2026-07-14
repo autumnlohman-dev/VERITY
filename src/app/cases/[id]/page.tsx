@@ -27,6 +27,7 @@ import { generateEvidentiaryPackage } from "@/lib/letterPdf";
 import { applyLetterSubstitutions, evidentiaryPackageFilename, todayLongDate } from "@/lib/letterFields";
 import { disputeUnlocked } from "@/lib/entitlements";
 import { userFacingErrorCount } from "@/lib/audit/errorCount";
+import { track } from "@/lib/analytics";
 import { MANUAL_REVIEW_ERROR_TYPES } from "@/lib/audit/manualReview";
 import { EM_QUESTIONS } from "@/lib/emReview";
 import { formatCalendarDate } from "@/lib/dates";
@@ -541,6 +542,34 @@ function EmOutcomeCallout({ review }: { review: EmReview }) {
       )}
     </div>
   );
+}
+
+// Renders nothing; fires findings_viewed once per mount with the settled
+// headline figures. A child component (not an inline effect) because the
+// figures are derived in the parent's render body, where refs can't be
+// written and hooks can't be added after the early returns.
+function TrackFindingsViewed(props: {
+  caseId: string;
+  findingsCount: number;
+  potentialSavings: number;
+  amountBilled: number;
+  hasEob: boolean;
+  status: string;
+}) {
+  const tracked = useRef(false);
+  useEffect(() => {
+    if (tracked.current) return;
+    tracked.current = true;
+    track("findings_viewed", {
+      case_id: props.caseId,
+      findings_count: props.findingsCount,
+      potential_savings: props.potentialSavings,
+      amount_billed: props.amountBilled,
+      has_eob: props.hasEob,
+      status: props.status,
+    });
+  });
+  return null;
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -1115,6 +1144,16 @@ export default function CaseDetailPage({
 
   return (
     <Shell>
+      {caseRow.status !== "auditing" && (
+        <TrackFindingsViewed
+          caseId={id}
+          findingsCount={findingsCount}
+          potentialSavings={savings}
+          amountBilled={billed}
+          hasEob={!!caseRow.bill_data?.hasEob}
+          status={caseRow.status}
+        />
+      )}
       {/* Hidden re-run file input, mounted for every status so both the
           stranded-audit retry and the stale-audit fallback can open it. */}
       <input

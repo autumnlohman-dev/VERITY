@@ -13,6 +13,7 @@ import { checkRateLimit, decodedBase64Bytes } from '@/lib/rateLimit'
 import { AUDIT_LOGIC_VERSION } from '@/lib/audit/version'
 import { auditSnapshotFingerprint, markLettersStaleIfChanged } from '@/lib/letters/staleness'
 import { NextResponse } from 'next/server'
+import { captureServer } from '@/lib/analytics-server'
 
 export const runtime = 'nodejs'
 // Insured cases run two sequential vision extractions (bill + EOB) plus
@@ -304,6 +305,15 @@ export async function POST(request: Request) {
         { status: 500 }
       )
     }
+
+    await captureServer(user.id, 'audit_completed', {
+      surface: 'case',
+      case_id: caseId,
+      findings_count: result.errorCount,
+      total_billed: result.totalBilled,
+      potential_savings: result.potentialSavings,
+      has_eob: result.hasEob,
+    })
 
     return NextResponse.json({
       success: true,

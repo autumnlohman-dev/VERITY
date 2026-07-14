@@ -17,6 +17,7 @@ import {
   type MissingFieldKey,
 } from "@/lib/letterFields";
 import { generateLetterPdf } from "@/lib/letterPdf";
+import { track } from "@/lib/analytics";
 import { deadlinesForCase } from "@/lib/deadlines/forCase";
 import { isSelfPay } from "@/lib/insuranceMapping";
 import { filterOutEmErrors, type EmReview } from "@/lib/emReview";
@@ -1063,6 +1064,13 @@ function LetterPaywall({
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoSubmitting, setPromoSubmitting] = useState(false);
 
+  const paywallTracked = useRef(false);
+  useEffect(() => {
+    if (paywallTracked.current) return;
+    paywallTracked.current = true;
+    track("letter_paywall_viewed", { case_id: caseId, potential_savings: findingsTotal });
+  }, [caseId, findingsTotal]);
+
   async function applyPromo() {
     const code = promoCode.trim();
     if (!code || promoSubmitting) return;
@@ -1081,6 +1089,7 @@ function LetterPaywall({
         );
         return;
       }
+      track("letter_unlocked", { case_id: caseId, method: "promo" });
       onUnlocked();
     } catch {
       setPromoError("Something went wrong. Please try again.");
@@ -1452,10 +1461,13 @@ export default function LetterPage({
   // and showing the paywall, and clean the query param once we're unlocked.
   useEffect(() => {
     if (unlocked) {
-      // Clearing the post-payment flag once unlocked is a one-shot transition,
-      // not a render loop — the guard above stops it from re-firing.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (paidPending) setPaidPending(false);
+      if (paidPending) {
+        track("letter_unlocked", { case_id: id, method: "payment" });
+        // Clearing the post-payment flag once unlocked is a one-shot transition,
+        // not a render loop — the guard above stops it from re-firing.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setPaidPending(false);
+      }
       if (typeof window !== "undefined" && window.location.search.includes("paid=1")) {
         const url = new URL(window.location.href);
         url.searchParams.delete("paid");
@@ -1474,7 +1486,7 @@ export default function LetterPage({
       }
     }, 2000);
     return () => clearInterval(iv);
-  }, [paidPending, unlocked, load]);
+  }, [paidPending, unlocked, load, id]);
 
   // Generate (or regenerate) the dispute letter for this case. This is the
   // single, authoritative trigger: a paying customer who lands here without a
@@ -2130,7 +2142,12 @@ export default function LetterPage({
                 }
               : { lobLetterId: null, status: null, testMode: false, certified: false, expectedDelivery: null, to: null }
           }
-          onMailed={(next: MailState) =>
+          onMailed={(next: MailState) => {
+            track("letter_sent", {
+              case_id: caseRow.id,
+              method: "certified_mail",
+              certified: !!next.certified,
+            });
             setCaseRow((prev) =>
               prev
                 ? {
@@ -2142,8 +2159,8 @@ export default function LetterPage({
                     mail_expected_delivery: next.expectedDelivery,
                   }
                 : prev
-            )
-          }
+            );
+          }}
         />
       ) : (
         <div

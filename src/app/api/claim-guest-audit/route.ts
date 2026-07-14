@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { captureServer } from '@/lib/analytics-server'
 import { type LineItem } from '@/lib/errorDetection'
 import { runFullAudit } from '@/lib/audit/runFullAudit'
 import { findDuplicateCase } from '@/lib/audit/dedup'
@@ -258,6 +259,13 @@ export async function POST(request: Request) {
       console.error('claim-guest-audit insert error:', error)
       return NextResponse.json({ error: 'Failed to save audit' }, { status: 500 })
     }
+
+    await captureServer(user.id, 'guest_audit_claimed', {
+      case_id: newCase.id,
+      guest_claim_id: claimId,
+      findings_count: result.errorCount,
+      potential_savings: result.potentialSavings,
+    })
 
     return NextResponse.json({ caseId: newCase.id })
   } catch (err) {

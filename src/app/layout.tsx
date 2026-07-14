@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Lora, Public_Sans, IBM_Plex_Mono } from "next/font/google";
 import { BRAND_NAME } from "@/lib/brand";
+import PostHogProvider from "@/components/PostHogProvider";
 import "./globals.css";
 
 // Locked typography (DESIGN-BIBLE Part 3): Lora display (400/500/600),
@@ -51,7 +52,7 @@ export default function RootLayout({
       className={`${lora.variable} ${publicSans.variable} ${plexMono.variable}`}
     >
       <body className={`${lora.variable} ${publicSans.variable} ${plexMono.variable} min-h-full antialiased`}>
-        {children}
+        <PostHogProvider>{children}</PostHogProvider>
       </body>
     </html>
   );

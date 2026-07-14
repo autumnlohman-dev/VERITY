@@ -9,6 +9,7 @@ import { syncWorkflows } from '@/lib/agent/advocacyAgent'
 import { resumePendingCheckout } from '@/lib/checkout'
 import { claimPendingGuestAudit } from '@/lib/guestClaim'
 import { BRAND_NAME } from '@/lib/brand'
+import { track, identifyUser } from '@/lib/analytics'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -23,13 +24,16 @@ export default function LoginPage() {
   // Once a session exists, claim any guest-accumulated records, resume a pending
   // checkout if the user came here to buy, import a pending guest audit into a
   // real case (landing them on it), otherwise land on the dashboard.
-  async function completeSignedIn() {
+  async function completeSignedIn(authEvent: 'account_created' | 'signed_in') {
     // Auth has already succeeded by the time we get here. Importing the guest
     // claim and syncing local records are best-effort niceties — if any of them
     // throw, we log to Sentry and still land the user somewhere useful. A
     // post-login error page on a successful sign-in is never acceptable.
     let target = '/dashboard'
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) identifyUser(user.id)
+      track(authEvent)
       await Promise.all([syncOutcomes(), syncWorkflows()])
       if (resumePendingCheckout()) return
       // Carry a guest audit through signup: turn it into a saved case and go
@@ -76,7 +80,7 @@ export default function LoginPage() {
         return
       }
       // Confirmation disabled: we have a live session, proceed.
-      await completeSignedIn()
+      await completeSignedIn('account_created')
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
@@ -84,7 +88,7 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
-      await completeSignedIn()
+      await completeSignedIn('signed_in')
     }
     setLoading(false)
   }

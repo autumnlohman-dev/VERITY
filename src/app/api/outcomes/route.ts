@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { captureServer } from '@/lib/analytics-server'
 import { NextResponse } from 'next/server'
 
 // Dispute-outcome submission. Requires a session and stamps the row with the
@@ -148,6 +149,17 @@ export async function POST(request: Request) {
       console.error('Outcome upsert error:', error)
       return NextResponse.json({ error: 'Failed to save outcome' }, { status: 500 })
     }
+
+    // Upserts replay (guest login-sync, status transitions), so downstream
+    // analysis dedupes on outcome_id + status.
+    await captureServer(user.id, 'outcome_logged', {
+      outcome_id: String(body.outcomeId),
+      case_id: isUuid(body.caseId) ? String(body.caseId) : null,
+      status,
+      amount_recovered: row.amount_recovered,
+      dollar_amount_disputed: row.dollar_amount_disputed,
+      days_to_resolution: row.days_to_resolution,
+    })
 
     return NextResponse.json({ success: true, outcomeId: body.outcomeId })
   } catch (error) {
