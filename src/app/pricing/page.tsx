@@ -192,8 +192,16 @@ const PRICING_FAQS = [
     a: "Because you should know what's wrong before deciding how to fight it. The free Audit tier scans your bill and shows you every error, no credit card, no commitment. If we find nothing, you owe nothing and lose nothing.",
   },
   {
+    q: "Should I pay monthly or yearly?",
+    a: "Yearly, if you expect more than one bill. Medical bills don't arrive on a schedule, and the $149 year means whichever month one shows up, you're already covered. It works out to about $12 a month. Monthly at $19 is there if you want flexibility, and you can cancel anytime.",
+  },
+  {
     q: "Should I pay per bill or join the membership?",
-    a: "If you have a single bill to fight, the $39 Single Dispute covers it: the dispute letter, package, and submission guide for that one bill. If you see doctors more than a few times a year, or you manage care for a family or a parent, the $19/mo membership covers unlimited audits and dispute packages.",
+    a: "If you have exactly one bill to fight and never want a subscription, the $39 Single Dispute covers it: the dispute letter, package, and submission guide for that one bill. If you see doctors more than a few times a year, or you handle bills for a family or a parent you care for, the membership covers every bill for everyone in your house.",
+  },
+  {
+    q: "Why does one dispute cost more than a month of membership?",
+    a: "Because they're built for different people, and we'd rather say that plainly than hide it. The Single Dispute is for someone who wants one letter and no recurring charge: pay once, done. The membership expects an ongoing relationship, so each bill costs less. If you'd rather join for a month, send your dispute, and cancel, that's allowed, and we won't make it hard.",
   },
   {
     q: "Can I upgrade mid-case?",
@@ -201,7 +209,7 @@ const PRICING_FAQS = [
   },
   {
     q: "What does the membership actually do between bills?",
-    a: "Every new bill or EOB you upload is audited and cross-checked against CMS reference data, and when something is wrong you get the full dispute package without paying again.",
+    a: "It keeps watch. Open disputes keep their deadline tracking, every new bill or EOB you upload is audited and cross-checked against CMS reference data the moment it arrives, and your billing history stays in one place. When something is wrong, the full dispute package is included, no new charge.",
   },
 ];
 
@@ -210,18 +218,20 @@ type CellVal = "check" | "dash" | string;
 
 const TABLE_ROWS: { feature: string; audit: CellVal; dispute: CellVal; member: CellVal }[] = [
   { feature: "Full bill audit, every code and charge checked, with evidence and citations", audit: "check", dispute: "check", member: "check" },
-  { feature: "Bills covered", audit: "Report only", dispute: "1 bill", member: "Unlimited" },
+  { feature: "Bills covered", audit: "Report only", dispute: "1 bill", member: "Unlimited, whole household" },
   { feature: "Ready-to-send dispute package (letter, worksheet, citations, submission guide)", audit: "dash", dispute: "check", member: "check" },
   { feature: "Deadline tracker with urgency alerts", audit: "dash", dispute: "check", member: "check" },
   { feature: "Every new bill you upload audited automatically", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Outcome estimate before you file", audit: "dash", dispute: "dash", member: "check" },
   { feature: "Priority support", audit: "dash", dispute: "dash", member: "check" },
-  { feature: "Price", audit: "$0", dispute: "$39 one-time", member: "$19/mo · $149/yr" },
+  { feature: "Price", audit: "$0", dispute: "$39 once", member: "$149/yr or $19/mo" },
 ];
 
 function TableCell({ val }: { val: CellVal }) {
-  if (val === "check") return <span style={{ color: "#5E7E66", fontSize: "15px" }}>✓</span>;
+  if (val === "check") return <span style={{ color: "var(--brand)", fontSize: "15px" }}>✓</span>;
   if (val === "dash") return <span style={{ color: "#CFC6B4", fontSize: "15px" }}>-</span>;
+  if (val.includes("$"))
+    return <span style={{ ...sans("12px", "#221C14"), fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500 }}>{val}</span>;
   return <span style={{ ...sans("12px", "#221C14") }}>{val}</span>;
 }
 
@@ -353,6 +363,7 @@ export default function PricingPage() {
                 "› Upload your bill and EOB",
                 "› Every code and charge checked against CMS data",
                 "› Full error report with evidence",
+                "› If nothing is wrong, you'll know that too",
                 "› No card, no commitment",
               ].map((f) => (
                 <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
@@ -401,8 +412,8 @@ export default function PricingPage() {
             }}
           >
             <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Single Dispute</div>
-            <div style={{ ...serif("52px", { fontStyle: "italic", lineHeight: 1, marginBottom: "4px" }) }}>$39</div>
-            <div style={{ ...sans("12px", "#8A7F6E") }}>one-time, for one bill</div>
+            <div style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: "44px", color: "#221C14", lineHeight: 1.15, marginBottom: "4px" }}>$39</div>
+            <div style={{ ...sans("12px", "#8A7F6E") }}>one-time, for one bill, no subscription</div>
             <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
             <div style={{ ...serif("18px", { fontStyle: "italic", color: "#5F5648", lineHeight: 1.4, marginBottom: "24px" }) }}>
               one bill. ready to send.
@@ -433,6 +444,9 @@ export default function PricingPage() {
                 Get my dispute letter
               </div>
             </Link>
+            <div style={{ ...sans("11px", "#8A7F6E"), textAlign: "center", marginTop: "12px", lineHeight: 1.5 }}>
+              Fighting more than one bill? Membership costs less.
+            </div>
           </motion.div>
 
           {/* MEMBERSHIP */}
@@ -449,32 +463,23 @@ export default function PricingPage() {
               flexDirection: "column",
             }}
           >
-            <div
-              style={{
-                display: "inline-block",
-                backgroundColor: "#C8A97E",
-                color: "#221C14",
-                fontSize: "9px",
-                letterSpacing: "0.15em",
-                textTransform: "uppercase",
-                padding: "4px 8px",
-                marginBottom: "12px",
-                fontFamily: "var(--font-public-sans), system-ui, sans-serif",
-              }}
-            >
-              Most popular
+            <div style={{ ...sans("11px", "var(--brand)"), letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: "12px" }}>
+              Best if you have more than one bill
             </div>
             <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Membership</div>
-            <div style={{ ...serif("52px", { fontStyle: "italic", lineHeight: 1, marginBottom: "4px" }) }}>$19<span style={{ fontSize: "22px" }}>/mo</span></div>
-            <div style={{ ...sans("12px", "#8A7F6E") }}>or $149/yr, two months free</div>
+            <div style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: "44px", color: "#221C14", lineHeight: 1.15, marginBottom: "4px" }}>
+              $149<span style={{ fontSize: "20px" }}>/yr</span>
+            </div>
+            <div style={{ ...sans("12px", "#8A7F6E") }}>or $19 a month, cancel anytime</div>
             <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
             <div style={{ ...serif("18px", { fontStyle: "italic", color: "#5F5648", lineHeight: 1.4, marginBottom: "24px" }) }}>
-              every bill you get, covered.
+              every bill in your house, covered.
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
               {[
                 "› Everything in Single Dispute, unlimited:",
                 "› Unlimited audits and dispute packages",
+                "› Bills for anyone you care for: a spouse, kids, a parent",
                 "› Every new bill you upload audited automatically",
                 "› Outcome estimate before you file",
                 "› Complete billing history in one place",
@@ -486,9 +491,9 @@ export default function PricingPage() {
             <div
               role="button"
               tabIndex={0}
-              onClick={() => handleStartMembership("monthly")}
+              onClick={() => handleStartMembership("annual")}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") handleStartMembership("monthly");
+                if (e.key === "Enter" || e.key === " ") handleStartMembership("annual");
               }}
               style={{
                 ...sans("11px", "#221C14"),
@@ -500,14 +505,14 @@ export default function PricingPage() {
                 cursor: "pointer",
               }}
             >
-              Start membership
+              Start membership · $149/yr
             </div>
             <div
               role="button"
               tabIndex={0}
-              onClick={() => handleStartMembership("annual")}
+              onClick={() => handleStartMembership("monthly")}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") handleStartMembership("annual");
+                if (e.key === "Enter" || e.key === " ") handleStartMembership("monthly");
               }}
               style={{
                 ...sans("11px", "#8A7F6E"),
@@ -520,7 +525,7 @@ export default function PricingPage() {
                 textUnderlineOffset: "3px",
               }}
             >
-              or $149/yr, two months free
+              or monthly, $19/mo
             </div>
           </motion.div>
         </div>
@@ -552,7 +557,7 @@ export default function PricingPage() {
               { h: "Feature", col: "#8A7F6E" },
               { h: "Audit, Free", col: "#5F5648" },
               { h: "Single Dispute, $39", col: "#5F5648" },
-              { h: "Membership, $19/mo", col: "#C8A97E" },
+              { h: "Membership, $149/yr", col: "#C8A97E" },
             ].map(({ h, col }, i) => (
               <div
                 key={h}

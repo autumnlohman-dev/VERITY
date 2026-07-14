@@ -882,7 +882,8 @@ export default function LandingPage() {
           </h2>
           <p style={{ ...sans("14px", "#5F5648"), maxWidth: "460px", lineHeight: 1.75, marginBottom: "32px" }}>
             The audit is free. A single dispute package is $39. The membership is
-            $19/mo for unlimited audits and dispute packages.
+            $149 a year (or $19 a month) for unlimited audits and dispute
+            packages, for every bill in your house.
           </p>
           <Link href="/pricing" style={{ textDecoration: "none" }}>
             <span
