@@ -27,7 +27,7 @@ const sans = (size: string, color = "#5F5648", extra?: React.CSSProperties): Rea
   ...extra,
 });
 
-const label = (color = "#C8A97E"): React.CSSProperties => ({
+const label = (color = "var(--brand)"): React.CSSProperties => ({
   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: "11px",
   letterSpacing: "0.25em",
@@ -260,6 +260,164 @@ export default function PricingPage() {
     transition: { duration: 0.7, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] },
   };
 
+
+  // Tier cards render from one config so all three share identical row markup;
+  // the section's subgrid keeps every row on shared tracks across the columns.
+  const ctaOutline: React.CSSProperties = {
+    ...sans("11px", "var(--brand)"),
+    border: "1px solid var(--brand)",
+    padding: "14px",
+    textAlign: "center",
+    letterSpacing: "0.2em",
+    textTransform: "uppercase",
+    cursor: "pointer",
+    transition: "background-color 0.2s, color 0.2s",
+  };
+  const ctaFill = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.currentTarget.style.backgroundColor = "var(--brand-fill)";
+    e.currentTarget.style.color = "var(--ink)";
+    e.currentTarget.style.borderColor = "var(--brand-fill)";
+  };
+  const ctaUnfill = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.currentTarget.style.backgroundColor = "transparent";
+    e.currentTarget.style.color = "var(--brand)";
+    e.currentTarget.style.borderColor = "var(--brand)";
+  };
+
+  const tierCards: Array<{
+    name: string;
+    eyebrow: string;
+    emphasized: boolean;
+    price: string;
+    /** Dollar figures render mono (.figure); the word "Free" stays italic Lora. */
+    priceFace: "mono" | "serif";
+    priceSuffix: string | null;
+    subline: string;
+    tagline: string;
+    features: string[];
+    cta: React.ReactNode;
+    footer: React.ReactNode;
+  }> = [
+    {
+      name: "Audit",
+      eyebrow: "",
+      emphasized: false,
+      price: "Free",
+      priceFace: "serif",
+      priceSuffix: null,
+      subline: "always, no card required",
+      tagline: "See exactly what they got wrong.",
+      features: [
+        "› Upload your bill and EOB",
+        "› Every code and charge checked against CMS data",
+        "› Full error report with evidence",
+        "› If nothing is wrong, you'll know that too",
+        "› No card, no commitment",
+      ],
+      cta: (
+        <Link href="/upload?tier=audit" style={{ textDecoration: "none" }}>
+          <div style={ctaOutline} onMouseEnter={ctaFill} onMouseLeave={ctaUnfill}>
+            See what&apos;s wrong, free
+          </div>
+        </Link>
+      ),
+      footer: null,
+    },
+    {
+      name: "Single Dispute",
+      eyebrow: "",
+      emphasized: false,
+      price: "$39",
+      priceFace: "mono",
+      priceSuffix: null,
+      subline: "one-time, for one bill, no subscription",
+      tagline: "One bill, ready to send.",
+      features: [
+        "› Everything in Audit, plus:",
+        "› Ready-to-send dispute letter with citations",
+        "› Full dispute package: worksheet, citations, deadlines",
+        "› Step-by-step submission guide",
+        "› Deadline tracker with urgency alerts",
+      ],
+      cta: (
+        <Link href="/upload?tier=dispute" style={{ textDecoration: "none" }}>
+          <div style={ctaOutline} onMouseEnter={ctaFill} onMouseLeave={ctaUnfill}>
+            Get my dispute letter
+          </div>
+        </Link>
+      ),
+      footer: (
+        <div style={{ ...sans("11px", "var(--ink-soft)"), textAlign: "center", marginTop: "12px", lineHeight: 1.5 }}>
+          Fighting more than one bill? Membership costs less.
+        </div>
+      ),
+    },
+    {
+      name: "Membership",
+      eyebrow: "Best if you have more than one bill",
+      emphasized: true,
+      price: "$149",
+      priceFace: "mono",
+      priceSuffix: "/yr",
+      subline: "or $19 a month, cancel anytime",
+      tagline: "Every bill in your house, covered.",
+      features: [
+        "› Everything in Single Dispute, unlimited:",
+        "› Unlimited audits and dispute packages",
+        "› Bills for anyone you care for: a spouse, kids, a parent",
+        "› Every new bill you upload audited automatically",
+        "› Outcome estimate before you file",
+        "› Complete billing history in one place",
+        "› Priority support",
+      ],
+      cta: (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => handleStartMembership("annual")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") handleStartMembership("annual");
+          }}
+          style={{
+            ...sans("11px", "var(--ink)"),
+            backgroundColor: "var(--brand-fill)",
+            border: "1px solid var(--brand-fill)",
+            padding: "14px",
+            textAlign: "center",
+            letterSpacing: "0.2em",
+            textTransform: "uppercase",
+            fontWeight: 500,
+            cursor: "pointer",
+          }}
+        >
+          Start membership · $149/yr
+        </div>
+      ),
+      footer: (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => handleStartMembership("monthly")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") handleStartMembership("monthly");
+          }}
+          style={{
+            ...sans("11px", "var(--ink-soft)"),
+            textAlign: "center",
+            marginTop: "12px",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            cursor: "pointer",
+            textDecoration: "underline",
+            textUnderlineOffset: "3px",
+          }}
+        >
+          or monthly, $19/mo
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="page-root" style={{ background: "var(--surface)", minHeight: "100vh" }}>
       <Nav />
@@ -329,205 +487,63 @@ export default function PricingPage() {
 
       {/* ── 3 tier cards ── */}
       <section style={{ paddingTop: "96px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
+        {/* Subgrid: the nine rows of every card share the same tracks, so
+            names, prices, dividers, lists, and CTAs align across columns. */}
         <div
           className="r-grid-1"
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr 1fr",
-            gap: "16px",
-            alignItems: "stretch",
+            gridTemplateRows: "auto auto auto auto auto auto 1fr auto auto",
+            columnGap: "16px",
           }}
         >
-          {/* AUDIT */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 }}
-            style={{
-              backgroundColor: "#F4EFE6",
-              border: "1px solid #D8CFBE",
-              padding: "32px",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Audit</div>
-            <div style={{ ...serif("52px", { fontStyle: "italic", lineHeight: 1, marginBottom: "4px" }) }}>Free</div>
-            <div style={{ ...sans("12px", "#8A7F6E") }}>always</div>
-            <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
-            <div style={{ ...serif("18px", { fontStyle: "italic", color: "#5F5648", lineHeight: 1.4, marginBottom: "24px" }) }}>
-              see exactly what they got wrong.
-            </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
-              {[
-                "› Upload your bill and EOB",
-                "› Every code and charge checked against CMS data",
-                "› Full error report with evidence",
-                "› If nothing is wrong, you'll know that too",
-                "› No card, no commitment",
-              ].map((f) => (
-                <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
-              ))}
-            </div>
-            <Link href="/upload?tier=audit" style={{ textDecoration: "none" }}>
-              <div
-                style={{
-                  ...sans("11px", "#C8A97E"),
-                  border: "1px solid #C8A97E",
-                  padding: "14px",
-                  textAlign: "center",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  cursor: "pointer",
-                  transition: "background-color 0.2s, color 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  const el = e.currentTarget as HTMLDivElement;
-                  el.style.backgroundColor = "#C8A97E";
-                  el.style.color = "#221C14";
-                }}
-                onMouseLeave={(e) => {
-                  const el = e.currentTarget as HTMLDivElement;
-                  el.style.backgroundColor = "transparent";
-                  el.style.color = "#C8A97E";
-                }}
-              >
-                See what&apos;s wrong, free
-              </div>
-            </Link>
-          </motion.div>
-
-          {/* DISPUTE */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.2 }}
-            style={{
-              backgroundColor: "#F4EFE6",
-              border: "1px solid #D8CFBE",
-              padding: "32px",
-              position: "relative",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Single Dispute</div>
-            <div style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: "44px", color: "#221C14", lineHeight: 1.15, marginBottom: "4px" }}>$39</div>
-            <div style={{ ...sans("12px", "#8A7F6E") }}>one-time, for one bill, no subscription</div>
-            <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
-            <div style={{ ...serif("18px", { fontStyle: "italic", color: "#5F5648", lineHeight: 1.4, marginBottom: "24px" }) }}>
-              one bill. ready to send.
-            </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
-              {[
-                "› Everything in Audit, plus:",
-                "› Ready-to-send dispute letter with citations",
-                "› Full dispute package: worksheet, citations, deadlines",
-                "› Step-by-step submission guide",
-                "› Deadline tracker with urgency alerts",
-              ].map((f) => (
-                <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
-              ))}
-            </div>
-            <Link href="/upload?tier=dispute" style={{ textDecoration: "none" }}>
-              <div
-                style={{
-                  ...sans("11px", "#C8A97E"),
-                  border: "1px solid #C8A97E",
-                  padding: "14px",
-                  textAlign: "center",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  cursor: "pointer",
-                }}
-              >
-                Get my dispute letter
-              </div>
-            </Link>
-            <div style={{ ...sans("11px", "#8A7F6E"), textAlign: "center", marginTop: "12px", lineHeight: 1.5 }}>
-              Fighting more than one bill? Membership costs less.
-            </div>
-          </motion.div>
-
-          {/* MEMBERSHIP */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.3 }}
-            style={{
-              backgroundColor: "#F4EFE6",
-              border: "1.5px solid #C8A97E",
-              padding: "32px",
-              position: "relative",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <div style={{ ...sans("11px", "var(--brand)"), letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: "12px" }}>
-              Best if you have more than one bill
-            </div>
-            <div style={{ ...serif("32px", { marginBottom: "4px" }) }}>Membership</div>
-            <div style={{ fontFamily: "var(--font-plex-mono), ui-monospace, monospace", fontWeight: 500, fontSize: "44px", color: "#221C14", lineHeight: 1.15, marginBottom: "4px" }}>
-              $149<span style={{ fontSize: "20px" }}>/yr</span>
-            </div>
-            <div style={{ ...sans("12px", "#8A7F6E") }}>or $19 a month, cancel anytime</div>
-            <div style={{ borderTop: "1px solid #D8CFBE", margin: "24px 0" }} />
-            <div style={{ ...serif("18px", { fontStyle: "italic", color: "#5F5648", lineHeight: 1.4, marginBottom: "24px" }) }}>
-              every bill in your house, covered.
-            </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
-              {[
-                "› Everything in Single Dispute, unlimited:",
-                "› Unlimited audits and dispute packages",
-                "› Bills for anyone you care for: a spouse, kids, a parent",
-                "› Every new bill you upload audited automatically",
-                "› Outcome estimate before you file",
-                "› Complete billing history in one place",
-                "› Priority support",
-              ].map((f) => (
-                <div key={f} style={{ ...sans("13px", "#5F5648") }}>{f}</div>
-              ))}
-            </div>
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => handleStartMembership("annual")}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") handleStartMembership("annual");
-              }}
+          {tierCards.map((t, i) => (
+            <motion.div
+              key={t.name}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: 0.1 + i * 0.1 }}
               style={{
-                ...sans("11px", "#221C14"),
-                backgroundColor: "#C8A97E",
-                padding: "14px",
-                textAlign: "center",
-                letterSpacing: "0.2em",
-                textTransform: "uppercase",
-                cursor: "pointer",
+                gridRow: "span 9",
+                display: "grid",
+                gridTemplateRows: "subgrid",
+                backgroundColor: "var(--surface-raised)",
+                border: t.emphasized ? "1.5px solid var(--brand)" : "1px solid var(--line)",
+                padding: "32px",
               }}
             >
-              Start membership · $149/yr
-            </div>
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => handleStartMembership("monthly")}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") handleStartMembership("monthly");
-              }}
-              style={{
-                ...sans("11px", "#8A7F6E"),
-                textAlign: "center",
-                marginTop: "12px",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                cursor: "pointer",
-                textDecoration: "underline",
-                textUnderlineOffset: "3px",
-              }}
-            >
-              or monthly, $19/mo
-            </div>
-          </motion.div>
+              <div style={{ ...sans("11px", "var(--brand)"), letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: "16px" }}>
+                {t.eyebrow}
+              </div>
+              <div style={{ ...serif("22px") }}>{t.name}</div>
+              <div
+                className={t.priceFace === "mono" ? "figure" : undefined}
+                style={{
+                  ...(t.priceFace === "serif"
+                    ? { fontFamily: "var(--font-lora), Georgia, serif", fontStyle: "italic" as const, letterSpacing: "-0.015em" }
+                    : {}),
+                  fontSize: "48px",
+                  color: "var(--ink)",
+                  lineHeight: 1.15,
+                  margin: "10px 0 6px",
+                }}
+              >
+                {t.price}
+                {t.priceSuffix ? <span style={{ fontSize: "20px", color: "var(--ink-soft)" }}>{t.priceSuffix}</span> : null}
+              </div>
+              <div style={{ ...sans("13px", "var(--ink-soft)") }}>{t.subline}</div>
+              <div style={{ borderTop: "1px solid var(--line)", margin: "24px 0" }} />
+              <div style={{ ...sans("13px", "var(--ink)"), lineHeight: 1.5, marginBottom: "20px" }}>{t.tagline}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "32px" }}>
+                {t.features.map((f) => (
+                  <div key={f} style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.5 }}>{f}</div>
+                ))}
+              </div>
+              <div>{t.cta}</div>
+              <div>{t.footer}</div>
+            </motion.div>
+          ))}
         </div>
       </section>
 
@@ -607,7 +623,6 @@ export default function PricingPage() {
       {/* ── On the roadmap ── */}
       <section style={{ paddingTop: "0", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
         <motion.div {...fadeUp} style={{ backgroundColor: "#F4EFE6", border: "1px solid #D8CFBE", padding: "32px" }}>
-          <div style={{ ...label("#8A7F6E"), marginBottom: "16px" }}>On the roadmap · Coming soon</div>
           <p style={{ ...sans("13px", "#5F5648"), lineHeight: 1.75, maxWidth: "680px" }}>
             In development for members: generated appeal letters when a dispute is denied, escalation letters to regulators, credit bureaus, and collectors, and real-time call guidance. None of these are live yet. Today, Verity generates your audit report and dispute letter, and mails your dispute by certified mail.
           </p>
