@@ -144,63 +144,6 @@ const STEPS = [
   { n: 4, title: "Mail", body: "Approve the letter and Verity mails it by certified mail." },
 ];
 
-// ─── Audit vignette (hero) ────────────────────────────────────────────────────
-// A simplified HTML/CSS mock of the audit findings panel, golden-case numbers
-// only (synthetic; no real data). Mirrors the real product's structure: one
-// finding row, then the exact total line the letter enforces.
-const mono = (size: string, color = "#221C14", extra?: React.CSSProperties): React.CSSProperties => ({
-  fontFamily: "var(--font-plex-mono), ui-monospace, monospace",
-  fontSize: size,
-  fontWeight: 500,
-  color,
-  ...extra,
-});
-
-function AuditVignette() {
-  return (
-    <div
-      style={{
-        backgroundColor: "var(--surface-raised)",
-        border: "1px solid var(--line)",
-        padding: "22px 24px",
-        maxWidth: "420px",
-        width: "100%",
-        boxShadow: "0 18px 50px rgba(60,46,32,0.10)",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "16px" }}>
-        <span style={{ ...sans("10px", "#8A7F6E"), letterSpacing: "0.22em", textTransform: "uppercase" }}>
-          Audit findings · 1 error
-        </span>
-        <span style={{ ...sans("9px", "#B3A28A"), letterSpacing: "0.18em", textTransform: "uppercase" }}>
-          Synthetic data
-        </span>
-      </div>
-      <div
-        style={{
-          borderLeft: "3px solid #C47C6A",
-          backgroundColor: "rgba(196,124,106,0.10)",
-          padding: "12px 14px",
-          marginBottom: "16px",
-        }}
-      >
-        <div style={{ ...serif("18px", { lineHeight: 1.2, marginBottom: "4px" }) }}>Duplicate charge</div>
-        <div style={{ ...sans("12px", "#5F5648") }}>
-          CPT <span style={{ ...mono("11.5px", "#5F5648") }}>80053</span>, billed twice on the same day
-        </div>
-        <div style={{ ...mono("16px", "var(--brand)", { marginTop: "6px" }) }}>$300.00</div>
-      </div>
-      <div style={{ borderTop: "1px solid var(--line)", paddingTop: "12px", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <span style={{ ...sans("10px", "#221C14"), letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 600 }}>
-          Total correction requested
-        </span>
-        <span style={{ ...mono("15px") }}>$300.00</span>
-      </div>
-      <div style={{ ...sans("11px", "#8A7F6E"), marginTop: "10px" }}>Letter ready for your review.</div>
-    </div>
-  );
-}
-
 // ─── Timeline milestones ──────────────────────────────────────────────────────
 const MILESTONES = [
   { date: "Mar 12", label: "Documents uploaded", day: 0, done: true, active: false },
@@ -230,29 +173,26 @@ export default function HowItWorksPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, ease: [0.25, 0.1, 0.25, 1] }}
         >
-          <div className="r-grid-1" style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: "48px", alignItems: "center" }}>
-            <div>
-              <div style={{ ...label(), marginBottom: "32px" }}>How it works</div>
-              <h1
-                style={{
-                  fontFamily: "var(--font-lora), Georgia, serif",
-                  letterSpacing: "-0.015em",
-                  fontSize: "clamp(56px, 7vw, 96px)",
-                  color: "#221C14",
-                  lineHeight: 0.92,
-                  fontWeight: 400,
-                  marginBottom: 0,
-                }}
-              >
-                We fix medical bills.
-                <br />
-                <em style={{ fontStyle: "italic" }}>You keep the money.</em>
-              </h1>
-              <p style={{ ...sans("15px", "#5F5648"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
-                Verity reviews your bill, finds the errors, and prepares a ready-to-send dispute package; nothing is sent without your approval.
-              </p>
-            </div>
-            <AuditVignette />
+          <div>
+            <div style={{ ...label(), marginBottom: "32px" }}>How it works</div>
+            <h1
+              style={{
+                fontFamily: "var(--font-lora), Georgia, serif",
+                letterSpacing: "-0.015em",
+                fontSize: "clamp(56px, 7vw, 96px)",
+                color: "#221C14",
+                lineHeight: 0.92,
+                fontWeight: 400,
+                marginBottom: 0,
+              }}
+            >
+              We fix medical bills.
+              <br />
+              <em style={{ fontStyle: "italic" }}>You keep the money.</em>
+            </h1>
+            <p style={{ ...sans("15px", "#5F5648"), marginTop: "32px", maxWidth: "520px", lineHeight: 1.75 }}>
+              Verity reviews your bill, finds the errors, and prepares a ready-to-send dispute package; nothing is sent without your approval.
+            </p>
           </div>
         </motion.div>
       </section>
@@ -453,12 +393,18 @@ export default function HowItWorksPage() {
         </div>
       </section>
 
-      {/* ── What's next (roadmap — future tense, nothing here is live) ── */}
-      <section id="whats-next" style={{ borderTop: "1px dashed #CFC6B4", paddingTop: "96px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
+      {/* ── What's next (roadmap — future tense, nothing here is live).
+          Full section weight, matching every other section on this page:
+          solid hairline, default ink/body colors. The heading plus each
+          item's future-tense verbs ("will generate", "will monitor", ...)
+          carry the not-yet-live signal; no separate eyebrow label needed. */}
+      <section id="whats-next" style={{ borderTop: "1px solid var(--line)", paddingTop: "96px", paddingBottom: "96px", paddingLeft: "64px", paddingRight: "64px" }}>
         <motion.div {...fadeUp}>
-          <div style={{ ...label("#8A7F6E"), marginBottom: "24px" }}>On the roadmap · Coming soon</div>
-          <p style={{ ...sans("15px", "#5F5648"), maxWidth: "560px", lineHeight: 1.75, marginBottom: "56px" }}>
-            Today, Verity audits your bill and writes your dispute letter. That&apos;s the foundation. Here&apos;s what comes next.
+          <h2 style={{ ...serif("48px", { lineHeight: 1.05, marginBottom: "24px" }) }}>
+            Here&apos;s what comes next.
+          </h2>
+          <p style={{ ...sans("15px"), maxWidth: "560px", lineHeight: 1.75, marginBottom: "56px" }}>
+            Today, Verity audits your bill and writes your dispute letter. That&apos;s the foundation.
           </p>
         </motion.div>
         <div className="r-grid-1" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "48px", maxWidth: "1100px" }}>
@@ -486,10 +432,10 @@ export default function HowItWorksPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.7, ease: [0.25, 0.1, 0.25, 1], delay: i * 0.05 }}
-              style={{ borderTop: "1px dashed #CFC6B4", paddingTop: "28px" }}
+              style={{ borderTop: "1px solid var(--line)", paddingTop: "28px" }}
             >
-              <div style={{ ...serif("23px", { color: "#5F5648", lineHeight: 1.15, marginBottom: "14px" }) }}>{item.title}</div>
-              <p style={{ ...sans("13px", "#8A7F6E"), lineHeight: 1.75 }}>{item.body}</p>
+              <div style={{ ...serif("24px", { lineHeight: 1.15, marginBottom: "14px" }) }}>{item.title}</div>
+              <p style={{ ...sans("14px"), lineHeight: 1.75 }}>{item.body}</p>
             </motion.div>
           ))}
         </div>
