@@ -722,7 +722,7 @@ export default function DashboardPage() {
             >
               <div style={{ flex: 1, padding: "18px 16px" }}>
                 <div style={{ ...label(), fontSize: "10px", marginBottom: "8px" }}>The bill asks</div>
-                <div className="figure" style={{ ...sans("19px", "var(--ink)") }}>
+                <div className="figure" style={{ fontSize: "19px", color: "var(--ink)" }}>
                   {cents(evidence.billAsks)}
                 </div>
               </div>
@@ -732,7 +732,7 @@ export default function DashboardPage() {
               />
               <div style={{ flex: 1, padding: "18px 16px" }}>
                 <div style={{ ...label(), fontSize: "10px", marginBottom: "8px" }}>Your insurance says</div>
-                <div className="figure" style={{ ...sans("19px", "var(--brand)") }}>
+                <div className="figure" style={{ fontSize: "19px", color: "var(--brand)" }}>
                   {cents(evidence.insuranceSays)}
                 </div>
               </div>
@@ -861,19 +861,19 @@ export default function DashboardPage() {
             >
               <div>
                 <div style={{ ...label(), marginBottom: "4px" }}>billed across your cases</div>
-                <div style={{ ...sans("18px", "var(--ink)") }} className="figure">
+                <div style={{ fontSize: "18px", color: "var(--ink)" }} className="figure">
                   {formatCurrency(totalBilled)}
                 </div>
               </div>
               <div>
                 <div style={{ ...label(), marginBottom: "4px" }}>possible savings found</div>
-                <div style={{ ...sans("18px", "var(--ink)") }} className="figure">
+                <div style={{ fontSize: "18px", color: "var(--ink)" }} className="figure">
                   {formatCurrency(totalPotential)}
                 </div>
               </div>
               <div>
                 <div style={{ ...label(), marginBottom: "4px" }}>recovered</div>
-                <div style={{ ...sans("18px", "var(--ink)") }} className="figure">
+                <div style={{ fontSize: "18px", color: "var(--ink)" }} className="figure">
                   {formatCurrency(totalRecovered)}
                 </div>
               </div>
@@ -938,10 +938,10 @@ export default function DashboardPage() {
                         <div style={{ ...sans("13px", "var(--ink)") }}>{dateInfo.value}</div>
                         <div style={{ ...sans("11px"), marginTop: "2px" }}>{dateInfo.labelText}</div>
                       </div>
-                      <div style={{ ...sans("14px", "var(--ink)") }} className="figure">
+                      <div style={{ fontSize: "14px", color: "var(--ink)" }} className="figure">
                         {formatCurrency(billed)}
                       </div>
-                      <div style={{ ...sans("14px", potential > 0 ? "var(--ink)" : "var(--ink-soft)") }} className="figure">
+                      <div style={{ fontSize: "14px", color: potential > 0 ? "var(--ink)" : "var(--ink-soft)" }} className="figure">
                         {potential > 0 ? formatCurrency(potential) : "-"}
                       </div>
                       <StatusPill c={c} />

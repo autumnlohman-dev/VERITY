@@ -189,7 +189,7 @@ function CrossDocCard({ d }: { d: NormalizedCBSSet["crossDocumentDiscrepancies"]
           {d.type.replace(/_/g, " ")}
         </div>
         {d.estimatedDollarImpact > 0 && (
-          <div className="figure" style={{ ...sans("18px", "var(--ink)") }}>
+          <div className="figure" style={{ fontSize: "18px", color: "var(--ink)" }}>
             {formatCurrency(d.estimatedDollarImpact)}
           </div>
         )}
@@ -1304,7 +1304,7 @@ export default function CaseDetailPage({
                 <div style={{ ...label("var(--ink-soft)"), fontSize: "10px", marginBottom: "8px" }}>
                   The bill asks
                 </div>
-                <div className="figure" style={{ ...sans("19px", "var(--ink)") }}>
+                <div className="figure" style={{ fontSize: "19px", color: "var(--ink)" }}>
                   {cents(evidence.billAsks)}
                 </div>
               </div>
@@ -1316,7 +1316,7 @@ export default function CaseDetailPage({
                 <div style={{ ...label("var(--ink-soft)"), fontSize: "10px", marginBottom: "8px" }}>
                   Your insurance says
                 </div>
-                <div className="figure" style={{ ...sans("19px", "var(--brand)") }}>
+                <div className="figure" style={{ fontSize: "19px", color: "var(--brand)" }}>
                   {cents(evidence.insuranceSays)}
                 </div>
               </div>
@@ -1593,17 +1593,17 @@ export default function CaseDetailPage({
                         alignItems: "start",
                       }}
                     >
-                      <span className="figure" style={{ ...sans("12px", "var(--ink-soft)") }}>
+                      <span className="figure" style={{ fontSize: "12px", color: "var(--ink-soft)" }}>
                         {err.cpt_code}
                       </span>
                       <div style={{ ...sans("13px", "var(--ink)") }}>
                         {errorTypeLabel(err.error_type)}
                         {err.description ? `, ${err.description}` : ""}
                       </div>
-                      <span className="figure" style={{ ...sans("13px", "var(--ink-soft)") }}>
+                      <span className="figure" style={{ fontSize: "13px", color: "var(--ink-soft)" }}>
                         {formatCurrency(err.billed_amount)}
                       </span>
-                      <span className="figure" style={{ ...sans("13px", "var(--ink-soft)") }}>
+                      <span className="figure" style={{ fontSize: "13px", color: "var(--ink-soft)" }}>
                         {formatCurrency(err.expected_amount)}
                       </span>
                       <ConfidenceBadge confidence={err.confidence} />
@@ -1631,7 +1631,7 @@ export default function CaseDetailPage({
                 {savings > 0 && (
                   <div style={{ paddingTop: "20px", textAlign: "right" }}>
                     <span style={{ ...sans("13px", "var(--ink-soft)") }}>Potential savings:</span>
-                    <span className="figure" style={{ ...sans("18px", "var(--brand)"), marginLeft: "12px" }}>
+                    <span className="figure" style={{ fontSize: "18px", color: "var(--brand)", marginLeft: "12px" }}>
                       {formatCurrency(savings)}
                     </span>
                   </div>
@@ -1786,7 +1786,7 @@ export default function CaseDetailPage({
               { value: formatCurrency(savings), sublabel: "potential savings" },
             ].map((item) => (
               <div key={item.sublabel}>
-                <div className="figure" style={{ ...sans("20px", "var(--ink)") }}>{item.value}</div>
+                <div className="figure" style={{ fontSize: "20px", color: "var(--ink)" }}>{item.value}</div>
                 <div style={{ ...sans("11px", "var(--ink-soft)"), marginTop: "4px" }}>{item.sublabel}</div>
               </div>
             ))}

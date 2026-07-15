@@ -196,7 +196,7 @@ export default async function ReportPage({ params }: { params: Promise<{ token: 
               <div key={i} style={{ borderBottom: "1px solid var(--line)", padding: "20px 0" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "24px", alignItems: "baseline" }}>
                   <span style={{ ...sans("14px", "var(--ink)") }}>{e.description || "Billing error"}</span>
-                  <span className="figure" style={{ ...sans("14px", "var(--brand)"), whiteSpace: "nowrap" }}>
+                  <span className="figure" style={{ fontSize: "14px", color: "var(--brand)", whiteSpace: "nowrap" }}>
                     {e.justification_only || recoverable <= 0 ? "justification requested" : `${dollars(recoverable)} recoverable`}
                   </span>
                 </div>
@@ -214,7 +214,7 @@ export default async function ReportPage({ params }: { params: Promise<{ token: 
                 <span style={{ ...sans("14px", "var(--ink)") }}>
                   {d.description || "Your bill and your insurance's statement disagree"}
                 </span>
-                <span className="figure" style={{ ...sans("14px", "var(--brand)"), whiteSpace: "nowrap" }}>
+                <span className="figure" style={{ fontSize: "14px", color: "var(--brand)", whiteSpace: "nowrap" }}>
                   {dollars(Number(d.estimatedDollarImpact ?? 0))} at stake
                 </span>
               </div>

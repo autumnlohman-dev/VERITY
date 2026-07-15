@@ -20,13 +20,13 @@ const serif = (size: string, extra?: React.CSSProperties): React.CSSProperties =
   
   letterSpacing: "-0.015em",
   fontSize: size,
-  color: "#221C14",
+  color: "var(--ink)",
   lineHeight: 1,
   fontWeight: 400,
   ...extra,
 });
 
-const sans = (size: string, color = "#5F5648", extra?: React.CSSProperties): React.CSSProperties => ({
+const sans = (size: string, color = "var(--ink-soft)", extra?: React.CSSProperties): React.CSSProperties => ({
   fontFamily: "var(--font-public-sans), system-ui, sans-serif",
   fontSize: size,
   color,
@@ -62,7 +62,7 @@ function Nav() {
       <Link href="/" style={{ textDecoration: "none", display: "flex", alignItems: "center" }}>
         <span
           style={{
-            ...sans("15px", "#221C14"),
+            ...sans("15px", "var(--ink)"),
             letterSpacing: "0.42em",
             textTransform: "uppercase",
             fontWeight: 300,
@@ -83,14 +83,14 @@ function Nav() {
             key={link.href}
             href={link.href}
             style={{
-              ...sans("11px", "#5F5648"),
+              ...sans("11px", "var(--ink-soft)"),
               letterSpacing: "0.15em",
               textTransform: "uppercase",
               textDecoration: "none",
               transition: "color 0.2s",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#221C14")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#5F5648")}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ink)")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ink-soft)")}
           >
             {link.label}
           </Link>
@@ -99,7 +99,7 @@ function Nav() {
       <Link href="/upload" style={{ textDecoration: "none" }}>
         <span
           style={{
-            ...sans("11px", "#221C14"),
+            ...sans("11px", "var(--ink)"),
             backgroundColor: "var(--brand-fill)",
             padding: "12px 24px",
             letterSpacing: "0.2em",
@@ -280,8 +280,8 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
                   width: "28px",
                   height: "28px",
                   borderRadius: "50%",
-                  border: `1px solid ${isActive ? "#C8A97E" : isDone ? "#5E7E66" : "#CFC6B4"}`,
-                  backgroundColor: isActive ? "#C8A97E" : isDone ? "#5E7E66" : "transparent",
+                  border: `1px solid ${isActive || isDone ? "var(--brand-fill)" : "var(--line)"}`,
+                  backgroundColor: isActive || isDone ? "var(--brand-fill)" : "transparent",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -290,7 +290,7 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
               >
                 <span
                   style={{
-                    ...sans("11px", isActive || isDone ? "#221C14" : "#8A7F6E"),
+                    ...sans("11px", isActive || isDone ? "var(--ink)" : "var(--ink-soft)"),
                     fontWeight: 600,
                   }}
                 >
@@ -302,7 +302,7 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
                   style={{
                     flex: 1,
                     height: "1px",
-                    backgroundColor: "#CFC6B4",
+                    backgroundColor: "var(--line)",
                   }}
                 />
               )}
@@ -324,7 +324,7 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
             <div
               key={s.n}
               style={{
-                ...sans("11px", isActive ? "#221C14" : isDone ? "#5E7E66" : "#8A7F6E"),
+                ...sans("11px", isActive ? "var(--ink)" : isDone ? "var(--brand)" : "var(--ink-soft)"),
                 textAlign: s.n === 1 ? "left" : s.n === 3 ? "right" : "center",
                 width: "33%",
               }}
@@ -389,12 +389,16 @@ function DropZone({
   };
 
   const borderColor = hasFiles
-    ? "rgba(122,158,135,0.6)"
+    ? "var(--brand-fill)"
     : dragging
-    ? "rgba(200,169,126,0.4)"
-    : "#CFC6B4";
+    ? "color-mix(in srgb, var(--brand-fill) 40%, transparent)"
+    : "var(--line)";
 
-  const bgColor = hasFiles ? "rgba(122,158,135,0.05)" : dragging ? "rgba(200,169,126,0.03)" : "#221C14";
+  const bgColor = hasFiles
+    ? "color-mix(in srgb, var(--brand-fill) 5%, transparent)"
+    : dragging
+    ? "color-mix(in srgb, var(--brand-fill) 3%, transparent)"
+    : "var(--ink)";
 
   const iconBtn: React.CSSProperties = {
     background: "none",
@@ -440,21 +444,21 @@ function DropZone({
                 alignItems: "center",
                 gap: "10px",
                 padding: "6px 0",
-                borderBottom: i < files.length - 1 ? "1px solid rgba(122,158,135,0.2)" : "none",
+                borderBottom: i < files.length - 1 ? "1px solid var(--line)" : "none",
               }}
             >
               {files.length > 1 && (
-                <span style={{ ...sans("11px", "#8A7F6E"), width: "16px", flexShrink: 0 }}>{i + 1}</span>
+                <span style={{ ...sans("11px", "var(--ink-soft)"), width: "16px", flexShrink: 0 }}>{i + 1}</span>
               )}
               {pf.status === "done" ? (
-                <CheckCircle size={18} color="#5E7E66" style={{ flexShrink: 0 }} />
+                <CheckCircle size={18} color="var(--brand)" style={{ flexShrink: 0 }} />
               ) : pf.status === "uploading" ? (
                 <span
                   style={{
                     width: "14px",
                     height: "14px",
                     flexShrink: 0,
-                    border: "2px solid #C8A97E",
+                    border: "2px solid var(--brand-fill)",
                     borderTopColor: "transparent",
                     borderRadius: "50%",
                     display: "inline-block",
@@ -462,13 +466,13 @@ function DropZone({
                   }}
                 />
               ) : (
-                <span style={{ ...sans("14px", "#B0604C"), flexShrink: 0, lineHeight: 1 }}>!</span>
+                <span style={{ ...sans("14px", "var(--urgent-red)"), flexShrink: 0, lineHeight: 1 }}>!</span>
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ ...sans("13px", "#221C14"), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ ...sans("13px", "var(--ink)"), overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {pf.file.name}
                 </div>
-                <div style={{ ...sans("11px", pf.status === "error" ? "#B0604C" : "#8A7F6E"), marginTop: "1px" }}>
+                <div style={{ ...sans("11px", pf.status === "error" ? "var(--urgent-red)" : "var(--ink-soft)"), marginTop: "1px" }}>
                   {pf.status === "error" ? "Upload failed" : formatSize(pf.file.size)}
                 </div>
               </div>
@@ -486,7 +490,7 @@ function DropZone({
                     onClick={(e) => { e.stopPropagation(); onMove(pf.id, -1); }}
                     disabled={i === 0}
                     aria-label="Move page up"
-                    style={{ ...iconBtn, ...sans("13px", i === 0 ? "#CFC6B4" : "#8A7F6E"), cursor: i === 0 ? "default" : "pointer" }}
+                    style={{ ...iconBtn, ...sans("13px", i === 0 ? "var(--line)" : "var(--ink-soft)"), cursor: i === 0 ? "default" : "pointer" }}
                   >
                     ↑
                   </button>
@@ -494,7 +498,7 @@ function DropZone({
                     onClick={(e) => { e.stopPropagation(); onMove(pf.id, 1); }}
                     disabled={i === files.length - 1}
                     aria-label="Move page down"
-                    style={{ ...iconBtn, ...sans("13px", i === files.length - 1 ? "#CFC6B4" : "#8A7F6E"), cursor: i === files.length - 1 ? "default" : "pointer" }}
+                    style={{ ...iconBtn, ...sans("13px", i === files.length - 1 ? "var(--line)" : "var(--ink-soft)"), cursor: i === files.length - 1 ? "default" : "pointer" }}
                   >
                     ↓
                   </button>
@@ -503,7 +507,7 @@ function DropZone({
               <button
                 onClick={(e) => { e.stopPropagation(); onRemove(pf.id); }}
                 aria-label="Remove file"
-                style={{ ...iconBtn, ...sans("16px", "#8A7F6E") }}
+                style={{ ...iconBtn, ...sans("16px", "var(--ink-soft)") }}
               >
                 ×
               </button>
@@ -517,7 +521,7 @@ function DropZone({
               + Add pages
             </button>
             {files.length > 1 && (
-              <span style={{ ...sans("11px", "#8A7F6E") }}>
+              <span style={{ ...sans("11px", "var(--ink-soft)") }}>
                 Combined as one document, in this order
               </span>
             )}
@@ -525,20 +529,20 @@ function DropZone({
         </div>
       ) : (
         <div style={{ textAlign: "center" }}>
-          <Upload size={28} color="#CFC6B4" style={{ margin: "0 auto 12px", display: "block" }} />
-          <div style={{ ...serif("20px", { color: "#8A7F6E", lineHeight: 1.2 }) }}>
+          <Upload size={28} color="var(--line)" style={{ margin: "0 auto 12px", display: "block" }} />
+          <div style={{ ...serif("20px", { color: "var(--brand)", lineHeight: 1.2 }) }}>
             {zonelabel}
             {required && <span style={{ color: "var(--brand)", marginLeft: "4px" }}>*</span>}
           </div>
-          <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "4px" }}>
+          <div style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "4px" }}>
             {sublabel}
           </div>
-          <div style={{ ...sans("12px", "#C9BFAC"), marginTop: "8px" }}>
+          <div style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "8px" }}>
             Drop here, or click to browse, PDF, JPG, PNG, HEIC · multiple pages OK
           </div>
           <div
             style={{
-              ...sans("11px", "#C9BFAC"),
+              ...sans("11px", "var(--ink-soft)"),
               marginTop: "4px",
               display: "flex",
               alignItems: "center",
@@ -546,13 +550,13 @@ function DropZone({
               gap: "4px",
             }}
           >
-            <Camera size={12} color="#C9BFAC" />
+            <Camera size={12} color="var(--line)" />
             or take a photo
           </div>
         </div>
       )}
       {zoneError && (
-        <p style={{ ...sans("12px", "#B0604C"), marginTop: "10px", marginBottom: 0 }}>{zoneError}</p>
+        <p style={{ ...sans("12px", "var(--urgent-red)"), marginTop: "10px", marginBottom: 0 }}>{zoneError}</p>
       )}
     </div>
   );
@@ -573,19 +577,19 @@ function RadioCard({
       onClick={onSelect}
       style={{
         padding: "10px 16px",
-        border: `1px solid ${selected ? "#C8A97E" : "#D8CFBE"}`,
-        backgroundColor: selected ? "rgba(200,169,126,0.08)" : "#F4EFE6",
+        border: `1px solid ${selected ? "var(--brand-fill)" : "var(--line)"}`,
+        backgroundColor: selected ? "color-mix(in srgb, var(--brand-fill) 8%, transparent)" : "var(--surface-raised)",
         cursor: "pointer",
-        ...sans("13px", selected ? "#221C14" : "#5F5648"),
+        ...sans("13px", selected ? "var(--ink)" : "var(--ink-soft)"),
         transition: "border-color 0.2s, background-color 0.2s",
       }}
       onMouseEnter={(e) => {
         if (!selected)
-          (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(200,169,126,0.4)";
+          (e.currentTarget as HTMLDivElement).style.borderColor = "color-mix(in srgb, var(--brand-fill) 40%, transparent)";
       }}
       onMouseLeave={(e) => {
         if (!selected)
-          (e.currentTarget as HTMLDivElement).style.borderColor = "#D8CFBE";
+          (e.currentTarget as HTMLDivElement).style.borderColor = "var(--line)";
       }}
     >
       {option}
@@ -921,53 +925,57 @@ function UploadPageInner() {
               : "No errors found."}
           </h1>
           {hasErrors ? (
-            <p style={{ ...sans("16px", "#5F5648") }}>
-              <span style={{ ...serif("34px", { color: "var(--brand)", fontStyle: "italic" }) }}>
+            <p style={{ ...sans("16px", "var(--ink-soft)") }}>
+              <span className="figure" style={{ fontSize: "34px", color: "var(--brand)" }}>
                 ${Math.round(r.potentialSavings).toLocaleString()}
               </span>{" "}
-              in potential overcharges on a ${Math.round(r.totalBilled).toLocaleString()} bill.
+              in potential overcharges on a{" "}
+              <span className="figure" style={{ color: "var(--ink)" }}>
+                ${Math.round(r.totalBilled).toLocaleString()}
+              </span>{" "}
+              bill.
               {reviewNote && (
-                <span style={{ ...sans("14px", "#8A7F6E") }}> {reviewNote}</span>
+                <span style={{ ...sans("14px", "var(--ink-soft)") }}> {reviewNote}</span>
               )}
             </p>
           ) : needsReview > 0 ? (
-            <p style={{ ...sans("15px", "#5F5648"), maxWidth: "460px", lineHeight: 1.7 }}>
+            <p style={{ ...sans("15px", "var(--ink-soft)"), maxWidth: "460px", lineHeight: 1.7 }}>
               No charges exceeded your plan&apos;s expected rates. {reviewNote} These are
               usually facility or proprietary charge codes we price by hand.
             </p>
           ) : (
-            <p style={{ ...sans("15px", "#5F5648"), maxWidth: "460px", lineHeight: 1.7 }}>
+            <p style={{ ...sans("15px", "var(--ink-soft)"), maxWidth: "460px", lineHeight: 1.7 }}>
               Every line matched your plan&apos;s expected rates. Keep this, and let Verity watch your future bills automatically.
             </p>
           )}
 
           {r.errors.length > 0 && (
-            <div style={{ marginTop: "48px", borderTop: "1px solid #D8CFBE" }}>
+            <div style={{ marginTop: "48px", borderTop: "1px solid var(--line)" }}>
               {r.errors.map((e, i) => {
                 const isManualReview = MANUAL_REVIEW_ERROR_TYPES.has(e.error_type ?? "");
                 return (
                   <div
                     key={i}
                     className="r-grid-1"
-                    style={{ borderBottom: "1px solid #E2DACB", padding: "24px 0", display: "grid", gridTemplateColumns: "90px 1fr 130px", gap: "20px", alignItems: "baseline" }}
+                    style={{ borderBottom: "1px solid var(--line)", padding: "24px 0", display: "grid", gridTemplateColumns: "90px 1fr 130px", gap: "20px", alignItems: "baseline" }}
                   >
-                    <div style={{ ...sans("13px", "#8A7F6E") }}>{e.cpt_code}</div>
+                    <div className="figure" style={{ fontSize: "13px", color: "var(--ink-soft)" }}>{e.cpt_code}</div>
                     <div>
                       <div style={{ ...serif("20px", { lineHeight: 1.2 }) }}>{e.description}</div>
-                      <div style={{ ...sans("13px", "#2A2520"), marginTop: "6px", lineHeight: 1.5 }}>{e.explanation}</div>
-                      <div style={{ ...sans("11px", "#B3A28A"), marginTop: "4px" }}>{e.rule_violated}</div>
+                      <div style={{ ...sans("13px", "var(--ink)"), marginTop: "6px", lineHeight: 1.5 }}>{e.explanation}</div>
+                      <div style={{ ...sans("11px", "var(--ink-soft)"), marginTop: "4px" }}>{e.rule_violated}</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
                       {isManualReview ? (
-                        <div style={{ ...sans("10px", "#8A7F6E"), letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                        <div style={{ ...sans("10px", "var(--ink-soft)"), letterSpacing: "0.1em", textTransform: "uppercase" }}>
                           {e.error_type === "coding_observation" ? "informational" : "needs review"}
                         </div>
                       ) : (
                         <>
-                          <div style={{ ...serif("22px", { color: "var(--brand)" }) }}>
+                          <div className="figure" style={{ fontSize: "22px", color: "var(--brand)" }}>
                             ${Math.round(Math.max(0, e.billed_amount - e.expected_amount)).toLocaleString()}
                           </div>
-                          <div style={{ ...sans("10px", "#8A7F6E"), letterSpacing: "0.1em", textTransform: "uppercase" }}>recoverable</div>
+                          <div style={{ ...sans("10px", "var(--ink-soft)"), letterSpacing: "0.1em", textTransform: "uppercase" }}>recoverable</div>
                         </>
                       )}
                     </div>
@@ -978,9 +986,9 @@ function UploadPageInner() {
           )}
 
           {r.eobError && (
-            <div style={{ marginTop: "32px", backgroundColor: "#F4EFE6", border: "1px solid #D8CFBE", borderLeft: "3px solid #C8A97E", padding: "16px 20px" }}>
-              <div style={{ ...label("#8A7F6E"), marginBottom: "6px" }}>EOB notice</div>
-              <p style={{ ...sans("13px", "#5F5648"), lineHeight: 1.6 }}>
+            <div style={{ marginTop: "32px", backgroundColor: "var(--surface-raised)", border: "1px solid var(--line)", borderLeft: "3px solid var(--brand-fill)", padding: "16px 20px" }}>
+              <div style={{ ...label("var(--ink-soft)"), marginBottom: "6px" }}>EOB notice</div>
+              <p style={{ ...sans("13px", "var(--ink-soft)"), lineHeight: 1.6 }}>
                 We couldn&apos;t read your EOB, so this audit was completed using your bill only. Re-upload a clearer EOB (PDF or photo) to add the bill-vs-EOB cross-check.
               </p>
             </div>
@@ -992,21 +1000,21 @@ function UploadPageInner() {
                 Bill vs. EOB · {r.crossDocumentDiscrepancies.length} cross-document{" "}
                 {r.crossDocumentDiscrepancies.length === 1 ? "discrepancy" : "discrepancies"}
               </div>
-              <div style={{ borderTop: "1px solid #D8CFBE" }}>
+              <div style={{ borderTop: "1px solid var(--line)" }}>
                 {r.crossDocumentDiscrepancies.map((d) => {
                   const sevColor =
-                    d.severity === "critical" || d.severity === "high" ? "#B0604C" : "#C8A97E";
+                    d.severity === "critical" || d.severity === "high" ? "var(--urgent-red)" : "var(--brand)";
                   return (
                     <div
                       key={d.discrepancyId}
-                      style={{ borderBottom: "1px solid #E2DACB", padding: "24px 0" }}
+                      style={{ borderBottom: "1px solid var(--line)", padding: "24px 0" }}
                     >
                       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "16px" }}>
                         <div style={{ ...serif("20px", { lineHeight: 1.2 }), textTransform: "capitalize" }}>
                           {d.type.replace(/_/g, " ")}
                         </div>
                         {d.estimatedDollarImpact > 0 && (
-                          <div style={{ ...serif("22px", { color: sevColor }) }}>
+                          <div className="figure" style={{ fontSize: "22px", color: sevColor }}>
                             ${Math.round(d.estimatedDollarImpact).toLocaleString()}
                           </div>
                         )}
@@ -1014,9 +1022,9 @@ function UploadPageInner() {
                       <div style={{ ...sans("11px", sevColor), textTransform: "uppercase", letterSpacing: "0.1em", marginTop: "4px" }}>
                         {d.severity} · {Math.round(d.confidenceScore * 100)}% confidence
                       </div>
-                      <p style={{ ...sans("13px", "#2A2520"), marginTop: "8px", lineHeight: 1.6 }}>{d.description}</p>
+                      <p style={{ ...sans("13px", "var(--ink)"), marginTop: "8px", lineHeight: 1.6 }}>{d.description}</p>
                       {d.applicableRegulations?.length > 0 && (
-                        <div style={{ ...sans("11px", "#B3A28A"), marginTop: "6px", lineHeight: 1.5 }}>
+                        <div style={{ ...sans("11px", "var(--ink-soft)"), marginTop: "6px", lineHeight: 1.5 }}>
                           {d.applicableRegulations[0]}
                         </div>
                       )}
@@ -1027,22 +1035,30 @@ function UploadPageInner() {
             </div>
           )}
 
-          <div style={{ marginTop: "48px", backgroundColor: "#F4EFE6", border: "1px solid #D8CFBE", padding: "32px" }}>
+          <div style={{ marginTop: "48px", backgroundColor: "var(--surface-raised)", border: "1px solid var(--line)", padding: "32px" }}>
             <div style={{ ...serif("26px", { lineHeight: 1.2, marginBottom: "8px" }) }}>
-              {hasErrors && r.potentialSavings > 0
-                ? `Verity found $${Math.round(r.potentialSavings).toLocaleString()} in billing errors.`
-                : hasErrors
-                ? "Get your money back."
-                : "Stay protected."}
+              {hasErrors && r.potentialSavings > 0 ? (
+                <>
+                  Verity found{" "}
+                  <span className="figure" style={{ fontSize: "24px" }}>
+                    ${Math.round(r.potentialSavings).toLocaleString()}
+                  </span>{" "}
+                  in billing errors.
+                </>
+              ) : hasErrors ? (
+                "Get your money back."
+              ) : (
+                "Stay protected."
+              )}
             </div>
-            <p style={{ ...sans("14px", "#5F5648"), lineHeight: 1.7, maxWidth: "480px", marginBottom: "24px" }}>
+            <p style={{ ...sans("14px", "var(--ink-soft)"), lineHeight: 1.7, maxWidth: "480px", marginBottom: "24px" }}>
               {hasErrors
                 ? "Create a free account to save this audit and get your dispute package, $39 for this bill, and have every future bill checked automatically."
                 : "Create a free account to save this audit and have every future bill checked automatically."}
             </p>
             <div className="r-cta" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <Link href="/login" style={{ textDecoration: "none" }}>
-                <span style={{ ...sans("11px", "#221C14"), backgroundColor: "var(--brand-fill)", padding: "16px 32px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
+                <span style={{ ...sans("11px", "var(--ink)"), backgroundColor: "var(--brand-fill)", padding: "16px 32px", letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 500, display: "inline-block" }}>
                   Create free account →
                 </span>
               </Link>
@@ -1066,14 +1082,14 @@ function UploadPageInner() {
                   setPhase("form");
                   setStep(1);
                 }}
-                style={{ ...sans("11px", "#221C14"), border: "1px solid #C2B7A3", padding: "16px 32px", letterSpacing: "0.2em", textTransform: "uppercase", display: "inline-block", cursor: "pointer" }}
+                style={{ ...sans("11px", "var(--ink)"), border: "1px solid var(--line)", padding: "16px 32px", letterSpacing: "0.2em", textTransform: "uppercase", display: "inline-block", cursor: "pointer" }}
               >
                 Audit another bill
               </span>
             </div>
           </div>
 
-          <p style={{ ...sans("11px", "#8A7F6E"), fontStyle: "italic", marginTop: "24px", lineHeight: 1.6 }}>
+          <p style={{ ...sans("11px", "var(--ink-soft)"), fontStyle: "italic", marginTop: "24px", lineHeight: 1.6 }}>
             Verity flags potential billing errors and the rule behind each. This is not legal or medical advice.
           </p>
         </div>
@@ -1116,23 +1132,23 @@ function UploadPageInner() {
         <Link
           href="/"
           style={{
-            ...sans("12px", "#8A7F6E"),
+            ...sans("12px", "var(--ink-soft)"),
             textDecoration: "none",
             transition: "color 0.2s",
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = "#5F5648")}
-          onMouseLeave={(e) => (e.currentTarget.style.color = "#8A7F6E")}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--ink)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ink-soft)")}
         >
           ← Verity
         </Link>
         {tierLabel && (
           <div
             style={{
-              backgroundColor: "#EFE9DD",
-              border: "1px solid #D8CFBE",
+              backgroundColor: "var(--surface-raised)",
+              border: "1px solid var(--line)",
               padding: "4px 12px",
               borderRadius: "4px",
-              ...sans("11px", "#5F5648"),
+              ...sans("11px", "var(--ink-soft)"),
               letterSpacing: "0.15em",
               textTransform: "uppercase",
             }}
@@ -1164,7 +1180,7 @@ function UploadPageInner() {
               <div style={{ ...serif("40px", { lineHeight: 1.1 }) }}>
                 Upload your documents.
               </div>
-              <p style={{ ...sans("14px", "#5F5648"), marginTop: "12px" }}>
+              <p style={{ ...sans("14px", "var(--ink-soft)"), marginTop: "12px" }}>
                 Your bill and EOB. Takes three minutes.
               </p>
 
@@ -1194,7 +1210,7 @@ function UploadPageInner() {
                 />
               </div>
 
-              <p style={{ ...sans("12px", "#8A7F6E"), marginTop: "24px" }}>
+              <p style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "24px" }}>
                 Don&apos;t have your EOB? You can still proceed, the audit will
                 be less precise.
               </p>
@@ -1205,12 +1221,12 @@ function UploadPageInner() {
                 style={{
                   marginTop: "40px",
                   width: "100%",
-                  backgroundColor: billFiles.length > 0 ? "#C8A97E" : "#EFE9DD",
-                  color: billFiles.length > 0 ? "#221C14" : "#8A7F6E",
+                  backgroundColor: billFiles.length > 0 ? "var(--brand-fill)" : "var(--line)",
+                  color: billFiles.length > 0 ? "var(--ink)" : "var(--ink-soft)",
                   border: "none",
                   padding: "16px",
                   cursor: billFiles.length > 0 ? "pointer" : "not-allowed",
-                  ...sans("11px", billFiles.length > 0 ? "#221C14" : "#8A7F6E"),
+                  ...sans("11px", billFiles.length > 0 ? "var(--ink)" : "var(--ink-soft)"),
                   letterSpacing: "0.2em",
                   textTransform: "uppercase",
                   transition: "background-color 0.2s",
@@ -1232,14 +1248,14 @@ function UploadPageInner() {
               <div style={{ ...serif("40px", { lineHeight: 1.1 }) }}>
                 Tell us about your care.
               </div>
-              <p style={{ ...sans("14px", "#5F5648"), marginTop: "12px" }}>
+              <p style={{ ...sans("14px", "var(--ink-soft)"), marginTop: "12px" }}>
                 This helps us find errors faster.
               </p>
 
               <div style={{ marginTop: "40px" }}>
                 {/* Question 1 */}
                 <div style={{ marginBottom: "32px" }}>
-                  <div style={{ ...label("#8A7F6E"), marginBottom: "12px" }}>
+                  <div style={{ ...label("var(--ink-soft)"), marginBottom: "12px" }}>
                     Type of care
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -1263,7 +1279,7 @@ function UploadPageInner() {
 
                 {/* Question 2 */}
                 <div style={{ marginBottom: "32px" }}>
-                  <div style={{ ...label("#8A7F6E"), marginBottom: "12px" }}>
+                  <div style={{ ...label("var(--ink-soft)"), marginBottom: "12px" }}>
                     Insurance type
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -1286,7 +1302,7 @@ function UploadPageInner() {
 
                 {/* Question 3 */}
                 <div style={{ marginBottom: "32px" }}>
-                  <div style={{ ...label("#8A7F6E"), marginBottom: "12px" }}>
+                  <div style={{ ...label("var(--ink-soft)"), marginBottom: "12px" }}>
                     Did you receive a Good Faith Estimate?
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -1303,12 +1319,12 @@ function UploadPageInner() {
                     <div
                       style={{
                         marginTop: "12px",
-                        backgroundColor: "#F4EFE6",
-                        border: "1px solid #D8CFBE",
+                        backgroundColor: "var(--surface-raised)",
+                        border: "1px solid var(--line)",
                         padding: "16px 20px",
                       }}
                     >
-                      <p style={{ ...sans("12px", "#5F5648"), lineHeight: 1.65 }}>
+                      <p style={{ ...sans("12px", "var(--ink-soft)"), lineHeight: 1.65 }}>
                         A Good Faith Estimate is a document providers are required
                         to give patients before non-emergency care under the No
                         Surprises Act (2022). If you didn&apos;t receive one and
@@ -1320,12 +1336,12 @@ function UploadPageInner() {
 
                 {/* Question 4 */}
                 <div style={{ marginBottom: "32px" }}>
-                  <div style={{ ...label("#8A7F6E"), marginBottom: "8px" }}>
+                  <div style={{ ...label("var(--ink-soft)"), marginBottom: "8px" }}>
                     Anything else we should know?
                   </div>
                   <div
                     style={{
-                      ...sans("12px", "#8A7F6E"),
+                      ...sans("12px", "var(--ink-soft)"),
                       marginBottom: "12px",
                       lineHeight: 1.65,
                     }}
@@ -1338,18 +1354,18 @@ function UploadPageInner() {
                     value={userNotes}
                     onChange={(e) => setUserNotes(e.target.value)}
                     onFocus={(e) => {
-                      e.currentTarget.style.borderColor = "#C8A97E";
+                      e.currentTarget.style.borderColor = "var(--brand-fill)";
                     }}
                     onBlur={(e) => {
-                      e.currentTarget.style.borderColor = "#CFC6B4";
+                      e.currentTarget.style.borderColor = "var(--line)";
                     }}
                     placeholder="e.g. They charged for a lab test but never completed it because the sample was insufficient..."
                     style={{
                       width: "100%",
                       minHeight: "120px",
                       backgroundColor: "var(--surface)",
-                      border: "1px solid #CFC6B4",
-                      color: "#221C14",
+                      border: "1px solid var(--line)",
+                      color: "var(--ink)",
                       padding: "16px",
                       fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                       fontSize: "14px",
@@ -1369,12 +1385,12 @@ function UploadPageInner() {
                 style={{
                   marginTop: "40px",
                   width: "100%",
-                  backgroundColor: careType && insuranceType && gfe ? "#C8A97E" : "#EFE9DD",
-                  color: careType && insuranceType && gfe ? "#221C14" : "#8A7F6E",
+                  backgroundColor: careType && insuranceType && gfe ? "var(--brand-fill)" : "var(--line)",
+                  color: careType && insuranceType && gfe ? "var(--ink)" : "var(--ink-soft)",
                   border: "none",
                   padding: "16px",
                   cursor: careType && insuranceType && gfe ? "pointer" : "not-allowed",
-                  ...sans("11px", careType && insuranceType && gfe ? "#221C14" : "#8A7F6E"),
+                  ...sans("11px", careType && insuranceType && gfe ? "var(--ink)" : "var(--ink-soft)"),
                   letterSpacing: "0.2em",
                   textTransform: "uppercase",
                   transition: "background-color 0.2s",
@@ -1396,7 +1412,7 @@ function UploadPageInner() {
               <div style={{ ...serif("40px", { lineHeight: 1.1 }) }}>
                 Choose your path.
               </div>
-              <p style={{ ...sans("14px", "#5F5648"), marginTop: "12px" }}>
+              <p style={{ ...sans("14px", "var(--ink-soft)"), marginTop: "12px" }}>
                 You can upgrade anytime.
               </p>
 
@@ -1412,29 +1428,29 @@ function UploadPageInner() {
                 <div
                   onClick={() => setTier("audit")}
                   style={{
-                    backgroundColor: "#F4EFE6",
-                    border: `1px solid ${tier === "audit" ? "#C8A97E" : "#D8CFBE"}`,
+                    backgroundColor: "var(--surface-raised)",
+                    border: `1px solid ${tier === "audit" ? "var(--brand-fill)" : "var(--line)"}`,
                     padding: "24px",
                     cursor: "pointer",
                     transition: "border-color 0.2s",
                   }}
                   onMouseEnter={(e) => {
                     if (tier !== "audit")
-                      (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(200,169,126,0.3)";
+                      (e.currentTarget as HTMLDivElement).style.borderColor = "color-mix(in srgb, var(--brand-fill) 30%, transparent)";
                   }}
                   onMouseLeave={(e) => {
                     if (tier !== "audit")
-                      (e.currentTarget as HTMLDivElement).style.borderColor = "#D8CFBE";
+                      (e.currentTarget as HTMLDivElement).style.borderColor = "var(--line)";
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "baseline" }}>
                     <span style={{ ...serif("26px") }}>Audit</span>
                     <span style={{ ...serif("26px", { fontStyle: "italic" }), marginLeft: "auto" }}>Free</span>
                   </div>
-                  <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "4px" }}>
+                  <div style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "4px" }}>
                     Always free, see what&apos;s wrong before deciding
                   </div>
-                  <div style={{ borderTop: "1px solid #D8CFBE", margin: "16px 0" }} />
+                  <div style={{ borderTop: "1px solid var(--line)", margin: "16px 0" }} />
                   {[
                     "Scan every charge against your plan",
                     "Full error report in minutes",
@@ -1449,8 +1465,8 @@ function UploadPageInner() {
                         marginBottom: "6px",
                       }}
                     >
-                      <span style={{ ...sans("13px", "#8A7F6E") }}>›</span>
-                      <span style={{ ...sans("13px", "#5F5648") }}>{f}</span>
+                      <span style={{ ...sans("13px", "var(--ink-soft)") }}>›</span>
+                      <span style={{ ...sans("13px", "var(--ink-soft)") }}>{f}</span>
                     </div>
                   ))}
                 </div>
@@ -1459,8 +1475,8 @@ function UploadPageInner() {
                 <div
                   onClick={() => setTier("dispute")}
                   style={{
-                    backgroundColor: "#F4EFE6",
-                    border: `1px solid ${tier === "dispute" ? "#C8A97E" : "#D8CFBE"}`,
+                    backgroundColor: "var(--surface-raised)",
+                    border: `1px solid ${tier === "dispute" ? "var(--brand-fill)" : "var(--line)"}`,
                     padding: "24px",
                     cursor: "pointer",
                     transition: "border-color 0.2s",
@@ -1468,24 +1484,24 @@ function UploadPageInner() {
                   }}
                   onMouseEnter={(e) => {
                     if (tier !== "dispute")
-                      (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(200,169,126,0.3)";
+                      (e.currentTarget as HTMLDivElement).style.borderColor = "color-mix(in srgb, var(--brand-fill) 30%, transparent)";
                   }}
                   onMouseLeave={(e) => {
                     if (tier !== "dispute")
-                      (e.currentTarget as HTMLDivElement).style.borderColor = "#D8CFBE";
+                      (e.currentTarget as HTMLDivElement).style.borderColor = "var(--line)";
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "baseline" }}>
                     <span style={{ ...serif("26px") }}>Single Dispute</span>
                     <span style={{ ...serif("26px", { fontStyle: "italic" }), marginLeft: "auto" }}>$39</span>
                   </div>
-                  <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "4px" }}>
+                  <div style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "4px" }}>
                     one-time, for one bill
                   </div>
-                  <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "2px" }}>
+                  <div style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "2px" }}>
                     One bill. Ready to send.
                   </div>
-                  <div style={{ borderTop: "1px solid #D8CFBE", margin: "16px 0" }} />
+                  <div style={{ borderTop: "1px solid var(--line)", margin: "16px 0" }} />
                   {["+Prefilled dispute letter", "+Appeal letter if denied", "+Submission guide", "+Deadline tracker"].map((f) => (
                     <div
                       key={f}
@@ -1496,8 +1512,8 @@ function UploadPageInner() {
                         marginBottom: "6px",
                       }}
                     >
-                      <span style={{ ...sans("13px", "#8A7F6E") }}>›</span>
-                      <span style={{ ...sans("13px", "#5F5648") }}>{f}</span>
+                      <span style={{ ...sans("13px", "var(--ink-soft)") }}>›</span>
+                      <span style={{ ...sans("13px", "var(--ink-soft)") }}>{f}</span>
                     </div>
                   ))}
                 </div>
@@ -1506,8 +1522,8 @@ function UploadPageInner() {
                 <div
                   onClick={() => setTier("membership")}
                   style={{
-                    backgroundColor: "#F4EFE6",
-                    border: `1.5px solid ${tier === "membership" ? "#C8A97E" : "rgba(200,169,126,0.5)"}`,
+                    backgroundColor: "var(--surface-raised)",
+                    border: `1.5px solid ${tier === "membership" ? "var(--brand-fill)" : "color-mix(in srgb, var(--brand-fill) 50%, transparent)"}`,
                     padding: "24px",
                     cursor: "pointer",
                     transition: "border-color 0.2s",
@@ -1516,30 +1532,25 @@ function UploadPageInner() {
                 >
                   <div
                     style={{
-                      display: "inline-block",
-                      backgroundColor: "var(--brand-fill)",
-                      color: "#221C14",
-                      fontSize: "10px",
+                      ...sans("11px", "var(--brand)"),
                       letterSpacing: "0.15em",
                       textTransform: "uppercase",
-                      padding: "2px 8px",
                       marginBottom: "8px",
-                      fontFamily: "var(--font-public-sans), system-ui, sans-serif",
                     }}
                   >
-                    Most popular
+                    Best if you have more than one bill
                   </div>
                   <div style={{ display: "flex", alignItems: "baseline" }}>
                     <span style={{ ...serif("26px") }}>Membership</span>
                     <span style={{ ...serif("26px", { fontStyle: "italic" }), marginLeft: "auto" }}>$19/mo</span>
                   </div>
-                  <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "4px" }}>
+                  <div style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "4px" }}>
                     or $149/yr, every bill, covered
                   </div>
-                  <div style={{ ...sans("12px", "#8A7F6E"), marginTop: "2px" }}>
+                  <div style={{ ...sans("12px", "var(--ink-soft)"), marginTop: "2px" }}>
                     Your ongoing bill watchdog.
                   </div>
-                  <div style={{ borderTop: "1px solid #D8CFBE", margin: "16px 0" }} />
+                  <div style={{ borderTop: "1px solid var(--line)", margin: "16px 0" }} />
                   {["+Unlimited audits & dispute letters", "+Every new bill audited automatically", "+Appeal & regulator letters", "+Alerts + priority support"].map((f) => (
                     <div
                       key={f}
@@ -1550,8 +1561,8 @@ function UploadPageInner() {
                         marginBottom: "6px",
                       }}
                     >
-                      <span style={{ ...sans("13px", "#8A7F6E") }}>›</span>
-                      <span style={{ ...sans("13px", "#5F5648") }}>{f}</span>
+                      <span style={{ ...sans("13px", "var(--ink-soft)") }}>›</span>
+                      <span style={{ ...sans("13px", "var(--ink-soft)") }}>{f}</span>
                     </div>
                   ))}
                 </div>
@@ -1562,14 +1573,14 @@ function UploadPageInner() {
                 <div
                   style={{
                     backgroundColor: "var(--surface)",
-                    border: "1px solid #E2DACB",
+                    border: "1px solid var(--line)",
                     padding: "16px 20px",
                     marginTop: "24px",
                   }}
                 >
                   <div
                     style={{
-                      ...sans("11px", "#8A7F6E"),
+                      ...sans("11px", "var(--ink-soft)"),
                       textTransform: "uppercase",
                       letterSpacing: "0.2em",
                       marginBottom: "12px",
@@ -1592,8 +1603,8 @@ function UploadPageInner() {
                           marginBottom: "6px",
                         }}
                       >
-                        <CheckCircle size={14} color="#5E7E66" />
-                        <span style={{ ...sans("13px", "#5F5648") }}>
+                        <CheckCircle size={14} color="var(--brand)" />
+                        <span style={{ ...sans("13px", "var(--ink-soft)") }}>
                           {x.files.length === 1
                             ? x.files[0].file.name
                             : `${x.lbl}, ${x.files.length} pages`}
@@ -1606,7 +1617,7 @@ function UploadPageInner() {
               {/* Legal consent */}
               <p
                 style={{
-                  ...sans("12px", "#8A7F6E"),
+                  ...sans("12px", "var(--ink-soft)"),
                   lineHeight: 1.65,
                   marginTop: "24px",
                 }}
@@ -1619,7 +1630,7 @@ function UploadPageInner() {
 
               {/* Submit button */}
              {error && (
-  <p style={{ ...sans("13px", "#B0604C"), marginTop: "16px" }}>
+  <p style={{ ...sans("13px", "var(--urgent-red)"), marginTop: "16px" }}>
     {error}
   </p>
 )}
@@ -1629,12 +1640,12 @@ function UploadPageInner() {
   style={{
     marginTop: "24px",
     width: "100%",
-    backgroundColor: tier && billFiles.length > 0 && !loading ? "#C8A97E" : "#EFE9DD",
-    color: tier && billFiles.length > 0 && !loading ? "#221C14" : "#8A7F6E",
+    backgroundColor: tier && billFiles.length > 0 && !loading ? "var(--brand-fill)" : "var(--line)",
+    color: tier && billFiles.length > 0 && !loading ? "var(--ink)" : "var(--ink-soft)",
     border: "none",
     padding: "16px",
     cursor: tier && billFiles.length > 0 && !loading ? "pointer" : "not-allowed",
-    ...sans("11px", tier && billFiles.length > 0 && !loading ? "#221C14" : "#8A7F6E"),
+    ...sans("11px", tier && billFiles.length > 0 && !loading ? "var(--ink)" : "var(--ink-soft)"),
     letterSpacing: "0.2em",
     textTransform: "uppercase",
     transition: "background-color 0.2s",

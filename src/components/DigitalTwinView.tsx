@@ -61,7 +61,7 @@ export function DigitalTwinView({ cases }: { cases: TwinCaseInput[] }) {
         ].map(m => (
           <div key={m.label}>
             <div style={{ ...sans('10px', 'var(--ink-soft)'), letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '6px' }}>{m.label}</div>
-            <div className="figure" style={{ ...sans('22px', 'var(--ink)') }}>{m.value}</div>
+            <div className="figure" style={{ fontSize: '22px', color: 'var(--ink)' }}>{m.value}</div>
           </div>
         ))}
       </div>
