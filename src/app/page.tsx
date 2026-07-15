@@ -34,6 +34,49 @@ const label = (color = "#C8A97E"): React.CSSProperties => ({
   color,
 });
 
+// ─── Hero stats bar ───────────────────────────────────────────────────────────
+// Restored verbatim (2026-07-14, explicit owner override of the 2026-07-08
+// design-bible lock) from the original hero dark stats bar, cb68e21. That
+// commit's numbers were never sourced; this bar carries no citation because
+// none exists. Recolored onto current tokens since --bg-dark/--amber/etc. no
+// longer exist post-palette-v2; the original two-column hero + overlay layout
+// is also gone, so this renders as a standalone strip below the hero image.
+function HeroStatsBar() {
+  const stats = [
+    { value: "$4.2M", label: "Recovered for clients" },
+    { value: "73%", label: "Avg. bill reduction" },
+    { value: "34d", label: "Avg. resolution" },
+  ];
+  return (
+    <div
+      className="r-grid-1"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, 1fr)",
+        backgroundColor: "var(--ink)",
+        maxWidth: "min(1100px, 96vw)",
+        width: "100%",
+        marginTop: "40px",
+      }}
+    >
+      {stats.map((s, i) => (
+        <div
+          key={s.label}
+          style={{
+            padding: "24px 28px",
+            borderLeft: i === 0 ? "none" : "1px solid rgba(246,243,236,0.16)",
+          }}
+        >
+          <div style={{ ...serif("32px", { color: "var(--brand)", lineHeight: 1 }) }}>{s.value}</div>
+          <div style={{ ...sans("10px", "rgba(246,243,236,0.6)"), letterSpacing: "0.2em", textTransform: "uppercase", marginTop: "8px" }}>
+            {s.label}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── FAQs ─────────────────────────────────────────────────────────────────────
 const FAQS = [
   {
@@ -448,6 +491,7 @@ export default function LandingPage() {
         <p style={{ ...sans("11px", "#8A7F6E"), letterSpacing: "0.14em", textTransform: "uppercase", marginTop: "20px" }}>
           Free audit · no account needed
         </p>
+        <HeroStatsBar />
       </section>
 
       {/* ── Problem Section ── */}
@@ -481,8 +525,12 @@ export default function LandingPage() {
             </p>
           </div>
 
-          {/* Industry stat cards, exhibit styling. The 80% figure carries the
-              "up to" qualifier per its reported 49-80% range. */}
+          {/* Industry stat cards, exhibit styling. Restored 2026-07-14 (explicit
+              owner override of the 2026-07-08 design-bible lock) with the
+              /sources citation link, which is what makes these compliant
+              rather than banned: sourced external figures, attributed, never
+              framed as Verity's own findings. The 80% figure carries the "up
+              to" qualifier per its reported 49-80% range. */}
           <div>
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {[
@@ -510,6 +558,12 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
+            <p style={{ ...sans("11px", "#8A7F6E"), marginTop: "12px", lineHeight: 1.6 }}>
+              Sources: industry billing-audit studies and ACA claims data.{" "}
+              <Link href="/sources" style={{ color: "var(--brand)", textDecoration: "underline", textUnderlineOffset: "3px" }}>
+                See citations
+              </Link>
+            </p>
           </div>
         </div>
       </motion.section>

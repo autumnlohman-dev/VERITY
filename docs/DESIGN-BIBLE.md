@@ -43,21 +43,7 @@ UI task touching that screen.
 
 ### P1 — obvious AI smell
 - **NO rounded-2xl + shadow-lg on every surface.** Elevation is earned by the
-  most important element on the screen, not sprayed on all of them.
-- **NO emoji as icons or in headings/buttons/nav.** Ever. (The timeline's
-  hospital/receipt/scales emoji icons violate this today — replace with a
-  drawn icon set.)
-- **NO icon-in-a-rounded-square feature rows.**
-- **NO default blue buttons.**
-- **NO "Elevate your workflow" copy.** Ban list: elevate, empower, seamless,
-  unlock, supercharge, revolutionize, "built for the modern ___". VERITY copy
-  is specific and calm: "We found one error worth $300. Here's the letter."
-- **NO em dashes (—) or en dashes (–) in any user-facing copy, UI strings,
-  marketing text, OR generated dispute letters.** Use a comma, colon,
-  period, or parentheses instead. This is a recognized AI-writing tell and
-  undermines letter credibility. (Regular hyphens are untouched — they are
-  required in code ranges, account numbers, dates, and compound words.)
-- **NO fake authority metrics** ("10,000+ users") until the numbers are real.
+  mos
 
 ### P2 — cosmetic drift
 - No flat, uniform spacing where everything sits at equal visual volume.
@@ -99,9 +85,16 @@ UI task touching that screen.
 ### Other locked decisions (2026-07-08)
 - The "Most popular" badge is replaced by descriptive guidance ("Best if
   you have more than one bill").
-- The marketing stats bar (fabricated metrics) is deleted in favor of the
-  live golden-case demo plus one real credential (medical billing
-  specialist, 30+ successful disputes — pending her sign-off).
+- The marketing stats bar (fabricated metrics) was deleted 2026-04-22 in
+  favor of the live golden-case demo plus one real credential (medical
+  billing specialist, 30+ successful disputes — pending her sign-off; the
+  credential itself has still never shipped). **OVERRIDDEN 2026-07-14**: the
+  product owner explicitly restored the hero dark stats bar ($4.2M
+  recovered / 73% bill reduction / 34d avg. resolution, `HeroStatsBar` in
+  `src/app/page.tsx`) with full knowledge these numbers are unsourced
+  placeholders, not real data — flagged as a P1 fake-authority-metric ban
+  violation before restoring. Do not re-remove this citing this file without
+  asking the owner first; the override is intentional and current.
 - Score surfaces (Financial Harm Score, Outcome Prediction, Digital Twin
   metrics) get the Part 6 translation treatment: plain-words forecast as
   the headline, the number demoted to secondary detail.
